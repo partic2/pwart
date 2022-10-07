@@ -1,0 +1,7 @@
+
+
+SLJIT_SOURCE_ROOT=$(PWART_SOURCE_ROOT)/sljit
+
+SLJIT_CFLAGS=
+
+SLJIT_LDFLAGS=$(SLJIT_SOURCE_ROOT)/sljit_src/sljitLir.c -lm -lpthread
