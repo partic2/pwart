@@ -106,7 +106,7 @@ static int pwart_PrepareFunc(Module *m) {
       break;
     case 0x0b: // end
       block_depth--;
-      if (block_depth == 0) {
+      if (block_depth <=0) {
         eof = 1;
       }
       break;
@@ -127,6 +127,14 @@ static int pwart_PrepareFunc(Module *m) {
       arg = read_LEB(bytes, &m->pc, 32);
       m->globals_base_local=-2;
       break;
+    case 0x25: //table.get
+      tidx = read_LEB(bytes, &m->pc, 32); //table index
+      m->table_entries_local=-2;
+      break;
+    case 0x26: //table.set
+      tidx = read_LEB(bytes, &m->pc, 32); //table index
+      m->table_entries_local=-2;
+      break;
     // Memory load operators
     case 0x28 ... 0x35:
       flags = read_LEB(bytes, &m->pc, 32);
@@ -142,10 +150,12 @@ static int pwart_PrepareFunc(Module *m) {
       break;
 
     default:
+      m->pc--;
       skip_immediates(m->bytes, &m->pc);
       break;
     }
   }
+  SLJIT_ASSERT(m->bytes[m->pc-1]==0xb);
   if (m->mem_base_local == -2) {
     m->mem_base_local = m->locals->len;
     sv = dynarr_push_type(&m->locals, StackValue);
@@ -242,14 +252,14 @@ static void stackvalue_LowWord(Module *m, StackValue *sv, sljit_s32 *op,
     SLJIT_UNREACHABLE();
   }
 }
-
+//find stackvalue is using register r, check for 0 to m->sp-upstack
 static StackValue *stackvalue_FindSvalueUseReg(Module *m, sljit_s32 r,
-                                               sljit_s32 regtype) {
+                                               sljit_s32 regtype,int upstack) {
   StackValue *sv;
   int i, used = 0;
-  for (i = 0; i <= m->sp; i++) {
+  for (i = 0; i <= m->sp-upstack; i++) {
     sv = &m->stack[i];
-    if (regtype != RT_FLOAT && !stackvalue_IsFloat(sv)) {
+    if ((regtype == RT_FLOAT) != stackvalue_IsFloat(sv)) {
       continue;
     }
     if ((sv->jit_type == SVT_GENERAL || sv->jit_type == SVT_POINTER)) {
@@ -274,7 +284,7 @@ static StackValue *stackvalue_FindSvalueUseReg(Module *m, sljit_s32 r,
 static int pwart_EmitStoreStackValue(Module *m, StackValue *sv, int memreg,
                                      int offset) {
   if (sv->jit_type == SVT_GENERAL) {
-    if (m->target_ptr_size != 32) {
+    if (m->target_ptr_size == 64) {
       switch (sv->wasm_type) {
       case WVT_I32:
         sljit_emit_op1(m->jitc, SLJIT_MOV32, memreg, offset, sv->val.op,
@@ -294,7 +304,7 @@ static int pwart_EmitStoreStackValue(Module *m, StackValue *sv, int memreg,
                        sv->val.opw);
         break;
       }
-    } else {
+    } else if(m->target_ptr_size==32) {
       switch (sv->wasm_type) {
       case WVT_I64:
         if (memreg & SLJIT_MEM) {
@@ -320,6 +330,8 @@ static int pwart_EmitStoreStackValue(Module *m, StackValue *sv, int memreg,
                        sv->val.opw);
         break;
       }
+    }else{
+      SLJIT_UNREACHABLE();
     }
   } else if (sv->jit_type == SVT_CMP) {
     sljit_emit_op_flags(m->jitc, SLJIT_MOV, memreg, offset, sv->val.cmp.flag);
@@ -430,6 +442,8 @@ static inline size_t get_globalsbuf_offset(Module *m){
   return offsetof(RuntimeContext,globals);
 }
 
+//Don't emit any code here.
+//Don't write other stackvalue (due to stackvalue_EmitSwapTopTwoValue function).
 static StackValue *push_stackvalue(Module *m, StackValue *sv) {
   StackValue *sv2;
   sv2 = &m->stack[++m->sp];
@@ -448,6 +462,28 @@ static StackValue *push_stackvalue(Module *m, StackValue *sv) {
   return sv2;
 }
 
+static void stackvalue_EmitSwapTopTwoValue(Module *m){
+  StackValue *sv;
+  //copy stack[sp-1]
+  sv=push_stackvalue(m,&m->stack[m->sp-1]);
+  if(sv->jit_type==SVT_GENERAL && sv->val.op==SLJIT_MEM1(SLJIT_S0) && sv->val.opw>=m->first_stackvalue_offset){
+    //value are on stack, we need save it otherwhere.
+    pwart_EmitStackValueLoadReg(m,sv);
+  }
+  m->sp-=3;
+  push_stackvalue(m,&m->stack[m->sp+2]);
+  push_stackvalue(m,&m->stack[m->sp+2]);
+  //recover value on stack
+  sv=&m->stack[m->sp-1];
+  if(sv->jit_type==SVT_GENERAL && sv->val.op==SLJIT_MEM1(SLJIT_S0) && sv->val.opw>=m->first_stackvalue_offset){
+    pwart_EmitSaveStack(m,sv);
+  }
+  sv=&m->stack[m->sp];
+  if(sv->jit_type==SVT_GENERAL && sv->val.op==SLJIT_MEM1(SLJIT_S0) && sv->val.opw>=m->first_stackvalue_offset){
+    pwart_EmitSaveStack(m,sv);
+  }
+}
+
 static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
                               sljit_sw offset) {
   StackValue *sv;
@@ -458,12 +494,12 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
     memreg=SLJIT_R2;
     offset=0;
   }
+  sv = dynarr_get(m->locals, StackValue, m->runtime_ptr_local); // RuntimeContext *
+  sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R1, 0, sv->val.op, sv->val.opw);
   m->sp -= strlen(type->params);
   sv = &m->stack[m->sp+1]; // first argument
   sljit_emit_op2(m->jitc, SLJIT_ADD, SLJIT_R0, 0, SLJIT_S0, 0, SLJIT_IMM,
                  sv->frame_offset);
-  sv = dynarr_get(m->locals, StackValue, m->runtime_ptr_local); // RuntimeContext *
-  sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R1, 0, sv->val.op, sv->val.opw);
   sljit_emit_icall(m->jitc, SLJIT_CALL, SLJIT_ARGS2(VOID, W, W), memreg,
                    offset);
   len = strlen(type->results);
@@ -489,7 +525,8 @@ static int pwart_EmitFuncReturn(Module *m) {
   sljit_emit_return_void(m->jitc);
 }
 
-static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype) {
+//get free register. check up to upstack. 
+static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype, int upstack) {
   int i, used;
   sljit_s32 fr;
   StackValue *sv;
@@ -503,7 +540,7 @@ static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype) {
         if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
           continue;
         }
-        sv = stackvalue_FindSvalueUseReg(m, fr, regtype);
+        sv = stackvalue_FindSvalueUseReg(m, fr, regtype, upstack);
         if (sv == NULL) {
           return fr;
         }
@@ -514,7 +551,7 @@ static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype) {
         if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
           continue;
         }
-        sv = stackvalue_FindSvalueUseReg(m, fr, regtype);
+        sv = stackvalue_FindSvalueUseReg(m, fr, regtype, upstack);
         if (sv == NULL) {
           return fr;
         }
@@ -528,7 +565,7 @@ static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype) {
       if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
         continue;
       }
-      sv = stackvalue_FindSvalueUseReg(m, fr, regtype);
+      sv = stackvalue_FindSvalueUseReg(m, fr, regtype, upstack);
       if (sv == NULL) {
         return fr;
       }
@@ -542,7 +579,7 @@ static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype) {
       if (m->float_registers_status[fr - SLJIT_FR0] & RS_RESERVED) {
         continue;
       }
-      sv = stackvalue_FindSvalueUseReg(m, fr, regtype);
+      sv = stackvalue_FindSvalueUseReg(m, fr, regtype,upstack);
       if (sv == NULL) {
         return fr;
       }
@@ -553,23 +590,23 @@ static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype) {
 }
 
 static sljit_s32 pwart_GetFreeRegExcept(Module *m, sljit_s32 regtype,
-                                        sljit_s32 except) {
+                                        sljit_s32 except,int upstack) {
   sljit_s32 r1;
   if (regtype == RT_FLOAT) {
     if (m->float_registers_status[except - SLJIT_R0] & RS_RESERVED) {
-      return pwart_GetFreeReg(m, regtype);
+      return pwart_GetFreeReg(m, regtype,upstack);
     } else {
       m->float_registers_status[except - SLJIT_R0] |= RS_RESERVED;
-      r1 = pwart_GetFreeReg(m, regtype);
+      r1 = pwart_GetFreeReg(m, regtype,upstack);
       m->float_registers_status[except - SLJIT_R0] &= ~RS_RESERVED;
       return r1;
     }
   } else {
     if (m->registers_status[except - SLJIT_R0] & RS_RESERVED) {
-      return pwart_GetFreeReg(m, regtype);
+      return pwart_GetFreeReg(m, regtype,upstack);
     } else {
       m->registers_status[except - SLJIT_R0] |= RS_RESERVED;
-      r1 = pwart_GetFreeReg(m, regtype);
+      r1 = pwart_GetFreeReg(m, regtype,upstack);
       m->registers_status[except - SLJIT_R0] &= ~RS_RESERVED;
       return r1;
     }
@@ -583,8 +620,8 @@ static void pwart_EmitStackValueLoadReg(Module *m, StackValue *sv) {
     if (sv->jit_type == SVT_TWO_REG) {
       return;
     }
-    r1 = pwart_GetFreeReg(m, RT_INTEGER);
-    r2 = pwart_GetFreeRegExcept(m, RT_INTEGER, r1);
+    r1 = pwart_GetFreeReg(m, RT_INTEGER,0);
+    r2 = pwart_GetFreeRegExcept(m, RT_INTEGER, r1,0);
     if (sv->jit_type == SVT_GENERAL) {
       sljit_emit_op1(m->jitc, SLJIT_MOV, r1, 0, sv->val.op, sv->val.opw);
       sljit_emit_op1(m->jitc, SLJIT_MOV, r2, 0, sv->val.op, sv->val.opw + 4);
@@ -601,9 +638,9 @@ static void pwart_EmitStackValueLoadReg(Module *m, StackValue *sv) {
       return;
     }
     if (stackvalue_IsFloat(sv)) {
-      r1 = pwart_GetFreeReg(m, RT_FLOAT);
+      r1 = pwart_GetFreeReg(m, RT_FLOAT,0);
     } else {
-      r1 = pwart_GetFreeReg(m, RT_INTEGER);
+      r1 = pwart_GetFreeReg(m, RT_INTEGER,0);
     }
     pwart_EmitLoadReg(m, sv, r1);
     sv->val.op = r1;
@@ -630,22 +667,24 @@ static int pwart_EmitFuncEnter(Module *m) {
     sv->val.opw = nextLoc;
     nextLoc += stackvalue_GetSizeAndAlign(sv, NULL);
   }
+  m->first_stackvalue_offset=nextLoc;
+
   for (i = len; i < m->locals->len; i++) {
     sv = dynarr_get(m->locals, StackValue, i);
     sv->jit_type = SVT_GENERAL;
     if (m->target_ptr_size == 32) {
-      if (sv->wasm_type == WVT_I32) {
-        if (nextSr >= SLJIT_FIRST_SAVED_REG) {
-          sv->val.op = nextSr;
-          sv->val.opw=0;
-          nextSr--;
-          continue;
-        }
-      } else if (sv->wasm_type == WVT_F32 || sv->wasm_type == WVT_F64) {
+      if (sv->wasm_type == WVT_F32 || sv->wasm_type == WVT_F64) {
         if (nextSfr >= SLJIT_FIRST_SAVED_FLOAT_REG) {
           sv->val.op = nextSfr;
           sv->val.opw=0;
           nextSfr--;
+          continue;
+        }
+      }else if(stackvalue_GetSizeAndAlign(sv,NULL)==4) {
+        if (nextSr >= SLJIT_FIRST_SAVED_REG) {
+          sv->val.op = nextSr;
+          sv->val.opw=0;
+          nextSr--;
           continue;
         }
       }
@@ -675,8 +714,8 @@ static int pwart_EmitFuncEnter(Module *m) {
   }
   sljit_emit_enter(
       m->jitc, 0, SLJIT_ARGS2(VOID, W, W), SLJIT_NUMBER_OF_SCRATCH_REGISTERS,
-      SLJIT_NUMBER_OF_SAVED_REGISTERS, SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS,
-      SLJIT_NUMBER_OF_SAVED_FLOAT_REGISTERS, nextLoc);
+      SLJIT_S0-nextSr, SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS,
+      SLJIT_FS0-nextSfr, nextLoc);
 
   if(m->table_entries_local>=0){
     sv = dynarr_get(m->locals, StackValue, m->table_entries_local);
@@ -767,7 +806,9 @@ static int pwart_GenCode(Module *m) {
     if (stack[m->sp].jit_type == SVT_CMP && opcode != 0x04 && opcode != 0x0d) {
       pwart_EmitSaveStack(m, &stack[m->sp]);
     }
+    #if DEBUG_BUILD
     wa_debug("op %d:%s\n",m->pc,OPERATOR_INFO[opcode]);
+    #endif
     switch (opcode) {
 
     //
@@ -785,6 +826,7 @@ static int pwart_GenCode(Module *m) {
       pwart_EmitSaveStackAll(m);
       block = dynarr_push_type(&m->blocks, Block);
       block->block_type = 0x2;
+      dynarr_init(&block->br_jump,sizeof(struct sljit_jump *));
       break;
     case 0x03:                     // loop
       read_LEB(bytes, &m->pc, 32); // ignore block type
@@ -798,10 +840,10 @@ static int pwart_GenCode(Module *m) {
       pwart_EmitSaveStackAll(m);
       block = dynarr_push_type(&m->blocks, Block);
       block->block_type = 0x4;
-
-      sv = &stack[m->sp--];
+      dynarr_init(&block->br_jump,sizeof(struct sljit_jump *));
+      sv = &stack[m->sp];
       if (sv->jit_type == SVT_CMP) {
-        int freer = pwart_GetFreeReg(m, RT_INTEGER);
+        int freer = pwart_GetFreeReg(m, RT_INTEGER,0);
         sljit_emit_op_flags(m->jitc, SLJIT_MOV, freer, 0, sv->val.cmp.flag);
         jump = sljit_emit_cmp(m->jitc, SLJIT_EQUAL, sv->val.op, sv->val.opw,
                               SLJIT_IMM, 0);
@@ -810,6 +852,7 @@ static int pwart_GenCode(Module *m) {
                               SLJIT_IMM, 0);
       }
       block->else_jump = jump;
+      m->sp--;
       break;
     case 0x05: // else
       pwart_EmitSaveStackAll(m);
@@ -837,7 +880,9 @@ static int pwart_GenCode(Module *m) {
         // init_expr
         sljit_emit_return_void(m->jitc);
       }
-      dynarr_free(&block->br_jump);
+      if(block->br_jump!=NULL){
+        dynarr_free(&block->br_jump);
+      }
     }break;
     case 0x0c: // br
       depth = read_LEB(bytes, &m->pc, 32);
@@ -860,7 +905,7 @@ static int pwart_GenCode(Module *m) {
           sljit_set_label(sljit_emit_jump(m->jitc, sv->val.cmp.flag),
                           block->br_label);
         } else {
-          *dynarr_push_type(&block->br_jump, void *) =
+          *dynarr_push_type(&block->br_jump, struct sljit_jump *) =
               sljit_emit_jump(m->jitc, sv->val.cmp.flag);
         }
       } else if (sv->jit_type == SVT_GENERAL) {
@@ -869,7 +914,7 @@ static int pwart_GenCode(Module *m) {
                                          sv->val.opw, SLJIT_IMM, 0),
                           block->br_label);
         } else {
-          *dynarr_push_type(&block->br_jump, void *) =
+          *dynarr_push_type(&block->br_jump, struct sljit_jump *) =
               sljit_emit_jump(m->jitc, SLJIT_JUMP);
         }
       } else {
@@ -884,8 +929,6 @@ static int pwart_GenCode(Module *m) {
         i32p = dynarr_push_type(&m->br_table, uint32_t);
         *i32p = read_LEB(bytes, &m->pc, 32);
       }
-      // depth = read_LEB(bytes, &m->pc, 32);
-      //  TODO: check that depth is within table
       sv = &stack[m->sp--];
       pwart_EmitSaveStack(m, sv);
       pwart_EmitSaveStackAll(m);
@@ -926,26 +969,28 @@ static int pwart_GenCode(Module *m) {
     //
     case 0x10: // call
       fidx = read_LEB(bytes, &m->pc, 32);
-      a = pwart_GetFreeReg(m, RT_INTEGER);
+      a = pwart_GetFreeReg(m, RT_INTEGER,0);
       sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
       sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
                      SLJIT_IMM, sizeof(void *) * fidx);
       type = dynarr_get(m->types, Type, fidx);
-      pwart_EmitCallFunc(m, type, a, 0);
+      pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
       break;
     case 0x11: // call_indirect
       tidx = read_LEB(bytes, &m->pc, 32);
       type = dynarr_get(m->types, Type, tidx);
       read_LEB(bytes, &m->pc, 1); // reserved immediate
-      sv = &stack[m->sp--];
-      a = pwart_GetFreeReg(m, RT_INTEGER);
+      sv = &stack[m->sp];
+      a = pwart_GetFreeReg(m, RT_INTEGER, 1);
       sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw,
                      SLJIT_IMM, sizeof(void *) == 4 ? 2 : 3);
 
       sv = dynarr_get(m->locals, StackValue, m->table_entries_local);
       sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv->val.op, sv->val.opw);
+      m->sp--;
 
       pwart_EmitCallFunc(m, type, a, 0);
+      
       break;
     //
     // Parametric operators
@@ -989,8 +1034,9 @@ static int pwart_GenCode(Module *m) {
           pwart_EmitSaveStack(m,&stack[i]);
         }
       }
-      sv2 = &stack[m->sp--];
+      sv2 = &stack[m->sp];
       pwart_EmitStoreStackValue(m, sv2, sv->val.op, sv->val.opw);
+      m->sp--;
       break;
     case 0x22: // local.tee
       arg = read_LEB(bytes, &m->pc, 32);
@@ -999,33 +1045,63 @@ static int pwart_GenCode(Module *m) {
       pwart_EmitStoreStackValue(m, sv2, sv->val.op, sv->val.opw);
       break;
     case 0x23: // global.get
-      a=pwart_GetFreeReg(m,RT_BASE);
+      a=pwart_GetFreeReg(m,RT_BASE,0);
       sv=dynarr_get(m->locals,StackValue,m->globals_base_local);
       sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,sv->val.op,sv->val.opw);
       arg = read_LEB(bytes, &m->pc, 32);
       sv=push_stackvalue(m, dynarr_get(m->globals, StackValue, arg));
       sv->val.op=SLJIT_MEM1(a);
       sv->jit_type=SVT_GENERAL;
-      m->sp--;
       pwart_EmitStackValueLoadReg(m,sv);
-      m->sp++;
       break;
     case 0x24: // global.set
-      a=pwart_GetFreeReg(m,RT_BASE);
+      a=pwart_GetFreeReg(m,RT_BASE,0);
       sv=dynarr_get(m->locals,StackValue,m->globals_base_local);
       sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,sv->val.op,sv->val.opw);
       arg = read_LEB(bytes, &m->pc, 32);
       sv= dynarr_get(m->globals, StackValue, arg);
-      sv2 = &stack[m->sp--];
+      sv2 = &stack[m->sp];
       pwart_EmitStoreStackValue(m, sv2, SLJIT_MEM1(a), sv->val.opw);
+      m->sp--;
+      break;
+    case 0x25: //table.get
+      tidx = read_LEB(bytes, &m->pc, 32); //table index
+      sv = &stack[m->sp];
+      a = pwart_GetFreeReg(m, RT_INTEGER,1);
+      sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw,
+                      SLJIT_IMM, sizeof(void *) == 4 ? 2 : 3);
+      sv2 = dynarr_get(m->locals, StackValue, m->table_entries_local);
+      sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv2->val.op, sv2->val.opw);
+      sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,SLJIT_MEM1(a),0);
+      sv=&stack[m->sp];
+      sv->wasm_type=WVT_FUNC;
+      sv->jit_type=SVT_GENERAL;
+      sv->val.op=a;
+      sv->val.opw=0;
+      break;
+    case 0x26: //table.set
+      tidx = read_LEB(bytes, &m->pc, 32); //table index
+      stackvalue_EmitSwapTopTwoValue(m);
+      sv = &stack[m->sp];
+      a = pwart_GetFreeReg(m, RT_INTEGER ,1);
+      sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw,
+                      SLJIT_IMM, sizeof(void *) == 4 ? 2 : 3);
+      m->sp--;
+      sv = dynarr_get(m->locals, StackValue, m->table_entries_local);
+      sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv->val.op, sv->val.opw);
+      sv=&stack[m->sp];
+      pwart_EmitStoreStackValue(m,sv,SLJIT_MEM1(a),0);
+      m->sp--;
       break;
     //
     // Memory-related operators
     //
     case 0x3f:                     // current_memory
       read_LEB(bytes, &m->pc, 32); // ignore reserved
-      a = pwart_GetFreeReg(m, RT_INTEGER);
-      sljit_emit_op1(m->jitc, SLJIT_MOV32, a, 0, SLJIT_MEM1(SLJIT_S1),
+      a = pwart_GetFreeReg(m, RT_INTEGER,0);
+      sv=dynarr_get(m->locals,StackValue,m->runtime_ptr_local);
+      sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,sv->val.op,sv->val.opw);
+      sljit_emit_op1(m->jitc, SLJIT_MOV32, a, 0, SLJIT_MEM1(a),
                      offsetof(RuntimeContext, memory.pages));
       sv = push_stackvalue(m, NULL);
       sv->jit_type = SVT_GENERAL;
@@ -1036,18 +1112,15 @@ static int pwart_GenCode(Module *m) {
     case 0x40:                     // grow_memory
       read_LEB(bytes, &m->pc, 32); // ignore reserved
       pwart_EmitCallFunc(m, &func_type_i32_ret_i32, SLJIT_IMM,
-                         (sljit_sw)&memory_grow_func);
+                         (sljit_sw)&insn_memorygrow);
       break;
     // Memory load operators
     case 0x28 ... 0x35:
       flags = read_LEB(bytes, &m->pc, 32); // align
       offset = read_LEB(bytes, &m->pc, 32);
-      sv2 = push_stackvalue(m, NULL);
-      *sv2 = stack[m->sp - 1];         // addr
-      stack[m->sp - 1] = stack[m->sp]; // value
-      m->sp -= 2;
+      *sv2 = stack[m->sp];         // addr
       sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
-      a = pwart_GetFreeReg(m, RT_BASE);
+      a = pwart_GetFreeReg(m, RT_BASE,1);
       if (sv2->wasm_type == WVT_I32) {
         sljit_emit_op2(m->jitc, SLJIT_ADD32, a, 0, sv->val.op, sv->val.opw,
                        sv2->val.op, sv2->val.opw);
@@ -1055,7 +1128,8 @@ static int pwart_GenCode(Module *m) {
         // TODO:memory64 support
         SLJIT_UNREACHABLE();
       }
-      sv = &stack[m->sp];
+      m->sp--;
+      sv = push_stackvalue(m,NULL);
       sv->jit_type = SVT_GENERAL;
       switch (opcode) {
       case 0x28: // i32.load32
@@ -1101,7 +1175,7 @@ static int pwart_GenCode(Module *m) {
           sv->jit_type = SVT_TWO_REG;
           sv->wasm_type = WVT_I64;
           sv->val.tworeg.opr1 = a;
-          b = pwart_GetFreeRegExcept(m, RT_INTEGER, a);
+          b = pwart_GetFreeRegExcept(m, RT_INTEGER, a,0);
           sljit_emit_op1(m->jitc, SLJIT_MOV, b, 0, SLJIT_IMM, 0);
         } else {
           sv->jit_type = SVT_GENERAL;
@@ -1135,12 +1209,10 @@ static int pwart_GenCode(Module *m) {
     case 0x36 ... 0x3e:
       flags = read_LEB(bytes, &m->pc, 32); // align
       offset = read_LEB(bytes, &m->pc, 32);
-      sv2 = push_stackvalue(m, NULL);
-      *sv2 = stack[m->sp - 1];         // addr
-      stack[m->sp - 1] = stack[m->sp]; // value
-      m->sp -= 2;
+      stackvalue_EmitSwapTopTwoValue(m);
+      sv2=&m->stack[m->sp];
       sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
-      a = pwart_GetFreeReg(m, RT_BASE);
+      a = pwart_GetFreeReg(m, RT_BASE,1);
       if (sv2->wasm_type == WVT_I32) {
         sljit_emit_op2(m->jitc, SLJIT_ADD32, a, 0, sv->val.op, sv->val.opw,
                        sv2->val.op, sv2->val.opw);
@@ -1148,13 +1220,14 @@ static int pwart_GenCode(Module *m) {
         // TODO:memory64 support
         SLJIT_UNREACHABLE();
       }
+      m->sp--;
       sv = &stack[m->sp];
       switch (opcode) {
       case 0x36: // i32.store
       case 0x37: // i64.store
       case 0x38: // f32.store
       case 0x39: // f64.store
-        pwart_EmitStoreStackValue(m, sv, a, offset);
+        pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(a), offset);
         break;
       case 0x3a: // i32.store8
       case 0x3c: // i64.store8
@@ -1180,6 +1253,7 @@ static int pwart_GenCode(Module *m) {
                        sv->val.op, sv->val.opw);
         break;
       }
+      m->sp--;
       break;
     //
     // Constants
@@ -1419,103 +1493,106 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0x5b ... 0x60:
       sv2 = &stack[m->sp];
-      m->sp -= 1;
-      sv = &stack[m->sp];
+      sv = &stack[m->sp-1];
       // pop arg1 to allow arg1 to be the result.
-      m->sp -= 1;
 
       switch (opcode) {
       case 0x5b: // f32.eq
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F32 | SLJIT_SET(SLJIT_F_EQUAL), a, 0,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_EQUAL;
+        b = SLJIT_F_EQUAL;
         break;
       case 0x5c: // f32.ne
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F32 | SLJIT_SET(SLJIT_F_NOT_EQUAL),
                         a, 0, sv->val.op, sv->val.opw, sv2->val.op,
                         sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_NOT_EQUAL;
+        b = SLJIT_F_NOT_EQUAL;
         break;
       case 0x5d: // f32.lt
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F32 | SLJIT_SET(SLJIT_F_LESS), a, 0,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_LESS;
+        b = SLJIT_F_LESS;
         break;
       case 0x5e: // f32.gt
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F32 | SLJIT_SET(SLJIT_F_GREATER), a,
                         0, sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_GREATER;
+        b = SLJIT_F_GREATER;
         break;
       case 0x5f: // f32.le
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F32 | SLJIT_SET(SLJIT_F_LESS_EQUAL),
                         a, 0, sv->val.op, sv->val.opw, sv2->val.op,
                         sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_LESS_EQUAL;
+        b = SLJIT_F_LESS_EQUAL;
         break;
       case 0x60: // f32.ge
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc,
                         SLJIT_SUB_F32 | SLJIT_SET(SLJIT_F_GREATER_EQUAL), a, 0,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_GREATER_EQUAL;
+        b = SLJIT_F_GREATER_EQUAL;
         break;
       }
-      m->sp++;
+      m->sp-=2;
+      sv=push_stackvalue(m,NULL);
+      sv->wasm_type=WVT_I32;
+      sv->jit_type=SVT_CMP;
+      sv->val.cmp.flag=b;
       break;
     case 0x61 ... 0x66:
       sv2 = &stack[m->sp];
-      m->sp -= 1;
       sv = &stack[m->sp];
-      // pop arg1 to allow arg1 to be the result.
-      m->sp -= 1;
 
       switch (opcode) {
       case 0x61: // f64.eq
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F32 | SLJIT_SET(SLJIT_F_EQUAL), a, 0,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_EQUAL;
+        b = SLJIT_F_EQUAL;
         break;
       case 0x62: // f64.ne
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F64 | SLJIT_SET(SLJIT_F_NOT_EQUAL),
                         a, 0, sv->val.op, sv->val.opw, sv2->val.op,
                         sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_NOT_EQUAL;
+        b = SLJIT_F_NOT_EQUAL;
         break;
       case 0x63: // f64.lt
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F64 | SLJIT_SET(SLJIT_F_LESS), a, 0,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_LESS;
+        b = SLJIT_F_LESS;
         break;
       case 0x64: // f64.gt
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F64 | SLJIT_SET(SLJIT_F_GREATER), a,
                         0, sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_GREATER;
+        b = SLJIT_F_GREATER;
         break;
       case 0x65: // f64.le
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc, SLJIT_SUB_F64 | SLJIT_SET(SLJIT_F_LESS_EQUAL),
                         a, 0, sv->val.op, sv->val.opw, sv2->val.op,
                         sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_LESS_EQUAL;
+        b = SLJIT_F_LESS_EQUAL;
         break;
       case 0x66: // f64.ge
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
         sljit_emit_fop2(m->jitc,
                         SLJIT_SUB_F64 | SLJIT_SET(SLJIT_F_GREATER_EQUAL), a, 0,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_F_GREATER_EQUAL;
+        b = SLJIT_F_GREATER_EQUAL;
         break;
       }
-      m->sp++;
+      m->sp-=2;
+      sv=push_stackvalue(m,NULL);
+      sv->wasm_type=WVT_I32;
+      sv->jit_type=SVT_CMP;
+      sv->val.cmp.flag=b;
       break;
 
     //
@@ -1523,27 +1600,27 @@ static int pwart_GenCode(Module *m) {
     //
 
     // unary i32
-    case 0x67:
+    case 0x67: //i32.clz
       pwart_EmitCallFunc(m, &func_type_i32_ret_i32, SLJIT_IMM,
                          (sljit_sw)&insn_i32clz);
       break;
-    case 0x68:
+    case 0x68: //i32.ctz
       pwart_EmitCallFunc(m, &func_type_i32_ret_i32, SLJIT_IMM,
                          (sljit_sw)&insn_i32ctz);
       break;
-    case 0x69:
+    case 0x69: //i32.popcount
       pwart_EmitCallFunc(m, &func_type_i32_ret_i32, SLJIT_IMM,
                          (sljit_sw)&insn_i32popcount);
       break;
-    case 0x79:
+    case 0x79: //i64.clz
       pwart_EmitCallFunc(m, &func_type_i64_ret_i64, SLJIT_IMM,
                          (sljit_sw)&insn_i64clz);
       break;
-    case 0x7a:
+    case 0x7a: //i64.ctz
       pwart_EmitCallFunc(m, &func_type_i64_ret_i64, SLJIT_IMM,
                          (sljit_sw)&insn_i64ctz);
       break;
-    case 0x7b:
+    case 0x7b: //i64.popcount
       pwart_EmitCallFunc(m, &func_type_i64_ret_i64, SLJIT_IMM,
                          (sljit_sw)&insn_i64popcount);
       break;
@@ -1551,23 +1628,20 @@ static int pwart_GenCode(Module *m) {
     // unary f32
     case 0x8b: // f32.abs
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_FLOAT); // free register
+      a = pwart_GetFreeReg(m, RT_FLOAT,1); // free register
       sljit_emit_fop1(m->jitc, SLJIT_ABS_F32, a, 0, sv->val.op, sv->val.opw);
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
-      m->sp++;
       break;
     case 0x8c: // f32.neg
       sv = &stack[m->sp];
       m->sp--;
-      a = pwart_GetFreeReg(m, RT_FLOAT); // free register
+      a = pwart_GetFreeReg(m, RT_FLOAT,1); // free register
       sljit_emit_fop1(m->jitc, SLJIT_NEG_F32, a, 0, sv->val.op, sv->val.opw);
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
-      m->sp++;
       break;
 
     case 0x8d: // f32.ceil
@@ -1594,23 +1668,23 @@ static int pwart_GenCode(Module *m) {
     // unary f64
     case 0x99: // f64.abs
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_FLOAT); // free register
+      a = pwart_GetFreeReg(m, RT_FLOAT,1); // free register
       sljit_emit_fop1(m->jitc, SLJIT_ABS_F64, a, 0, sv->val.op, sv->val.opw);
+      sv=push_stackvalue(m,NULL);
+      sv->wasm_type=WVT_F64;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
-      m->sp++;
       break;
     case 0x9a: // f64.neg
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_FLOAT); // free register
+      a = pwart_GetFreeReg(m, RT_FLOAT,1); // free register
       sljit_emit_fop1(m->jitc, SLJIT_NEG_F64, a, 0, sv->val.op, sv->val.opw);
+      sv=push_stackvalue(m,NULL);
+      sv->wasm_type=WVT_F64;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
-      m->sp++;
       break;
     case 0x9b: // f64.ceil
       pwart_EmitCallFunc(m, &func_type_f64_ret_f64, SLJIT_IMM,
@@ -1636,10 +1710,9 @@ static int pwart_GenCode(Module *m) {
     // i32 binary
     case 0x6a ... 0x78:
       if (opcode != 0x77 && opcode != 0x78) {
-        m->sp -= 2;
-        sv = &stack[m->sp + 1];
-        sv2 = &stack[m->sp + 2];
-        a = pwart_GetFreeReg(m, RT_INTEGER);
+        sv = &stack[m->sp-1];
+        sv2 = &stack[m->sp];
+        a = pwart_GetFreeReg(m, RT_INTEGER,2);
       }
       switch (opcode) {
       case 0x6a: // i32.add
@@ -1657,15 +1730,15 @@ static int pwart_GenCode(Module *m) {
       case 0x6d: // i32.div_s
       {
         StackValue *sv3;
-        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER);
+        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER,0);
         if (sv3 != sv) {
           pwart_EmitSaveStack(m, sv3);
           pwart_EmitLoadReg(m, sv, SLJIT_R0);
         }
-        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER);
+        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER,0);
         if (sv3 != sv2) {
           pwart_EmitSaveStack(m, sv3);
-          pwart_EmitLoadReg(m, sv, SLJIT_R1);
+          pwart_EmitLoadReg(m, sv2, SLJIT_R1);
         }
         a = SLJIT_R0;
         sljit_emit_op0(m->jitc, SLJIT_DIV_S32);
@@ -1673,15 +1746,15 @@ static int pwart_GenCode(Module *m) {
       case 0x6e: // i32.div_u
       {
         StackValue *sv3;
-        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER);
+        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER,0);
         if (sv3 != sv) {
           pwart_EmitSaveStack(m, sv3);
           pwart_EmitLoadReg(m, sv, SLJIT_R0);
         }
-        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER);
+        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER,0);
         if (sv3 != sv2) {
           pwart_EmitSaveStack(m, sv3);
-          pwart_EmitLoadReg(m, sv, SLJIT_R1);
+          pwart_EmitLoadReg(m, sv2, SLJIT_R1);
         }
         a = SLJIT_R0;
         sljit_emit_op0(m->jitc, SLJIT_DIV_U32);
@@ -1689,15 +1762,15 @@ static int pwart_GenCode(Module *m) {
       case 0x6f: // i32.rem_s
       {
         StackValue *sv3;
-        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER);
+        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER,0);
         if (sv3 != sv) {
           pwart_EmitSaveStack(m, sv3);
           pwart_EmitLoadReg(m, sv, SLJIT_R0);
         }
-        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER);
+        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER,0);
         if (sv3 != sv2) {
           pwart_EmitSaveStack(m, sv3);
-          pwart_EmitLoadReg(m, sv, SLJIT_R1);
+          pwart_EmitLoadReg(m, sv2, SLJIT_R1);
         }
         a = SLJIT_R1;
         sljit_emit_op0(m->jitc, SLJIT_DIVMOD_S32);
@@ -1705,15 +1778,15 @@ static int pwart_GenCode(Module *m) {
       case 0x70: // i32.rem_u
       {
         StackValue *sv3;
-        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER);
+        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER,0);
         if (sv3 != sv) {
           pwart_EmitSaveStack(m, sv3);
           pwart_EmitLoadReg(m, sv, SLJIT_R0);
         }
-        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER);
+        sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER,0);
         if (sv3 != sv2) {
           pwart_EmitSaveStack(m, sv3);
-          pwart_EmitLoadReg(m, sv, SLJIT_R1);
+          pwart_EmitLoadReg(m, sv2, SLJIT_R1);
         }
         a = SLJIT_R1;
         sljit_emit_op0(m->jitc, SLJIT_DIVMOD_U32);
@@ -1752,6 +1825,7 @@ static int pwart_GenCode(Module *m) {
         break;
       }
       if (opcode != 0x77 && opcode != 0x78) {
+        m->sp-=2;
         sv = push_stackvalue(m, NULL);
         sv->jit_type = SVT_GENERAL;
         sv->wasm_type = WVT_I32;
@@ -1764,10 +1838,9 @@ static int pwart_GenCode(Module *m) {
     case 0x7c ... 0x8a:
       if (m->target_ptr_size == 64) {
         if (opcode != 0x89 && opcode != 0x8a) {
-          m->sp -= 2;
-          sv = &stack[m->sp + 1];
-          sv2 = &stack[m->sp + 2];
-          a = pwart_GetFreeReg(m, RT_INTEGER);
+          sv = &stack[m->sp-1];
+          sv2 = &stack[m->sp];
+          a = pwart_GetFreeReg(m, RT_INTEGER,2);
         }
         switch (opcode) {
         case 0x7c: // i64.add
@@ -1785,15 +1858,15 @@ static int pwart_GenCode(Module *m) {
         case 0x7f: // i64.div_s
         {
           StackValue *sv3;
-          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER);
+          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER,0);
           if (sv3 != sv) {
             pwart_EmitSaveStack(m, sv3);
             pwart_EmitLoadReg(m, sv, SLJIT_R0);
           }
-          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER);
+          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER,0);
           if (sv3 != sv2) {
             pwart_EmitSaveStack(m, sv3);
-            pwart_EmitLoadReg(m, sv, SLJIT_R1);
+            pwart_EmitLoadReg(m, sv2, SLJIT_R1);
           }
           a = SLJIT_R0;
           sljit_emit_op0(m->jitc, SLJIT_DIV_SW);
@@ -1801,15 +1874,15 @@ static int pwart_GenCode(Module *m) {
         case 0x80: // i64.div_u
         {
           StackValue *sv3;
-          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER);
+          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER,0);
           if (sv3 != sv) {
             pwart_EmitSaveStack(m, sv3);
             pwart_EmitLoadReg(m, sv, SLJIT_R0);
           }
-          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER);
+          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER,0);
           if (sv3 != sv2) {
             pwart_EmitSaveStack(m, sv3);
-            pwart_EmitLoadReg(m, sv, SLJIT_R1);
+            pwart_EmitLoadReg(m, sv2, SLJIT_R1);
           }
           a = SLJIT_R0;
           sljit_emit_op0(m->jitc, SLJIT_DIV_UW);
@@ -1817,15 +1890,15 @@ static int pwart_GenCode(Module *m) {
         case 0x81: // i64.rem_s
         {
           StackValue *sv3;
-          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER);
+          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER, 0);
           if (sv3 != sv) {
             pwart_EmitSaveStack(m, sv3);
             pwart_EmitLoadReg(m, sv, SLJIT_R0);
           }
-          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER);
+          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER, 0);
           if (sv3 != sv2) {
             pwart_EmitSaveStack(m, sv3);
-            pwart_EmitLoadReg(m, sv, SLJIT_R1);
+            pwart_EmitLoadReg(m, sv2, SLJIT_R1);
           }
           a = SLJIT_R1;
           sljit_emit_op0(m->jitc, SLJIT_DIVMOD_SW);
@@ -1833,15 +1906,15 @@ static int pwart_GenCode(Module *m) {
         case 0x82: // i64.rem_u
         {
           StackValue *sv3;
-          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER);
+          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R0, RT_INTEGER,0);
           if (sv3 != sv) {
             pwart_EmitSaveStack(m, sv3);
             pwart_EmitLoadReg(m, sv, SLJIT_R0);
           }
-          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER);
+          sv3 = stackvalue_FindSvalueUseReg(m, SLJIT_R1, RT_INTEGER,0);
           if (sv3 != sv2) {
             pwart_EmitSaveStack(m, sv3);
-            pwart_EmitLoadReg(m, sv, SLJIT_R1);
+            pwart_EmitLoadReg(m, sv2, SLJIT_R1);
           }
           a = SLJIT_R1;
           sljit_emit_op0(m->jitc, SLJIT_DIVMOD_UW);
@@ -1880,6 +1953,7 @@ static int pwart_GenCode(Module *m) {
           break;
         }
         if (opcode != 0x89 && opcode != 0x8a) {
+          m->sp-=2;
           sv = push_stackvalue(m, NULL);
           sv->jit_type = SVT_GENERAL;
           sv->wasm_type = WVT_I64;
@@ -2061,10 +2135,9 @@ static int pwart_GenCode(Module *m) {
     // f32 binary
     case 0x92 ... 0x98:
       if (opcode <= 0x95) {
-        m->sp -= 2;
-        sv = &stack[m->sp + 1];
-        sv2 = &stack[m->sp + 2];
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        sv = &stack[m->sp-1];
+        sv2 = &stack[m->sp];
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
       }
       switch (opcode) {
       case 0x92: // f32.add
@@ -2097,6 +2170,7 @@ static int pwart_GenCode(Module *m) {
         break;
       }
       if (opcode <= 0x95) {
+        m->sp-=2;
         sv = push_stackvalue(m, NULL);
         sv->jit_type = SVT_GENERAL;
         sv->wasm_type = WVT_F64;
@@ -2108,10 +2182,9 @@ static int pwart_GenCode(Module *m) {
     // f64 binary
     case 0xa0 ... 0xa6:
       if (opcode <= 0xa3) {
-        m->sp -= 2;
-        sv = &stack[m->sp + 1];
-        sv2 = &stack[m->sp + 2];
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        sv = &stack[m->sp-1];
+        sv2 = &stack[m->sp];
+        a = pwart_GetFreeReg(m, RT_FLOAT,2);
       }
       switch (opcode) {
       case 0xa0: // f64.add
@@ -2144,6 +2217,7 @@ static int pwart_GenCode(Module *m) {
         break;
       }
       if (opcode <= 0xa3) {
+        m->sp-=2;
         sv = push_stackvalue(m, NULL);
         sv->jit_type = SVT_GENERAL;
         sv->wasm_type = WVT_F64;
@@ -2156,8 +2230,7 @@ static int pwart_GenCode(Module *m) {
     // case 0xa7 ... 0xbb:
     case 0xa7: // i32.wrap_i64
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_INTEGER);
+      a = pwart_GetFreeReg(m, RT_INTEGER,1);
       if (m->target_ptr_size == 32 && sv->wasm_type == WVT_I64) {
         if (sv->jit_type == SVT_TWO_REG) {
           sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.op, sv->val.opw);
@@ -2169,7 +2242,6 @@ static int pwart_GenCode(Module *m) {
         sljit_emit_op2(m->jitc, SLJIT_AND, a, 0, sv->val.op, sv->val.opw,
                        SLJIT_IMM, 0xffffffff);
       }
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_I32;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
@@ -2177,11 +2249,9 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xa8: // i32.trunc_f32_s
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_INTEGER);
+      a = pwart_GetFreeReg(m, RT_INTEGER,1);
       sljit_emit_fop1(m->jitc, SLJIT_CONV_S32_FROM_F32, a, 0, sv->val.op,
                       sv->val.opw);
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_I32;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
@@ -2193,11 +2263,9 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xaa: // i32.trunc_f64_s
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_INTEGER);
+      a = pwart_GetFreeReg(m, RT_INTEGER,1);
       sljit_emit_fop1(m->jitc, SLJIT_CONV_S32_FROM_F64, a, 0, sv->val.op,
                       sv->val.opw);
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_I32;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
@@ -2209,13 +2277,11 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xac: // i64.extend_i32_s
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_INTEGER);
+      a = pwart_GetFreeReg(m, RT_INTEGER,1);
       sljit_emit_op1(m->jitc, SLJIT_MOV_S32, a, 0, sv->val.op, sv->val.opw);
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_I64;
       if (m->target_ptr_size == 32) {
-        b = pwart_GetFreeRegExcept(m, RT_INTEGER, a);
+        b = pwart_GetFreeRegExcept(m, RT_INTEGER, a,1);
         sljit_emit_op2(m->jitc, SLJIT_AND, b, 0, a, 0, SLJIT_IMM, 0x80000000);
         sljit_emit_op2(m->jitc, SLJIT_ASHR, b, 0, b, 0, SLJIT_IMM, 31);
         sv->jit_type = SVT_TWO_REG;
@@ -2229,13 +2295,11 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xad: // i64.extend_i32_u
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_INTEGER);
+      a = pwart_GetFreeReg(m, RT_INTEGER,1);
       sljit_emit_op1(m->jitc, SLJIT_MOV_U32, a, 0, sv->val.op, sv->val.opw);
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_I64;
       if (m->target_ptr_size == 32) {
-        b = pwart_GetFreeRegExcept(m, RT_INTEGER, a);
+        b = pwart_GetFreeRegExcept(m, RT_INTEGER, a,1);
         sljit_emit_op1(m->jitc, SLJIT_MOV, b, 0, SLJIT_IMM, 0);
         sv->jit_type = SVT_TWO_REG;
         sv->val.tworeg.opr1 = a;
@@ -2252,11 +2316,9 @@ static int pwart_GenCode(Module *m) {
                            (sljit_sw)&insn_i64truncf32s);
       } else {
         sv = &stack[m->sp];
-        m->sp--;
-        a = pwart_GetFreeReg(m, RT_INTEGER);
+        a = pwart_GetFreeReg(m, RT_INTEGER,1);
         sljit_emit_op1(m->jitc, SLJIT_CONV_SW_FROM_F32, a, 0, sv->val.op,
                        sv->val.opw);
-        sv = push_stackvalue(m, NULL);
         sv->wasm_type = WVT_I64;
         sv->jit_type = SVT_GENERAL;
         sv->val.op = a;
@@ -2274,11 +2336,9 @@ static int pwart_GenCode(Module *m) {
                            (sljit_sw)&insn_i64truncf64s);
       } else {
         sv = &stack[m->sp];
-        m->sp--;
-        a = pwart_GetFreeReg(m, RT_INTEGER);
+        a = pwart_GetFreeReg(m, RT_INTEGER,1);
         sljit_emit_op1(m->jitc, SLJIT_CONV_SW_FROM_F64, a, 0, sv->val.op,
                        sv->val.opw);
-        sv = push_stackvalue(m, NULL);
         sv->wasm_type = WVT_I64;
         sv->jit_type = SVT_GENERAL;
         sv->val.op = a;
@@ -2291,11 +2351,9 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xb2: // f32.convert_i32_s
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_FLOAT);
+      a = pwart_GetFreeReg(m, RT_FLOAT,1);
       sljit_emit_op1(m->jitc, SLJIT_CONV_F32_FROM_S32, a, 0, sv->val.op,
                      sv->val.opw);
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_F32;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
@@ -2311,11 +2369,9 @@ static int pwart_GenCode(Module *m) {
                            (sljit_sw)&insn_f32converti64s);
       } else {
         sv = &stack[m->sp];
-        m->sp--;
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,1);
         sljit_emit_op1(m->jitc, SLJIT_CONV_F32_FROM_SW, a, 0, sv->val.op,
                        sv->val.opw);
-        sv = push_stackvalue(m, NULL);
         sv->wasm_type = WVT_F32;
         sv->jit_type = SVT_GENERAL;
         sv->val.op = a;
@@ -2328,11 +2384,9 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xb6: // f32.demote_f64
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_FLOAT);
+      a = pwart_GetFreeReg(m, RT_FLOAT,1);
       sljit_emit_op1(m->jitc, SLJIT_CONV_F32_FROM_F64, a, 0, sv->val.op,
                      sv->val.opw);
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_F32;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
@@ -2340,11 +2394,9 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xb7: // f64.convert_i32_s
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_FLOAT);
+      a = pwart_GetFreeReg(m, RT_FLOAT,1);
       sljit_emit_op1(m->jitc, SLJIT_CONV_F64_FROM_S32, a, 0, sv->val.op,
                      sv->val.opw);
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_F64;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
@@ -2360,11 +2412,9 @@ static int pwart_GenCode(Module *m) {
                            (sljit_sw)insn_f64converti64s);
       } else {
         sv = &stack[m->sp];
-        m->sp--;
-        a = pwart_GetFreeReg(m, RT_FLOAT);
+        a = pwart_GetFreeReg(m, RT_FLOAT,1);
         sljit_emit_op1(m->jitc, SLJIT_CONV_F64_FROM_SW, a, 0, sv->val.op,
                        sv->val.opw);
-        sv = push_stackvalue(m, NULL);
         sv->wasm_type = WVT_F64;
         sv->jit_type = SVT_GENERAL;
         sv->val.op = a;
@@ -2377,11 +2427,9 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xbb: // f64.promote_f32
       sv = &stack[m->sp];
-      m->sp--;
-      a = pwart_GetFreeReg(m, RT_FLOAT);
+      a = pwart_GetFreeReg(m, RT_FLOAT,1);
       sljit_emit_op1(m->jitc, SLJIT_CONV_F64_FROM_F32, a, 0, sv->val.op,
                      sv->val.opw);
-      sv = push_stackvalue(m, NULL);
       sv->wasm_type = WVT_F64;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
@@ -2409,6 +2457,41 @@ static int pwart_GenCode(Module *m) {
       pwart_EmitSaveStack(m, sv);
       sv->wasm_type = WVT_I64;
       break;
+    case 0xd0: //ref.null
+      tidx = read_LEB(bytes,&m->pc,32); //ref type
+      sv=push_stackvalue(m,sv);
+      sv->wasm_type=tidx;
+      sv->jit_type=SVT_GENERAL;
+      sv->val.op=SLJIT_IMM;
+      sv->val.opw=0;
+      break;
+    case 0xd1: //ref.isnull
+      sv = &stack[m->sp];
+      if(sv->wasm_type==WVT_REF || sv->wasm_type==WVT_FUNC){
+        sljit_emit_op2u(m->jitc,SLJIT_SUB|SLJIT_SET_Z,sv->val.op,sv->val.opw,SLJIT_IMM,0);
+        sv->wasm_type=WVT_I32;
+        sv->jit_type=SVT_CMP;
+        sv->val.cmp.flag=SLJIT_EQUAL;
+      }else{
+        sv->wasm_type=WVT_I32;
+        sv->jit_type=SVT_GENERAL;
+        sv->val.opw=0;
+        sv->val.op=SLJIT_IMM;
+      }
+      break;
+    case 0xd2: //ref.func
+      fidx = read_LEB(bytes, &m->pc, 32);
+      a = pwart_GetFreeReg(m, RT_INTEGER,0);
+      sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
+      sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
+                     SLJIT_IMM, sizeof(void *) * fidx);
+      sv=push_stackvalue(m,NULL);
+      sv->wasm_type=WVT_FUNC;
+      sv->jit_type=SVT_GENERAL;
+      sv->val.op=SLJIT_MEM1(a);
+      sv->val.opw=0;
+      break;
+    break;
 
     default:
       sprintf(exception, "unrecognized opcode 0x%x", opcode);
@@ -2432,7 +2515,7 @@ static WasmFunctionEntry pwart_EmitFunction(Module *m, WasmFunction *func) {
 
   m->locals=NULL;
   dynarr_init(&m->locals,sizeof(StackValue));
-
+  
   pwart_PrepareFunc(m);
   m->pc = savepos;
   pwart_GenCode(m);

@@ -2,7 +2,9 @@
 
 #define _PWART_UTIL_C
 
-#define DEBUG_BUILD 1
+#ifndef DEBUG_BUILD
+#define DEBUG_BUILD 0
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,11 +19,6 @@
 
 
 
-#if DEBUG_BUILD
-static int debugger_breakpoint(){
-    printf("debugger_breakpoint");
-}
-#endif
 
 static void *wa_malloc(size_t size) {
     void *res = malloc(size);
@@ -54,7 +51,6 @@ static void wa_debug(char *fmt,...){
 static void wa_assert(int cond,char *failInfo){
     if(!cond){
         wa_debug("assert fail due to %s\n",failInfo);
-        debugger_breakpoint();
         exit(1);
     }
 }
@@ -163,7 +159,6 @@ static void *dynarr_pop(struct dynarr **buf,int count){
 static void *dynarr_get_boundcheck(struct dynarr *dynarr,int index){
     if(index>dynarr->len || index<0){
         wa_debug("bound check failed.");
-        debugger_breakpoint();
         exit(1);
     }
     return dynarr->data+index*dynarr->elemSize;

@@ -283,7 +283,7 @@ static void insn_f64converti64u(double *fp, RuntimeContext *m) {
   *fp = (double)(*(uint64_t *)fp);
 }
 
-static void memory_grow_func(void *fp, RuntimeContext *m) {
+static void insn_memorygrow(void *fp, RuntimeContext *m) {
   uint32_t prev_pages = m->memory.pages;
   uint32_t *arg1 = (uint32_t *)fp;
   uint32_t delta = *arg1;
@@ -295,7 +295,8 @@ static void memory_grow_func(void *fp, RuntimeContext *m) {
     return;
   }
   m->memory.pages += delta;
-  m->memory.bytes = wa_realloc(m->memory.bytes, m->memory.pages * PAGE_SIZE);
+  //we allocate enough memory only once, so don't try reallocate.
+  //m->memory.bytes = wa_realloc(m->memory.bytes, m->memory.pages * PAGE_SIZE);
   return;
 }
 
@@ -340,7 +341,9 @@ static Type func_type_i32_ret_f64 = {.params = types_i32, .results = types_f64};
 static Type func_type_i64_ret_f64 = {.params = types_i64, .results = types_f64};
 
 static void waexpr_run_const(Module *m, void *result) {
-  switch (m->bytes[m->pc]) {
+  int opcode=m->bytes[m->pc];
+  m->pc++;
+  switch (opcode) {
   case 0x41: // i32.const
     *(uint32_t *)result = read_LEB_signed(m->bytes, &m->pc, 32);
     break;
@@ -369,6 +372,8 @@ static void waexpr_run_const(Module *m, void *result) {
     SLJIT_UNREACHABLE();
     break;
   }
+  SLJIT_ASSERT(m->bytes[m->pc]==0xb);
+  m->pc++;
 }
 
 static void debug_printtypes(char *t){
