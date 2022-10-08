@@ -37,14 +37,22 @@ extern int pwart_load(pwart_module m,char *data,int len){
 extern pwart_wasmfunction pwart_get_export_function(pwart_module module,char *name){
     Module *m=module;
     Export *exp=get_export(m,name,KIND_FUNCTION);
-    return ((WasmFunction *)exp->value)->func_ptr;
+    if(exp!=NULL){
+        return ((WasmFunction *)exp->value)->func_ptr;
+    }else{
+        return NULL;
+    }
+    
 }
 
 extern int pwart_set_symbol_resolver(pwart_module m2,void (*resolver)(char *import_module,char *import_field,void *result)){
     Module *m=m2;
     m->symbol_resolver=resolver;
 }
-
+extern int pwart_set_stack_size(pwart_module m2,int stack_size){
+    Module *m=m2;
+    m->default_stack_size=stack_size;
+}
 
 extern pwart_runtime_context pwart_get_runtime_context(pwart_module mod){
     Module *m=mod;
@@ -53,10 +61,13 @@ extern pwart_runtime_context pwart_get_runtime_context(pwart_module mod){
 
 extern int pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_inspect_result1 *result){
     RuntimeContext *rc=c;
+    result->memory_size=rc->memory.pages*PAGE_SIZE;
     result->memory=rc->memory.bytes;
-    result->runtime_stack=rc->rstack;
+    result->runtime_stack=rc->stack_buffer+rc->stack_start_offset;
+    result->table_entries_count=rc->table.size;
     result->table_entries=rc->table.entries;
 }
+
 
 extern int pwart_set_runtime_user_data(pwart_runtime_context c,void *ud){
     RuntimeContext *rc=c;

@@ -20,14 +20,26 @@ extern int pwart_load(pwart_module m,char *data,int len);
 
 extern pwart_wasmfunction pwart_get_export_function(pwart_module module,char *name);
 
+// pwart_module config, must set before pwart_load.
+
 extern int pwart_set_symbol_resolver(pwart_module m,void (*resolver)(char *import_module,char *import_field,void *result));
+// set max runtime stack size, default is 63KB.
+extern int pwart_set_stack_size(pwart_module m,int stack_size);
+
+
 
 extern pwart_runtime_context pwart_get_runtime_context(pwart_module m);
+
 //runtime_context inspect result
 struct pwart_inspect_result1{
+    //default runtime stack bottom.
     void *runtime_stack;
+    //memory 0 size , in byte
+    int memory_size;
     void *memory;
-    void *table_entries;
+    //table 0 entries count, in void*
+    int table_entries_count;
+    void **table_entries;
 };
 extern int pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_inspect_result1 *result);
 

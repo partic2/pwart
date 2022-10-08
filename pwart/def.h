@@ -149,8 +149,8 @@ typedef struct Export {
 } Export;
 
 typedef struct RuntimeContext{
-    uint8_t     *rstack;           // runtime stack
-    
+    uint8_t     *stack_buffer;           // runtime stack buffer
+    int8_t       stack_start_offset;     // stack_start_offset, to align the stack bottom(align to 16 byte).
     WasmFunctionEntry *funcentries;  // imported and locally defined functions, type WasmFunctionEntry
     int funcentries_count;
     //XXX: maybe use fixed size array is better
@@ -188,6 +188,8 @@ typedef struct Module {
 
     struct dynarr *exports;  //type Export
 
+    uint16_t default_stack_size;
+
     //jit state, used in compile time.
     struct sljit_compiler *jitc;
     int32_t target_ptr_size;
@@ -213,7 +215,7 @@ typedef struct Module {
 } Module;
 
 
-
+#if DEBUG_BUILD
 
 static char OPERATOR_INFO[][20] = {
     // Control flow operators
@@ -263,8 +265,8 @@ static char OPERATOR_INFO[][20] = {
     "global.get",            // 0x23
     "global.set",            // 0x24
 
-    "RESERVED",              // 0x25
-    "RESERVED",              // 0x26
+    "table.get",              // 0x25
+    "table.set",              // 0x26
     "RESERVED",              // 0x27
 
     // Memory-related operator
@@ -438,8 +440,31 @@ static char OPERATOR_INFO[][20] = {
     "i32.reinterpret_f32",   // 0xbc
     "i64.reinterpret_f64",   // 0xbd
     "f32.reinterpret_i32",   // 0xbe
-    "f64.reinterpret_i64"    // 0xbf
+    "f64.reinterpret_i64",   // 0xbf
+
+    "RESERVED",              // 0xc0
+    "RESERVED",              // 0xc1
+    "RESERVED",              // 0xc2
+    "RESERVED",              // 0xc3
+    "RESERVED",              // 0xc4
+    "RESERVED",              // 0xc5
+    "RESERVED",              // 0xc6
+    "RESERVED",              // 0xc7
+    "RESERVED",              // 0xc8
+    "RESERVED",              // 0xc9
+    "RESERVED",              // 0xca
+    "RESERVED",              // 0xcb
+    "RESERVED",              // 0xcc
+    "RESERVED",              // 0xcd
+    "RESERVED",              // 0xce
+    "RESERVED",              // 0xcf
+    "ref.null",              // 0xd0
+    "ref.isnull",            // 0xd1
+    "ref.func"               // 0xd2
+
 };
+
+#endif
 
 // Size of memory load.
 // This starts with the first memory load operator at opcode 0x28
@@ -451,7 +476,8 @@ static uint32_t LOAD_SIZE[] = {
 // global exception message
 char  exception[4096];
 
-static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype);
+static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype,int upstack);
 static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv,uint32_t *align);
+static void pwart_EmitStackValueLoadReg(Module *m, StackValue *sv);
 
 #endif

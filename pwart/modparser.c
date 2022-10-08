@@ -14,9 +14,9 @@ static void parse_table_type(Module *m, uint32_t *pos) {
   // Limit maximum to 64K
   if (flags & 0x1) {
     tsize = read_LEB(m->bytes, pos, 32); // Max size
-    m->context->table.maximum = 0x10000 < tsize ? 0x10000 : tsize;
+    m->context->table.maximum = tsize;
   } else {
-    m->context->table.maximum = 0x10000;
+    m->context->table.maximum = tsize;
   }
   wa_debug("  table size: %d\n", tsize);
 }
@@ -29,9 +29,9 @@ static void parse_memory_type(Module *m, uint32_t *pos) {
   // Limit the maximum to 2GB
   if (flags & 0x1) {
     pages = read_LEB(m->bytes, pos, 32); // Max size
-    m->context->memory.maximum = (uint32_t)fmin(0x8000, pages);
+    m->context->memory.maximum = pages;
   } else {
-    m->context->memory.maximum = 0x8000;
+    m->context->memory.maximum = pages;
   }
 }
 
@@ -63,7 +63,12 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
 
     // Allocate the module
 
-    m->target_ptr_size=sizeof(void *);
+    if(sizeof(void *)==4){
+        m->target_ptr_size=32;
+    }else{
+        m->target_ptr_size=64;
+    }
+    
 
     dynarr_init(&m->types,sizeof(Type));
     dynarr_init(&m->types_pool,sizeof(uint8_t));
@@ -73,7 +78,14 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     m->bytes = bytes;
     m->byte_count = byte_count;
     m->context=wa_calloc(sizeof(RuntimeContext));
-    m->context->rstack=wa_malloc(PAGE_SIZE);
+    if(m->default_stack_size==0){
+        m->default_stack_size=PAGE_SIZE-1024;
+    }
+    m->context->stack_buffer=wa_malloc(m->default_stack_size+16);
+    m->context->stack_start_offset=
+        (((sljit_sw)m->context->stack_buffer)+15) & (~(sljit_sw)(0xf))-
+        (sljit_sw)m->context->stack_buffer;
+    
     dynarr_init(&m->context->globals,sizeof(StackValue));
     dynarr_init(&m->functions,sizeof(WasmFunction));
     m->start_function = -1;
@@ -266,7 +278,8 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             wa_assert(memory_count == 1, "More than 1 memory not supported\n");
 
             parse_memory_type(m, &pos);
-            m->context->memory.bytes = wa_calloc(m->context->memory.pages*PAGE_SIZE);
+            //we allocate memory only once, due to jit not allow to change the memory base. For performance reason.
+            m->context->memory.bytes = wa_calloc(m->context->memory.maximum*PAGE_SIZE);
             break;
         case 6:
             wa_debug("Parsing Global(6) section\n");
@@ -449,13 +462,15 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
 
     //update table entries to real function entries.
     for(int i=0;i<m->context->table.size;i++){
-        m->context->table.entries[i]=((WasmFunction *)m->context->table.entries[i])->func_ptr;
+        if(m->context->table.entries[i]!=NULL){
+            m->context->table.entries[i]=((WasmFunction *)m->context->table.entries[i])->func_ptr;
+        }
     }
 
     if (m->start_function != -1) {
         uint32_t fidx = m->start_function;
         WasmFunction *entf=dynarr_get(m->functions,WasmFunction,fidx);
-        entf->func_ptr(m->context->rstack,m->context);
+        entf->func_ptr(m->context->stack_buffer+m->context->stack_start_offset,m->context);
     }
 
     return 0;
@@ -465,14 +480,19 @@ static int free_runtimectx(RuntimeContext *rc){
     if(rc->globals!=NULL){
         dynarr_free(&rc->globals);
     }
-    if(rc->rstack!=NULL){
-        wa_free(rc->rstack);
+    if(rc->stack_buffer!=NULL){
+        wa_free(rc->stack_buffer);
     }
     if(rc->memory.bytes!=NULL){
+        if(rc->memory.export_name!=NULL){
+            wa_free(rc->memory.export_name);
+            rc->memory.export_name=NULL;
+        }
         wa_free(rc->memory.bytes);
     }
     if(rc->table.entries!=NULL){
         wa_free(rc->table.entries);
+        rc->table.entries=NULL;
     }
     for(int i=0;i<rc->funcentries_count;i++){
         pwart_FreeFunction(rc->funcentries[i]);
@@ -488,6 +508,13 @@ static int free_module(Module *m){
         dynarr_free(&m->globals);
     }
     if(m->exports!=NULL){
+        for(int i=0;i<m->exports->len;i++){
+            Export *exp=dynarr_get(m->exports,Export,i);
+            if(exp->export_name!=NULL){
+                wa_free(exp->export_name);
+                exp->export_name=NULL;
+            }
+        }
         dynarr_free(&m->exports);
     }
     if(m->functions!=NULL){
