@@ -49,7 +49,7 @@
 typedef struct Type {
     uint32_t form;
     uint8_t *params;     // type array
-    uint8_t *results;
+    uint8_t *results;    // type array
 } Type;
 
 typedef union FuncPtr {
@@ -66,7 +66,7 @@ typedef union FuncPtr {
 typedef struct Block {
     uint8_t    block_type;    // 0x00: function, 0x01: init_exp
                               // 0x02: block, 0x03: loop, 0x04: if
-    Type      *type;          // params/results type
+    //Type      *type;           params/results type
     struct sljit_jump *else_jump;     // if block only
     struct sljit_label *br_label;       // blocks only
     struct dynarr *br_jump;         //type struct jump *
@@ -76,9 +76,9 @@ typedef struct Block {
 typedef void (*WasmFunctionEntry)(void *fp,void *m);
 typedef struct WasmFunction {
     WasmFunctionEntry func_ptr; // function only
-    Type      *type;
+    uint32_t tidx;  // type index
     uint32_t fidx;
-    uint8_t *locals_type;
+    uint8_t *locals_type;  //type array
 } WasmFunction;
 
 
@@ -173,7 +173,7 @@ typedef struct Module {
     uint8_t    *bytes;          // module content/bytes
 
     struct dynarr  *types;          // function types, type Type
-    struct dynarr  *types_pool;     // type pools, type uint8_t
+    struct pool  types_pool;     // types pool
 
     uint32_t    import_count;   // number of leading imports in functions
     
@@ -252,8 +252,8 @@ static char OPERATOR_INFO[][20] = {
     // Parametric operators
     "drop",                  // 0x1a
     "select",                // 0x1b
+    "select t",               // 0x1c
 
-    "RESERVED",              // 0x1c
     "RESERVED",              // 0x1d
     "RESERVED",              // 0x1e
     "RESERVED",              // 0x1f
@@ -267,7 +267,7 @@ static char OPERATOR_INFO[][20] = {
 
     "table.get",              // 0x25
     "table.set",              // 0x26
-    "RESERVED",              // 0x27
+    "RESERVED",               // 0x27
 
     // Memory-related operator
     "i32.load",              // 0x28
@@ -442,11 +442,11 @@ static char OPERATOR_INFO[][20] = {
     "f32.reinterpret_i32",   // 0xbe
     "f64.reinterpret_i64",   // 0xbf
 
-    "RESERVED",              // 0xc0
-    "RESERVED",              // 0xc1
-    "RESERVED",              // 0xc2
-    "RESERVED",              // 0xc3
-    "RESERVED",              // 0xc4
+    "i32.extend8_s",         // 0xc0
+    "i32.extend16_s",        // 0xc1
+    "i64.extend8_s",         // 0xc2
+    "i64.extend16_s",        // 0xc3
+    "i64.extend32_s",        // 0xc4
     "RESERVED",              // 0xc5
     "RESERVED",              // 0xc6
     "RESERVED",              // 0xc7

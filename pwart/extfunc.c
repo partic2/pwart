@@ -312,6 +312,7 @@ static uint8_t types_i64_i64[] = {WVT_I64, WVT_I64, 0};
 static uint8_t types_f32_f32[] = {WVT_F32, WVT_F32, 0};
 static uint8_t types_f64_f64[] = {WVT_F64, WVT_F64, 0};
 
+static Type func_type_ret_void = {.params = types_void, .results = types_void};
 static Type func_type_ret_i32 = {.params = types_void, .results = types_i32};
 static Type func_type_ret_i64 = {.params = types_void, .results = types_i64};
 static Type func_type_ret_f32 = {.params = types_void, .results = types_i32};
@@ -389,7 +390,7 @@ static void debug_printtypes(char *t){
       wa_debug("f32,");
       break;
       case WVT_F64:
-      wa_debug("f32,");
+      wa_debug("f64,");
       break;
       case WVT_FUNC:
       wa_debug("func,");
@@ -406,10 +407,10 @@ static void debug_printtypes(char *t){
 
 static void debug_printfunctype(Type *type){
   wa_debug("type->form:%x\n",type->form);
-  wa_debug("type->params:");
+  wa_debug("type->params at %p:",type->params);
   debug_printtypes(type->params);
   wa_debug("\n");
-  wa_debug("type->result:");
+  wa_debug("type->result at %p:",type->results);
   debug_printtypes(type->results);
   wa_debug("\n");
 }
