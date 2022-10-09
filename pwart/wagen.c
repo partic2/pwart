@@ -26,6 +26,9 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     read_LEB(bytes, pos, 32);
     read_LEB(bytes, pos, 1);
     break;
+  case 0x1c: //select t
+    read_LEB(bytes, pos, 32);
+    break;
   // varint64
   case 0x42: // i64.const
     read_LEB(bytes, pos, 64);
@@ -149,6 +152,11 @@ static int pwart_PrepareFunc(Module *m) {
       m->mem_base_local = -2;
       break;
 
+    case 0xd2: //ref.func
+      fidx=read_LEB(bytes, &m->pc, 32);
+      m->functions_base_local = -2;
+      break;
+
     default:
       m->pc--;
       skip_immediates(m->bytes, &m->pc);
@@ -159,38 +167,22 @@ static int pwart_PrepareFunc(Module *m) {
   if (m->mem_base_local == -2) {
     m->mem_base_local = m->locals->len;
     sv = dynarr_push_type(&m->locals, StackValue);
-    if (sizeof(void *) == 4) {
-      sv->wasm_type = WVT_I32;
-    } else {
-      sv->wasm_type = WVT_I64;
-    }
+    sv->wasm_type=WVT_REF;
   }
   if (m->table_entries_local == -2) {
     m->table_entries_local = m->locals->len;
     sv = dynarr_push_type(&m->locals, StackValue);
-    if (sizeof(void *) == 4) {
-      sv->wasm_type = WVT_I32;
-    } else {
-      sv->wasm_type = WVT_I64;
-    }
+    sv->wasm_type=WVT_REF;
   }
   if (m->functions_base_local == -2) {
     m->functions_base_local = m->locals->len;
     sv = dynarr_push_type(&m->locals, StackValue);
-    if (sizeof(void *) == 4) {
-      sv->wasm_type = WVT_I32;
-    } else {
-      sv->wasm_type = WVT_I64;
-    }
+    sv->wasm_type=WVT_REF;
   }
   if(m->globals_base_local==-2){
     m->globals_base_local = m->locals->len;
     sv = dynarr_push_type(&m->locals, StackValue);
-    if (sizeof(void *) == 4) {
-      sv->wasm_type = WVT_I32;
-    } else {
-      sv->wasm_type = WVT_I64;
-    }
+    sv->wasm_type=WVT_REF;
   }
   return 0;
 }
@@ -366,12 +358,13 @@ static int pwart_EmitSaveStack(Module *m, StackValue *sv) {
   pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0), sv->frame_offset);
   sv->val.op = SLJIT_MEM1(SLJIT_S0);
   sv->val.opw = sv->frame_offset;
+  sv->jit_type=SVT_GENERAL;
   return 1;
 }
 
 static int pwart_EmitSaveStackAll(Module *m) {
   int i;
-  for (i = 0; i < m->sp; i++) {
+  for (i = 0; i <= m->sp; i++) {
     pwart_EmitSaveStack(m, &m->stack[i]);
   }
 }
@@ -512,10 +505,13 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
     sv->val.opw = sv->frame_offset;
   }
 }
+
+
 static int pwart_EmitFuncReturn(Module *m) {
   int idx, len, off;
   StackValue *sv;
   off = 0;
+
   len = strlen(m->function_type->results);
   for (idx = 0; idx < len; idx++) {
     sv = &m->stack[m->sp - len + idx + 1];
@@ -523,6 +519,7 @@ static int pwart_EmitFuncReturn(Module *m) {
     off += stackvalue_GetSizeAndAlign(sv, NULL);
   }
   sljit_emit_return_void(m->jitc);
+  
 }
 
 //get free register. check up to upstack. 
@@ -716,7 +713,7 @@ static int pwart_EmitFuncEnter(Module *m) {
       m->jitc, 0, SLJIT_ARGS2(VOID, W, W), SLJIT_NUMBER_OF_SCRATCH_REGISTERS,
       SLJIT_S0-nextSr, SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS,
       SLJIT_FS0-nextSfr, nextLoc);
-
+      
   if(m->table_entries_local>=0){
     sv = dynarr_get(m->locals, StackValue, m->table_entries_local);
     sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
@@ -726,13 +723,12 @@ static int pwart_EmitFuncEnter(Module *m) {
     sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
     sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
                  SLJIT_MEM1(SLJIT_S1), get_funcarr_offset(m));
-    sljit_emit_op1(m->jitc,SLJIT_ADD,sv->val.op,sv->val.opw,SLJIT_IMM,offsetof(struct dynarr,data));
   }
   if(m->globals_base_local>=0){
     sv = dynarr_get(m->locals, StackValue, m->globals_base_local);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
+    sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R0, 0,
                  SLJIT_MEM1(SLJIT_S1), get_globalsbuf_offset(m));
-    sljit_emit_op1(m->jitc,SLJIT_ADD,sv->val.op,sv->val.opw,SLJIT_IMM,offsetof(struct dynarr,data));
+    sljit_emit_op2(m->jitc,SLJIT_ADD,sv->val.op,sv->val.opw, SLJIT_R0,0,SLJIT_IMM,offsetof(struct dynarr,data));
   }
 
   m->runtime_ptr_local = m->locals->len;
@@ -756,6 +752,31 @@ static int pwart_EmitFuncEnter(Module *m) {
   
 }
 
+/*
+//no need for code generate
+Type *block_ParseBlockType(Module *m,int blktype){
+  if(blktype==0x40){
+     return &func_type_ret_void;
+  }else if(blktype>=0){
+    return dynarr_get(m->types,Type,blktype);
+  }else{
+    switch(blktype){
+      case WVT_I32-0x80:
+      return &func_type_ret_i32;
+      break;
+      case WVT_I64-0x80:
+      return &func_type_ret_i64;
+      break;
+      case WVT_F32-0x80:
+      return &func_type_ret_f32;
+      break;
+      case WVT_F64-0x80:
+      return &func_type_ret_f64;
+      break;
+    }
+  }
+}
+*/
 /*
 r0,r1,r2 is scratch registers(at least three registers are required.).
 s0(arg0) contains runtime frame pointer.
@@ -784,7 +805,7 @@ static int pwart_GenCode(Module *m) {
   #if DEBUG_BUILD
   m->jitc->verbose=stdout;
   #endif
-
+  
   pwart_EmitFuncEnter(m);
 
   m->blocks=NULL;
@@ -794,7 +815,6 @@ static int pwart_GenCode(Module *m) {
 
   block = dynarr_push_type(&m->blocks, Block);
   block->block_type = 0x00;
-  block->type = m->function_type;
   eof = 0;
 
   while (!eof && m->pc < m->byte_count) {
@@ -822,21 +842,27 @@ static int pwart_GenCode(Module *m) {
     case 0x01: // nop
       break;
     case 0x02:                     // block
-      read_LEB(bytes, &m->pc, 32); // ignore block type
+    {
+      int32_t blktype;
+      blktype=read_LEB_signed(bytes, &m->pc, 33); 
       pwart_EmitSaveStackAll(m);
       block = dynarr_push_type(&m->blocks, Block);
       block->block_type = 0x2;
       dynarr_init(&block->br_jump,sizeof(struct sljit_jump *));
-      break;
+    }break;
     case 0x03:                     // loop
-      read_LEB(bytes, &m->pc, 32); // ignore block type
+    {
+      int32_t blktype;
+      blktype=read_LEB_signed(bytes, &m->pc, 33); 
       pwart_EmitSaveStackAll(m);
       block = dynarr_push_type(&m->blocks, Block);
       block->block_type = 0x3;
       block->br_label = sljit_emit_label(m->jitc);
-      break;
+    }break;
     case 0x04:                     // if
-      read_LEB(bytes, &m->pc, 32); // ignore block type
+    {
+      int32_t blktype;
+      blktype=read_LEB_signed(bytes, &m->pc, 33); 
       pwart_EmitSaveStackAll(m);
       block = dynarr_push_type(&m->blocks, Block);
       block->block_type = 0x4;
@@ -853,7 +879,7 @@ static int pwart_GenCode(Module *m) {
       }
       block->else_jump = jump;
       m->sp--;
-      break;
+    } break;
     case 0x05: // else
       pwart_EmitSaveStackAll(m);
       block = dynarr_get(m->blocks, Block, m->blocks->len - 1);
@@ -861,10 +887,10 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0x0b: // end
     {
-      pwart_EmitSaveStackAll(m);
       struct sljit_jump *sj;
       block = dynarr_pop_type(&m->blocks, Block);
       if (block->block_type == 0x2 || block->block_type == 0x4) {
+        pwart_EmitSaveStackAll(m);
         // if block
         block->br_label = sljit_emit_label(m->jitc);
         for (a = 0; a < block->br_jump->len; a++) {
@@ -876,10 +902,7 @@ static int pwart_GenCode(Module *m) {
         pwart_EmitFuncReturn(m);
         SLJIT_ASSERT(m->blocks->len == 0);
         eof = 1;
-      } else if (block->block_type == 0x01) {
-        // init_expr
-        sljit_emit_return_void(m->jitc);
-      }
+      } 
       if(block->br_jump!=NULL){
         dynarr_free(&block->br_jump);
       }
@@ -968,18 +991,21 @@ static int pwart_GenCode(Module *m) {
     // Call operators
     //
     case 0x10: // call
+    {
+      WasmFunction *fn;
       fidx = read_LEB(bytes, &m->pc, 32);
+      fn=dynarr_get(m->functions,WasmFunction,fidx);
       a = pwart_GetFreeReg(m, RT_INTEGER,0);
       sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
       sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
                      SLJIT_IMM, sizeof(void *) * fidx);
-      type = dynarr_get(m->types, Type, fidx);
+      type = dynarr_get(m->types, Type, fn->tidx);
       pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
-      break;
+    }break;
     case 0x11: // call_indirect
       tidx = read_LEB(bytes, &m->pc, 32);
       type = dynarr_get(m->types, Type, tidx);
-      read_LEB(bytes, &m->pc, 1); // reserved immediate
+      read_LEB(bytes, &m->pc, 1); // tableidx. only support 1 table
       sv = &stack[m->sp];
       a = pwart_GetFreeReg(m, RT_INTEGER, 1);
       sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw,
@@ -989,7 +1015,7 @@ static int pwart_GenCode(Module *m) {
       sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv->val.op, sv->val.opw);
       m->sp--;
 
-      pwart_EmitCallFunc(m, type, a, 0);
+      pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
       
       break;
     //
@@ -998,8 +1024,10 @@ static int pwart_GenCode(Module *m) {
     case 0x1a: // drop
       m->sp--;
       break;
+    case 0x1c: // select t
+      read_LEB(bytes, &m->pc, 32); //ignore type
     case 0x1b: // select
-               // must save to stack.
+      // must save to stack.
       pwart_EmitSaveStack(m, &stack[m->sp - 2]);
       sv = &stack[m->sp--];
 
@@ -1977,11 +2005,11 @@ static int pwart_GenCode(Module *m) {
             b = sv->val.tworeg.opr2;
           }
           stackvalue_LowWord(m, sv, &op1, &opw1);
-          stackvalue_LowWord(m, sv, &op2, &opw2);
+          stackvalue_LowWord(m, sv2, &op2, &opw2);
           sljit_emit_op2(m->jitc, SLJIT_ADD | SLJIT_SET_CARRY, a, 0, op1, opw1,
                          op2, opw2);
           stackvalue_HighWord(m, sv, &op1, &opw1);
-          stackvalue_HighWord(m, sv, &op2, &opw2);
+          stackvalue_HighWord(m, sv2, &op2, &opw2);
           sljit_emit_op2(m->jitc, SLJIT_ADDC, b, 0, op1, opw1, op2, opw2);
           m->sp--;
           sv->jit_type = SVT_TWO_REG;
@@ -2282,8 +2310,7 @@ static int pwart_GenCode(Module *m) {
       sv->wasm_type = WVT_I64;
       if (m->target_ptr_size == 32) {
         b = pwart_GetFreeRegExcept(m, RT_INTEGER, a,1);
-        sljit_emit_op2(m->jitc, SLJIT_AND, b, 0, a, 0, SLJIT_IMM, 0x80000000);
-        sljit_emit_op2(m->jitc, SLJIT_ASHR, b, 0, b, 0, SLJIT_IMM, 31);
+        sljit_emit_op2(m->jitc, SLJIT_ASHR, b, 0, a, 0, SLJIT_IMM, 31);
         sv->jit_type = SVT_TWO_REG;
         sv->val.tworeg.opr1 = a;
         sv->val.tworeg.opr2 = b;
@@ -2337,7 +2364,7 @@ static int pwart_GenCode(Module *m) {
       } else {
         sv = &stack[m->sp];
         a = pwart_GetFreeReg(m, RT_INTEGER,1);
-        sljit_emit_op1(m->jitc, SLJIT_CONV_SW_FROM_F64, a, 0, sv->val.op,
+        sljit_emit_fop1(m->jitc, SLJIT_CONV_SW_FROM_F64, a, 0, sv->val.op,
                        sv->val.opw);
         sv->wasm_type = WVT_I64;
         sv->jit_type = SVT_GENERAL;
@@ -2457,7 +2484,60 @@ static int pwart_GenCode(Module *m) {
       pwart_EmitSaveStack(m, sv);
       sv->wasm_type = WVT_I64;
       break;
-    case 0xd0: //ref.null
+    case 0xc0: // i32.extend8_s
+      sv=&stack[m->sp];
+      a=pwart_GetFreeReg(m,RT_INTEGER,1);
+      sljit_emit_op1(m->jitc,SLJIT_MOV32_S8,a,0,sv->val.op,sv->val.opw);
+      sv->val.op=a;
+      sv->val.opw=0;
+    break;
+    case 0xc1: // i32.extend16_s
+      sv=&stack[m->sp];
+      a=pwart_GetFreeReg(m,RT_INTEGER,1);
+      sljit_emit_op1(m->jitc,SLJIT_MOV32_S16,a,0,sv->val.op,sv->val.opw);
+      sv->val.op=a;
+      sv->val.opw=0;
+    break;
+    case 0xc2: // i64.extend8_s
+      sv=&stack[m->sp];
+      if(m->target_ptr_size==32){
+        pwart_EmitStackValueLoadReg(m,sv);
+        sljit_emit_op1(m->jitc,SLJIT_MOV_S8,sv->val.tworeg.opr1,0,sv->val.op,sv->val.opw);
+        sljit_emit_op2(m->jitc,SLJIT_ASHR,sv->val.tworeg.opr2,0,sv->val.tworeg.opr1,0,SLJIT_IMM,31);
+      }else{
+        a=pwart_GetFreeReg(m,RT_INTEGER,1);
+        sljit_emit_op1(m->jitc,SLJIT_MOV_S8,a,0,sv->val.op,sv->val.opw);
+        sv->val.op=a;
+        sv->val.opw=0;
+      }
+    break;
+    case 0xc3: // i64.extend16_s
+      sv=&stack[m->sp];
+      if(m->target_ptr_size==32){
+        pwart_EmitStackValueLoadReg(m,sv);
+        sljit_emit_op1(m->jitc,SLJIT_MOV_S16,sv->val.tworeg.opr1,0,sv->val.op,sv->val.opw);
+        sljit_emit_op2(m->jitc,SLJIT_ASHR,sv->val.tworeg.opr2,0,sv->val.tworeg.opr1,0,SLJIT_IMM,31);
+      }else{
+        a=pwart_GetFreeReg(m,RT_INTEGER,1);
+        sljit_emit_op1(m->jitc,SLJIT_MOV_S8,a,0,sv->val.op,sv->val.opw);
+        sv->val.op=a;
+        sv->val.opw=0;
+      }
+    break;
+    case 0xc4: // i64.extend32_s
+      sv=&stack[m->sp];
+      if(m->target_ptr_size==32){
+        pwart_EmitStackValueLoadReg(m,sv);
+        sljit_emit_op2(m->jitc,SLJIT_ASHR,sv->val.tworeg.opr2,0,sv->val.tworeg.opr1,0,SLJIT_IMM,31);
+      }else{
+        a=pwart_GetFreeReg(m,RT_INTEGER,1);
+        sljit_emit_op1(m->jitc,SLJIT_MOV_S8,a,0,sv->val.op,sv->val.opw);
+        sv->val.op=a;
+        sv->val.opw=0;
+      }
+    break;
+    
+    case 0xd0: // ref.null
       tidx = read_LEB(bytes,&m->pc,32); //ref type
       sv=push_stackvalue(m,sv);
       sv->wasm_type=tidx;
@@ -2465,7 +2545,7 @@ static int pwart_GenCode(Module *m) {
       sv->val.op=SLJIT_IMM;
       sv->val.opw=0;
       break;
-    case 0xd1: //ref.isnull
+    case 0xd1: // ref.isnull
       sv = &stack[m->sp];
       if(sv->wasm_type==WVT_REF || sv->wasm_type==WVT_FUNC){
         sljit_emit_op2u(m->jitc,SLJIT_SUB|SLJIT_SET_Z,sv->val.op,sv->val.opw,SLJIT_IMM,0);
@@ -2479,7 +2559,7 @@ static int pwart_GenCode(Module *m) {
         sv->val.op=SLJIT_IMM;
       }
       break;
-    case 0xd2: //ref.func
+    case 0xd2: // ref.func
       fidx = read_LEB(bytes, &m->pc, 32);
       a = pwart_GetFreeReg(m, RT_INTEGER,0);
       sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
@@ -2494,7 +2574,8 @@ static int pwart_GenCode(Module *m) {
     break;
 
     default:
-      sprintf(exception, "unrecognized opcode 0x%x", opcode);
+      wa_debug("unrecognized opcode 0x%x at %d", opcode,m->pc);
+      exit(1);
       break;
     }
   }
@@ -2510,12 +2591,12 @@ static WasmFunctionEntry pwart_EmitFunction(Module *m, WasmFunction *func) {
   // Empty stacks
   m->sp  = -1;
 
-  m->function_type = func->type;
+  m->function_type = dynarr_get(m->types,Type,func->tidx);
   m->function_locals_type = func->locals_type;
 
   m->locals=NULL;
   dynarr_init(&m->locals,sizeof(StackValue));
-  
+
   pwart_PrepareFunc(m);
   m->pc = savepos;
   pwart_GenCode(m);

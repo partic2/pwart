@@ -71,8 +71,8 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     
 
     dynarr_init(&m->types,sizeof(Type));
-    dynarr_init(&m->types_pool,sizeof(uint8_t));
-    dynarr_init(&m->globals,sizeof(uint8_t));
+    pool_init(&m->types_pool,1024);
+    dynarr_init(&m->globals,sizeof(StackValue));
     dynarr_init(&m->exports,sizeof(Export));
 
     m->bytes = bytes;
@@ -86,7 +86,7 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
         (((sljit_sw)m->context->stack_buffer)+15) & (~(sljit_sw)(0xf))-
         (sljit_sw)m->context->stack_buffer;
     
-    dynarr_init(&m->context->globals,sizeof(StackValue));
+    dynarr_init(&m->context->globals,sizeof(uint8_t));
     dynarr_init(&m->functions,sizeof(WasmFunction));
     m->start_function = -1;
 
@@ -131,19 +131,19 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 Type *type = dynarr_push_type(&m->types,Type);
                 type->form = read_LEB(bytes, &pos, 7);
                 count2 = read_LEB(bytes, &pos, 32);
-                type->params=dynarr_push(&m->types_pool,count2+1);
+                type->params=pool_alloc(&m->types_pool,count2+1);
                 for (uint32_t p=0; p<count2; p++) {
                     type->params[p]=read_LEB(bytes, &pos, 32);
                 }
                 type->params[count2]=0;
 
                 count2 = read_LEB(bytes, &pos, 32);
-                type->results=dynarr_push(&m->types_pool,count2+1);
+                type->results=pool_alloc(&m->types_pool,count2+1);
                 for (uint32_t r=0; r<count2; r++) {
                     type->results[r] = read_LEB(bytes, &pos, 32);
                 }
                 type->results[count2]=0;
-                wa_debug("type %d:\n",c+1);
+                wa_debug("type %d:\n",c);
                 debug_printfunctype(type);
             }
         }break;
@@ -195,7 +195,7 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                     fidx = m->functions->len;
                     m->import_count += 1;
                     WasmFunction *func = dynarr_push_type(&m->functions,WasmFunction);
-                    func->type = dynarr_get(m->types,Type,type_index);
+                    func->tidx = type_index;
                     func->func_ptr = val;
                     break;
                 case KIND_TABLE:
@@ -257,7 +257,7 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 wasmfunc=dynarr_push_type(&m->functions,WasmFunction);
                 uint32_t tidx = read_LEB(bytes, &pos, 32);
                 wasmfunc->fidx = f;
-                wasmfunc->type = dynarr_get(m->types,Type,tidx);
+                wasmfunc->tidx = tidx;
                 wa_debug("  function fidx: 0x%x, tidx: 0x%x\n",
                       f, tidx);
             }
@@ -314,6 +314,7 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                     *(sljit_sw *)dynarr_push(&m->context->globals,sizeof(sljit_sw))=(sljit_sw)result;
                       break;
                     }
+                wa_debug("globals %d ,type %d, value %lld\n",g,type,result);
             }
             pos = start_pos+slen;
             break;
@@ -426,11 +427,11 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                     tidx =  read_LEB(bytes, &pos, 7);
                     (void)tidx; // TODO: use tidx?
                 }
-                function->locals_type = dynarr_push(&m->types_pool,local_count+1);
+                function->locals_type = pool_alloc(&m->types_pool,local_count+1);
                 //Read the locals
                 pos = save_pos; 
                 lidx = 0;
-                for (uint32_t l=0; l<local_count; l++) {
+                for (uint32_t l=0; l<local_type_count; l++) {
                     lecount = read_LEB(bytes, &pos, 32);
                     vt = read_LEB(bytes, &pos, 7);
                     for (uint32_t l=0; l<lecount; l++) {
@@ -497,6 +498,8 @@ static int free_runtimectx(RuntimeContext *rc){
     for(int i=0;i<rc->funcentries_count;i++){
         pwart_FreeFunction(rc->funcentries[i]);
     }
+    wa_free(rc->funcentries);
+    wa_free(rc);
     return 0;
 }
 
@@ -520,6 +523,10 @@ static int free_module(Module *m){
     if(m->functions!=NULL){
         dynarr_free(&m->functions);
     }
+    if(m->types_pool.chunks!=NULL){
+        pool_free(&m->types_pool);
+    }
+    wa_free(m);
     return 0;
 }
 

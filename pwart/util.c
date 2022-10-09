@@ -110,7 +110,6 @@ static char *read_string(uint8_t *bytes, uint32_t *pos, uint32_t *result_len) {
 }
 
 
-
 struct dynarr{
     uint32_t len;
     uint32_t cap;
@@ -145,7 +144,19 @@ static void *dynarr_push(struct dynarr **buf,int count){
     arr->len+=count;
     return newelem;
 }
+#if DEBUG_BUILD
+static void *dynarr_push_sizecheck(struct dynarr **buf,int count,int size){
+    struct dynarr *arr=*buf;
+    if(arr->elemSize!=size){
+        wa_debug("size check failed.");
+        exit(1);
+    }
+    return dynarr_push(buf,count);
+}
+#define dynarr_push_type(dynarr,typename) (typename *)dynarr_push_sizecheck(dynarr,1,sizeof(typename))
+#else
 #define dynarr_push_type(dynarr,typename) (typename *)dynarr_push(dynarr,1)
+#endif
 
 static void *dynarr_pop(struct dynarr **buf,int count){
     struct dynarr *arr=*buf;
@@ -175,6 +186,46 @@ static void dynarr_free(struct dynarr **arr){
     }
     *arr=NULL;
 }
+
+//pool can allocate small memory many times and free all in one call.
+struct pool{
+    struct dynarr *chunks; // chunks ,type (char *)
+    int cur;
+    int used;
+    int chunk_size;
+}
+
+static pool_init(struct pool *p,int chunk_size){
+    dynarr_init(&p->chunks,sizeof(char *));
+    *dynarr_push_type(&p->chunks,char *)=wa_calloc(chunk_size);
+    p->cur=0;
+    p->used=0;
+    p->chunk_size=chunk_size;
+}
+
+//alloc size must less than chunk_size
+static char *pool_alloc(struct pool *p,int size){
+    wa_assert(size<=p->chunk_size,"pool_alloc require size<chunk_size");
+    char *r;
+    if(p->used+size<=p->chunk_size){
+        r=*dynarr_get(p->chunks,char *,p->cur)+p->used;
+        p->used+=size;
+    }else{
+        r=wa_calloc(p->chunk_size);
+        *dynarr_push_type(&p->chunks,char *)=r;
+        p->cur=p->chunks->len-1;
+        p->used=size;
+    }
+    return r;
+}
+
+static void pool_free(struct pool *p){
+    for(int i=0;i<p->chunks->len;i++){
+        wa_free(*dynarr_get(p->chunks,char *,i));
+    }
+    dynarr_free(&p->chunks);
+}
+
 
 
 
