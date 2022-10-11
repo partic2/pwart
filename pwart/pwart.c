@@ -9,6 +9,9 @@
 
 #include <pwart.h>
 
+extern int pwart_get_version(){
+    return PWART_VERSION_1;
+}
 
 extern pwart_module pwart_new_module(){
     Module *m=wa_calloc(sizeof(Module));
@@ -87,3 +90,40 @@ extern void *pwart_get_runtime_user_data(pwart_runtime_context c){
     return rc->userdata;
 }
 
+extern void pwart_rstack_put_i32(void **sp,int val){
+    *(int32_t *)(*sp)=val;
+    *sp+=4;
+}
+extern void pwart_rstack_put_i64(void **sp,long long val){
+    *(int64_t *)(*sp)=val;
+    *sp+=8;
+}
+extern void pwart_rstack_put_f32(void **sp,float val){
+    *(float *)(*sp)=val;
+    *sp+=4;
+}
+extern void pwart_rstack_put_f64(void **sp,double val){
+    *(double *)(*sp)=val;
+    *sp+=8;
+}
+
+extern int pwart_rstack_get_i32(void **sp){
+    int32_t *sp2=*sp;
+    *sp+=4;
+    return *sp2;
+}
+extern long long pwart_rstack_get_i64(void **sp){
+    int64_t *sp2=*sp;
+    *sp+=8;
+    return *sp2;
+}
+extern float pwart_rstack_get_f32(void **sp){
+    float *sp2=*sp;
+    *sp+=4;
+    return *sp2;
+}
+extern double pwart_rstack_get_f64(void **sp){
+    double *sp2=*sp;
+    *sp+=8;
+    return *sp2;
+}
