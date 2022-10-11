@@ -1,17 +1,25 @@
 #ifndef _PWART_H
 #define _PWART_H
 
-#include <stdio.h>
+
+#include <stdint.h>
 
 typedef  void *pwart_module;
 
 typedef void *pwart_runtime_context;
 
+//webassembly function definition (for 1.0 version)
 typedef void (*pwart_wasmfunction)(void *stack_frame,pwart_runtime_context context);
+
+//currently only have 1.0 version
+#define PWART_VERSION_1 1
+
+extern int pwart_get_version();
 
 extern pwart_module pwart_new_module();
 
-//free module and runtime context, if created.
+//free module and relative runtime context , if existed.
+//equal to call pwart_free_runtime and pwart_free_module separately.
 extern void pwart_delete_module(pwart_module m);
 
 //free compile infomation, have no effect to pwart_runtime_context and generated code.
@@ -56,5 +64,19 @@ extern void *pwart_get_runtime_user_data(pwart_runtime_context c);
 
 extern void pwart_free_module(pwart_module mod);
 
+
+//pwart invoke and runtime stack helper
+
+//For version 1.0, arguments and results are all stored on stack.
+//put value to *sp, move *sp to next entries.
+extern void pwart_rstack_put_i32(void **sp,int val);
+extern void pwart_rstack_put_i64(void **sp,long long val);
+extern void pwart_rstack_put_f32(void **sp,float val);
+extern void pwart_rstack_put_f64(void **sp,double val);
+//get value on *sp, move *sp to next entries.
+extern int pwart_rstack_get_i32(void **sp);
+extern long long pwart_rstack_get_i64(void **sp);
+extern float pwart_rstack_get_f32(void **sp);
+extern double pwart_rstack_get_f64(void **sp);
 
 #endif

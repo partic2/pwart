@@ -201,42 +201,42 @@ static void insn_i32rotr(uint32_t *fp, RuntimeContext *m) {
 static void insn_i64rotl(uint64_t *fp, RuntimeContext *m) {
   uint64_t x = *fp;
   uint64_t y = *(fp + 1);
-  y = y & 31;
-  *fp = (x << y) | (x >> (32 - y));
+  y = y & 63;
+  *fp = (x << y) | (x >> (64 - y));
 }
 static void insn_i64rotr(uint64_t *fp, RuntimeContext *m) {
   uint64_t x = *fp;
   uint64_t y = *(fp + 1);
-  y = y & 31;
-  *fp = (x >> y) | (x << (32 - y));
+  y = y & 63;
+  *fp = (x >> y) | (x << (64 - y));
 }
-static void insn_i64mul(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) * (*fp + 1); }
-static void insn_i64divs(int64_t *fp, RuntimeContext *m) { *fp = (*fp) / (*fp + 1); }
-static void insn_i64divu(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) / (*fp + 1); }
-static void insn_i64rems(int64_t *fp, RuntimeContext *m) { *fp = (*fp) % (*fp + 1); }
-static void insn_i64remu(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) % (*fp + 1); }
-static void insn_i64shl(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) << (*fp + 1); }
-static void insn_i64shrs(int64_t *fp, RuntimeContext *m) { *fp = (*fp) << (*fp + 1); }
-static void insn_i64shru(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) << (*fp + 1); }
+static void insn_i64mul(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) * (*(fp + 1)); }
+static void insn_i64divs(int64_t *fp, RuntimeContext *m) { *fp = (*fp) / (*(fp + 1)); }
+static void insn_i64divu(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) / (*(fp + 1)); }
+static void insn_i64rems(int64_t *fp, RuntimeContext *m) { *fp = (*fp) % (*(fp + 1)); }
+static void insn_i64remu(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) % (*(fp + 1)); }
+static void insn_i64shl(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) << (*(fp + 1)); }
+static void insn_i64shrs(int64_t *fp, RuntimeContext *m) { *fp = (*fp) >> (*(fp + 1)); }
+static void insn_i64shru(uint64_t *fp, RuntimeContext *m) { *fp = (*fp) >> (*(fp + 1)); }
 
 static void insn_f32max(float *fp, RuntimeContext *m) {
-  *fp = (*fp) > (*fp + 1) ? (*fp) : (*fp + 1);
+  *fp = (*fp) > *(fp + 1) ? (*fp) : *(fp + 1);
 }
 static void insn_f32min(float *fp, RuntimeContext *m) {
-  *fp = (*fp) < (*fp + 1) ? (*fp) : (*fp + 1);
+  *fp = (*fp) < *(fp + 1) ? (*fp) : *(fp + 1);
 }
 static void insn_f32copysign(float *fp, RuntimeContext *m) {
-  *fp = signbit(*fp) ? -fabs(*fp + 1) : fabs(*fp + 1);
+  *fp = signbit(*fp) ? -fabs(*(fp + 1)) : fabs(*(fp + 1));
 }
 
 static void insn_f64max(double *fp, RuntimeContext *m) {
-  *fp = (*fp) > (*fp + 1) ? (*fp) : (*fp + 1);
+  *fp = (*fp) > *(fp + 1) ? (*fp) : *(fp + 1);
 }
 static void insn_f64min(double *fp, RuntimeContext *m) {
-  *fp = (*fp) < (*fp + 1) ? (*fp) : (*fp + 1);
+  *fp = (*fp) < *(fp + 1) ? (*fp) : *(fp + 1);
 }
 static void insn_f64copysign(double *fp, RuntimeContext *m) {
-  *fp = signbit(*fp) ? -fabs(*fp + 1) : fabs(*fp + 1);
+  *fp = signbit(*fp) ? -fabs(*(fp + 1)) : fabs(*(fp + 1));
 }
 
 static void insn_i32truncf32u(uint32_t *fp, RuntimeContext *m) {
@@ -262,7 +262,7 @@ static void insn_i64truncf64u(uint64_t *fp, RuntimeContext *m) {
 }
 
 static void insn_f32converti32u(float *fp, RuntimeContext *m) {
-  *fp = (float)(*(int32_t *)fp);
+  *fp = (float)(*(uint32_t *)fp);
 }
 
 static void insn_f32converti64s(float *fp, RuntimeContext *m) {
@@ -273,7 +273,7 @@ static void insn_f32converti64u(float *fp, RuntimeContext *m) {
 }
 
 static void insn_f64converti32u(double *fp, RuntimeContext *m) {
-  *fp = (double)(*(int32_t *)fp);
+  *fp = (double)(*(uint32_t *)fp);
 }
 
 static void insn_f64converti64s(double *fp, RuntimeContext *m) {

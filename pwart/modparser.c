@@ -410,6 +410,7 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             wa_debug("Parsing Code(10) section (length: 0x%x)\n", slen);
             uint32_t body_count = read_LEB(bytes, &pos, 32);
             for (uint32_t b=0; b<body_count; b++) {
+                wa_debug("generate code for function %d\n",b);
                 WasmFunction *function = dynarr_get(m->functions,WasmFunction,m->import_count+b);
                 uint32_t body_size = read_LEB(bytes, &pos, 32);
                 uint32_t payload_start = pos;
