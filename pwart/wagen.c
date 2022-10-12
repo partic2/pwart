@@ -2422,7 +2422,7 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0xb0: // i64.trunc_f64_s
       if (m->target_ptr_size == 32) {
-        pwart_EmitCallFunc(m, &func_type_f32_ret_i64, SLJIT_IMM,
+        pwart_EmitCallFunc(m, &func_type_f64_ret_i64, SLJIT_IMM,
                            (sljit_sw)&insn_i64truncf64s);
       } else {
         sv = &stack[m->sp];
@@ -2433,10 +2433,10 @@ static int pwart_GenCode(Module *m) {
         sv->jit_type = SVT_GENERAL;
         sv->val.op = a;
         sv->val.opw = 0;
-        break;
       }
+      break;
     case 0xb1: // i64.trunc_f64_u
-      pwart_EmitCallFunc(m, &func_type_f32_ret_i64, SLJIT_IMM,
+      pwart_EmitCallFunc(m, &func_type_f64_ret_i64, SLJIT_IMM,
                          (sljit_sw)&insn_i64truncf64u);
       break;
     case 0xb2: // f32.convert_i32_s
