@@ -102,70 +102,70 @@ static void insn_i32popcount(void *fp, RuntimeContext *m) {
 
 static void insn_i64eq(void *fp, RuntimeContext *m) {
   uint64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 == *arg2;
 }
 static void insn_i64ne(void *fp, RuntimeContext *m) {
   uint64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 != *arg2;
 }
 static void insn_i64lts(void *fp, RuntimeContext *m) {
   int64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 < *arg2;
 }
 static void insn_i64ltu(void *fp, RuntimeContext *m) {
   uint64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 < *arg2;
 }
 static void insn_i64gts(void *fp, RuntimeContext *m) {
   int64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 > *arg2;
 }
 static void insn_i64gtu(void *fp, RuntimeContext *m) {
   uint64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 > *arg2;
 }
 static void insn_i64les(void *fp, RuntimeContext *m) {
   int64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 <= *arg2;
 }
 static void insn_i64leu(void *fp, RuntimeContext *m) {
   uint64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 <= *arg2;
 }
 static void insn_i64ges(void *fp, RuntimeContext *m) {
   int64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 >= *arg2;
 }
 static void insn_i64geu(void *fp, RuntimeContext *m) {
   uint64_t *arg1, *arg2;
-  uint32_t *result;
+  uint32_t *result=fp;
   arg1 = fp;
   arg2 = arg1 + 1;
   *result = *arg1 >= *arg2;
