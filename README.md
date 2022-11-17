@@ -59,15 +59,27 @@ cd $PWART_SOURCE_ROOT/tests
 make
 ```
 
-## Status and Feature
+## Feature
 
-Basic instruction (0 < opcode < 0xd2) are implemented.
 
-SIMD instruction are not support.
+### Implemented
 
-Multiple memories are not support.
+Basic instruction (0 < opcode < 0xd2).
 
-Not all instruction handle NaN correctly.
+Sign-extension operators
+
+Multi-value
+
+
+### NOT Implemented
+
+Fixed-width SIMD.
+
+Non-trapping float-to-int conversions
+
+Bulk memory operations
+
+Multiple memories and tables
 
 
 ## Roadmap

@@ -251,8 +251,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  // NaN is not fully implemented
-  /*
+  
   fn=pwart_get_export_function(m,"f32_sqrt_neg_is_nan");
   sp=ctxinfo.runtime_stack;
   fn(sp,ctx);
@@ -262,7 +261,7 @@ int unary_test() {
       return 0;
   }
   printf("pass\n");
-  */
+  
 
   fn = pwart_get_export_function(m, "f32_sqrt_100");
   sp = ctxinfo.runtime_stack;
@@ -343,8 +342,7 @@ int unary_test() {
     return 0;
   }
   printf("pass\n");
-  // NaN is not implented
-  /*
+
   fn=pwart_get_export_function(m,"f64_sqrt_neg_is_nan");
   sp=ctxinfo.runtime_stack;
   fn(sp,ctx);
@@ -354,7 +352,7 @@ int unary_test() {
       return 0;
   }
   printf("pass\n");
-  */
+  
 
   fn = pwart_get_export_function(m, "f64_sqrt_100");
   sp = ctxinfo.runtime_stack;
