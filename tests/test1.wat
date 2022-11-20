@@ -10,9 +10,17 @@
   )
 
   (func $addTwo (param i64 i64) (result i64) 
-      local.get 0
+      (i64.store (i32.const 0) (local.get 0))
+      (i64.load (i32.const 0))
       local.get 1
       i64.add
+  )
+
+  (func $addTwoF (param f64 f64) (result f64)
+      (f64.store (i32.const 0) (local.get 0))
+      (f64.load (i32.const 0))
+      local.get 1
+      f64.add
   )
     
   (func $test1 (param i32 i32) (result i32) (local i32 i64)
@@ -52,13 +60,30 @@
   )
 
   (func $test2 (param i64 i64) (result i64) 
+    i32.const 0
     local.get 0
+    i64.store
+    i32.const 0
+    i64.load
     local.get 1
     i32.const 1
     call_indirect (type $typeAddTwo)
     i64.const 140
     call $addTwo
   )
+
+  (func $test3 (param f64 f64) (result i64) 
+    i32.const 0
+    local.get 0
+    f64.store
+    i32.const 0
+    f64.load
+    local.get 1
+    call $addTwoF
+    i64.trunc_f64_s
+  )
+
   (export "test1" (func $test1))
   (export "test2" (func $test2))
+  (export "test3" (func $test3))
 )

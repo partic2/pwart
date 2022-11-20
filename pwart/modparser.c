@@ -57,7 +57,7 @@ static Memory *get_export_memory(Module *m, char *name) {
 }
 
 
-static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
+static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     uint8_t   vt;
     uint32_t  pos = 0, word;
 
@@ -78,10 +78,11 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     m->bytes = bytes;
     m->byte_count = byte_count;
     m->context=wa_calloc(sizeof(RuntimeContext));
-    if(m->default_stack_size==0){
-        m->default_stack_size=PAGE_SIZE-1024;
+    m->context->memory_model=m->cfg.memory_model;
+    if(m->cfg.stack_size==0){
+        m->cfg.stack_size=PAGE_SIZE-1024;
     }
-    m->context->stack_buffer=wa_malloc(m->default_stack_size+16);
+    m->context->stack_buffer=wa_malloc(m->cfg.stack_size+16);
     m->context->stack_start_offset=
         (((sljit_sw)m->context->stack_buffer)+15) & (~(sljit_sw)(0xf))-
         (sljit_sw)m->context->stack_buffer;
@@ -181,8 +182,8 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 void *val;
                 char *err, *sym = wa_malloc(module_len + field_len + 5);
 
-                if(m->symbol_resolver!=NULL){
-                    m->symbol_resolver(import_module,import_field,&val);
+                if(m->cfg.import_resolver!=NULL){
+                    m->cfg.import_resolver(import_module,import_field,&val);
                 }
 
                 wa_debug("  found '%s.%s' as symbol '%s' at address %p\n",
@@ -475,7 +476,7 @@ static int load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
         entf->func_ptr(m->context->stack_buffer+m->context->stack_start_offset,m->context);
     }
 
-    return 0;
+    return NULL;
 }
 
 static int free_runtimectx(RuntimeContext *rc){

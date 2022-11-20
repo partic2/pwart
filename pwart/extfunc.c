@@ -295,9 +295,17 @@ static void insn_memorygrow(void *fp, RuntimeContext *m) {
     return;
   }
   m->memory.pages += delta;
-  //we allocate enough memory only once, so don't try reallocate.
-  //m->memory.bytes = wa_realloc(m->memory.bytes, m->memory.pages * PAGE_SIZE);
+  if(m->memory_model==PWART_MEMORY_MODEL_GROW_ENABLED){
+    m->memory.bytes = wa_realloc(m->memory.bytes, m->memory.pages * PAGE_SIZE);
+  }
   return;
+}
+
+static void insn_malloc32(uint32_t *fp,RuntimeContext *m){
+  *fp=(uint32_t)(size_t)malloc(*fp);
+}
+static void insn_malloc64(uint64_t *fp,RuntimeContext *m){
+  *fp=(uint64_t)(size_t)malloc(*fp);
 }
 
 static uint8_t types_void[] = {0};

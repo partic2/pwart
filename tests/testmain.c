@@ -24,92 +24,124 @@ static void test_wasmfn(void *fp, pwart_runtime_context c) {
 
 // base test
 int test1() {
+  struct pwart_load_config cfg;
   FILE *f = fopen("test1.wasm", "rb");
   // 8MB buffer;
   uint8_t *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);
   fclose(f);
-  pwart_module m = pwart_new_module();
-  struct pwart_inspect_result1 ctxinfo;
-  pwart_load(m, data, len);
-  pwart_runtime_context ctx = pwart_get_runtime_context(m);
-  pwart_inspect_runtime_context(ctx, &ctxinfo);
+  cfg.size_of_this=sizeof(cfg);
 
-  printf("runtime stack at %p\n", ctxinfo.runtime_stack);
+  for(int i1=0;i1<2;i1++){
+    pwart_module m = pwart_new_module();
+    //different config
+    switch(i1){
+      case 0:
+      printf("test config:default\n");
+      break;
+      case 1:
+      printf("test config:memory_model=PWART_MEMORY_MODEL_GROW_ENABLED\n");
+      pwart_get_load_config(m,&cfg);
+      cfg.memory_model=PWART_MEMORY_MODEL_GROW_ENABLED;
+      pwart_set_load_config(m,&cfg);
+      break;
+    }
 
-  pwart_wasmfunction test1 = pwart_get_export_function(m, "test1");
+    struct pwart_inspect_result1 ctxinfo;
+    pwart_load(m, data, len);
+    pwart_runtime_context ctx = pwart_get_runtime_context(m);
+    pwart_inspect_runtime_context(ctx, &ctxinfo);
 
-  pwart_wasmfunction test2 = pwart_get_export_function(m, "test2");
+    printf("runtime stack at %p\n", ctxinfo.runtime_stack);
 
-  pwart_free_module(m);
+    pwart_wasmfunction test1 = pwart_get_export_function(m, "test1");
 
-  void *sp;
+    pwart_wasmfunction test2 = pwart_get_export_function(m, "test2");
 
-  int32_t ri32;
-  uint64_t ri64;
+    pwart_wasmfunction test3 = pwart_get_export_function(m, "test3");
 
-  sp = ctxinfo.runtime_stack;
-  puti32(&sp, 22);
-  puti32(&sp, 33);
+    pwart_free_module(m);
 
-  sp = ctxinfo.runtime_stack;
-  test1(sp, ctx);
-  ri32 = geti32(&sp);
-  printf("expect %u, got %u\n", (22 + 33) * 2, ri32);
+    void *sp;
 
-  if ((22 + 33) * 2 != ri32) {
-    return 0;
+    int32_t ri32;
+    uint64_t ri64;
+
+    sp = ctxinfo.runtime_stack;
+    puti32(&sp, 22);
+    puti32(&sp, 33);
+
+    sp = ctxinfo.runtime_stack;
+    test1(sp, ctx);
+    ri32 = geti32(&sp);
+    printf("expect %u, got %u\n", (22 + 33) * 2, ri32);
+
+    if ((22 + 33) * 2 != ri32) {
+      return 0;
+    }
+
+    sp = ctxinfo.runtime_stack;
+    puti32(&sp, 100);
+    puti32(&sp, 11);
+    sp = ctxinfo.runtime_stack;
+    test1(sp, ctx);
+    ri32 = geti32(&sp);
+    printf("expect %u, got %u\n", 100 + 11, ri32);
+    if (100 + 11 != ri32) {
+      return 0;
+    }
+
+    char *memstr = (uint8_t *)ctxinfo.memory;
+    *(memstr + 7) = 0;
+    printf("expect Hello, got %s\n", memstr + 1);
+    if (strcmp(memstr + 1, "Hello") != 0) {
+      return 0;
+    }
+    printf("expect %p, got %p , %p\n", ctxinfo.table_entries[0],
+          ctxinfo.table_entries[1], ctxinfo.table_entries[2]);
+    if (ctxinfo.table_entries[0] != ctxinfo.table_entries[1]) {
+      return 0;
+    }
+    if (ctxinfo.table_entries[0] != ctxinfo.table_entries[2]) {
+      return 0;
+    }
+
+    sp = ctxinfo.runtime_stack;
+    puti64(&sp, 22);
+    puti64(&sp, 33);
+    sp = ctxinfo.runtime_stack;
+    test2(sp, ctx);
+    ri64 = geti64(&sp);
+    printf("expect %u, got %llu\n", (22 + 33 + 140), ri64);
+    if (22 + 33 + 140 != ri64) {
+      return 0;
+    }
+
+    ctxinfo.table_entries[1] = &test_wasmfn;
+    sp = ctxinfo.runtime_stack;
+    puti64(&sp, 22);
+    puti64(&sp, 33);
+    sp = ctxinfo.runtime_stack;
+    test2(sp, ctx);
+    ri64 = geti64(&sp);
+    printf("expect %u, got %llu\n", 22 + 33 + 140 + 2, ri64);
+    if (22 + 33 + 140 + 2 != ri64) {
+      return 0;
+    }
+
+    sp = ctxinfo.runtime_stack;
+    putf64(&sp, 3.25);
+    putf64(&sp, 4.75);
+    sp = ctxinfo.runtime_stack;
+    test3(sp, ctx);
+    ri64 = geti64(&sp);
+    printf("expect %llu, got %llu\n", (int64_t)(3.25+4.75), ri64);
+    if ((int64_t)(3.25+4.75) != ri64) {
+      return 0;
+    }
+    pwart_free_runtime(ctx);
   }
-
-  sp = ctxinfo.runtime_stack;
-  puti32(&sp, 100);
-  puti32(&sp, 11);
-  sp = ctxinfo.runtime_stack;
-  test1(sp, ctx);
-  ri32 = geti32(&sp);
-  printf("expect %u, got %u\n", 100 + 11, ri32);
-  if (100 + 11 != ri32) {
-    return 0;
-  }
-
-  char *memstr = (uint8_t *)ctxinfo.memory;
-  *(memstr + 7) = 0;
-  printf("expect Hello, got %s\n", memstr + 1);
-  if (strcmp(memstr + 1, "Hello") != 0) {
-    return 0;
-  }
-  printf("expect %p, got %p , %p\n", ctxinfo.table_entries[0],
-         ctxinfo.table_entries[1], ctxinfo.table_entries[2]);
-  if (ctxinfo.table_entries[0] != ctxinfo.table_entries[1]) {
-    return 0;
-  }
-  if (ctxinfo.table_entries[0] != ctxinfo.table_entries[2]) {
-    return 0;
-  }
-
-  sp = ctxinfo.runtime_stack;
-  puti64(&sp, 22);
-  puti64(&sp, 33);
-  sp = ctxinfo.runtime_stack;
-  test2(sp, ctx);
-  ri64 = geti64(&sp);
-  printf("expect %u, got %llu\n", (22 + 33 + 140), ri64);
-  if (22 + 33 + 140 != ri64) {
-    return 0;
-  }
-
-  ctxinfo.table_entries[1] = &test_wasmfn;
-  sp = ctxinfo.runtime_stack;
-  puti64(&sp, 22);
-  puti64(&sp, 33);
-  sp = ctxinfo.runtime_stack;
-  test2(sp, ctx);
-  ri64 = geti64(&sp);
-  printf("expect %u, got %llu\n", 22 + 33 + 140 + 2, ri64);
-  if (22 + 33 + 140 + 2 != ri64) {
-    return 0;
-  }
-  pwart_free_runtime(ctx);
+  free(data);
   return 1;
 }
 
