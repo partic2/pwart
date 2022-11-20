@@ -15,31 +15,37 @@ extern int pwart_get_version(){
 
 extern pwart_module pwart_new_module(){
     Module *m=wa_calloc(sizeof(Module));
+    m->cfg.stack_size=63*1024;
+    m->cfg.import_resolver=NULL;
     return m;
 }
 
-extern void pwart_delete_module(pwart_module mod){
+extern char *pwart_delete_module(pwart_module mod){
     Module *m=mod;
     RuntimeContext *rc=m->context;
     free_module(m);
     if(rc!=NULL){
         free_runtimectx(rc);
     }
+    return NULL;
 }
 
-extern void pwart_free_module(pwart_module mod){
+extern char *pwart_free_module(pwart_module mod){
     Module *m=mod;
     free_module(m);
+    return NULL;
 }
 
-extern void pwart_free_runtime(pwart_runtime_context rc2){
+extern char *pwart_free_runtime(pwart_runtime_context rc2){
     RuntimeContext *rc=rc2;
     free_runtimectx(rc);
+    return NULL;
 }
 
 
-extern int pwart_load(pwart_module m,char *data,int len){
+extern char *pwart_load(pwart_module m,char *data,int len){
     return load_module(m,data,len);
+
 }
 
 extern pwart_wasmfunction pwart_get_export_function(pwart_module module,char *name){
@@ -53,13 +59,30 @@ extern pwart_wasmfunction pwart_get_export_function(pwart_module module,char *na
     
 }
 
-extern int pwart_set_symbol_resolver(pwart_module m2,void (*resolver)(char *import_module,char *import_field,void *result)){
+extern char *pwart_set_symbol_resolver(pwart_module m2,void (*resolver)(char *import_module,char *import_field,void *result)){
     Module *m=m2;
-    m->symbol_resolver=resolver;
+    m->cfg.import_resolver=resolver;
+    return NULL;
 }
-extern int pwart_set_stack_size(pwart_module m2,int stack_size){
+extern char *pwart_set_stack_size(pwart_module m2,int stack_size){
     Module *m=m2;
-    m->default_stack_size=stack_size;
+    m->cfg.stack_size=stack_size;
+    return NULL;
+}
+
+extern char *pwart_set_load_config(pwart_module m2,struct pwart_load_config *config){
+    Module *m=m2;
+    m->cfg.import_resolver=config->import_resolver;
+    m->cfg.stack_size=config->stack_size;
+    m->cfg.memory_model=config->memory_model;
+    return NULL;
+}
+extern char *pwart_get_load_config(pwart_module m2,struct pwart_load_config *config){
+    Module *m=m2;
+    config->import_resolver=m->cfg.import_resolver;
+    config->stack_size=m->cfg.stack_size;
+    config->memory_model=m->cfg.memory_model;
+    return NULL;
 }
 
 extern pwart_runtime_context pwart_get_runtime_context(pwart_module mod){
@@ -67,7 +90,7 @@ extern pwart_runtime_context pwart_get_runtime_context(pwart_module mod){
     return m->context;
 }
 
-extern int pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_inspect_result1 *result){
+extern char *pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_inspect_result1 *result){
     RuntimeContext *rc=c;
     result->memory_size=rc->memory.pages*PAGE_SIZE;
     result->memory=rc->memory.bytes;
@@ -76,13 +99,13 @@ extern int pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_in
     result->table_entries=rc->table.entries;
     result->globals_buffer_size=rc->globals->len;
     result->globals_buffer=&rc->globals->data;
+    return NULL;
 }
 
 
-extern int pwart_set_runtime_user_data(pwart_runtime_context c,void *ud){
+extern void pwart_set_runtime_user_data(pwart_runtime_context c,void *ud){
     RuntimeContext *rc=c;
     rc->userdata=ud;
-    return 0;
 }
 
 extern void *pwart_get_runtime_user_data(pwart_runtime_context c){

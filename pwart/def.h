@@ -1,6 +1,8 @@
 #ifndef _PWART_WASM_DEF_H
 #define _PWART_WASM_DEF_H
 
+#include "pwart.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -151,14 +153,14 @@ typedef struct Export {
 typedef struct RuntimeContext{
     uint8_t     *stack_buffer;           // runtime stack buffer
     int8_t       stack_start_offset;     // stack_start_offset, to align the stack bottom(align to 16 byte).
+    uint8_t      memory_model;   // PWART_MEMORY_MODEL_xxxx
     WasmFunctionEntry *funcentries;  // imported and locally defined functions, type WasmFunctionEntry
     int funcentries_count;
     //XXX: maybe use fixed size array is better
     struct dynarr *globals; // globals variable buffer, type uint8_t
-    //XXX: consider store table.entries, functions list into memory, to save time for loading base address.
     Memory      memory;         // memory 0 infomation
     Table       table;          // table 0 information
-    void *userdata; //user data, not use in library.
+    void *userdata;  //user data, not used by pwart.
 }RuntimeContext;
 
 
@@ -179,7 +181,6 @@ typedef struct Module {
     
     uint32_t    start_function; // function to run on module load
 
-    void (*symbol_resolver)(char *import_module,char *import_field,void *val);
     WasmFunctionEntry trap_handler;
 
     struct dynarr *globals;        // globals, type StackValue
@@ -188,7 +189,7 @@ typedef struct Module {
 
     struct dynarr *exports;  //type Export
 
-    uint16_t default_stack_size;
+    struct pwart_load_config cfg;
 
     //jit state, used in compile time.
     struct sljit_compiler *jitc;

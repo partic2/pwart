@@ -10,7 +10,7 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
   *pos = *pos + 1;
   switch (opcode) {
   // varuint1
-  case 0x3f ... 0x40: // current_memory, grow_memory
+  case 0x3f ... 0x40: // current_memory, memory.grow
     read_LEB(bytes, pos, 1);
     break;
   // varuint32, varint32
@@ -524,6 +524,19 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
     sv->val.op = SLJIT_MEM1(SLJIT_S0);
     sv->val.opw = sv->frame_offset;
   }
+  if(m->cfg.memory_model==PWART_MEMORY_MODEL_GROW_ENABLED){
+    //reload memory base
+    if (m->mem_base_local >= 0) {
+      uint32_t tr;
+      StackValue *sv2;
+      tr=pwart_GetFreeReg(m,RT_BASE,0);
+      sv = dynarr_get(m->locals, StackValue, m->mem_base_local);
+      sv2= dynarr_get(m->locals, StackValue, m->runtime_ptr_local);
+      sljit_emit_op1(m->jitc, SLJIT_MOV, tr, 0, sv2->val.op, sv2->val.opw);
+      sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw, SLJIT_MEM1(tr),
+                    get_memorybytes_offset(m));
+    }
+  }
 }
 
 static int pwart_EmitFuncReturn(Module *m) {
@@ -655,6 +668,7 @@ static void pwart_EmitStackValueLoadReg(Module *m, StackValue *sv) {
     if (stackvalue_IsFloat(sv)) {
       r1 = pwart_GetFreeReg(m, RT_FLOAT, 0);
     } else {
+      //XXX: if sv is SLJIT_MEM1 type, we can reuse this register.
       r1 = pwart_GetFreeReg(m, RT_INTEGER, 0);
     }
     pwart_EmitLoadReg(m, sv, r1);
@@ -755,7 +769,6 @@ static int pwart_EmitFuncEnter(Module *m) {
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_S1;
   sv->val.opw = 0;
-
   // for performance, put memory base to SLJIT_S1, and save RuntimeContext
   // pointer. Must be the last step.
   if (m->mem_base_local >= 0) {
@@ -767,7 +780,7 @@ static int pwart_EmitFuncEnter(Module *m) {
     sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_S1, 0, SLJIT_R0, 0);
     t = m->mem_base_local;
     m->mem_base_local = m->runtime_ptr_local;
-    m->runtime_ptr_local = m->mem_base_local;
+    m->runtime_ptr_local = t;
   }
 }
 
@@ -1181,7 +1194,7 @@ static int pwart_GenCode(Module *m) {
       sv->val.op = a;
       sv->val.opw = 0;
       break;
-    case 0x40:                     // grow_memory
+    case 0x40:                     // memory.grow
       read_LEB(bytes, &m->pc, 32); // ignore reserved
       pwart_EmitCallFunc(m, &func_type_i32_ret_i32, SLJIT_IMM,
                          (sljit_sw)&insn_memorygrow);
@@ -1197,17 +1210,40 @@ static int pwart_GenCode(Module *m) {
         sljit_emit_op2(m->jitc, SLJIT_ADD32, a, 0, sv->val.op, sv->val.opw,
                        sv2->val.op, sv2->val.opw);
       } else {
-        // TODO:memory64 support
-        SLJIT_UNREACHABLE();
+        if(m->target_ptr_size==64){
+          sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
+                       sv2->val.op, sv2->val.opw);
+        }else{
+          // TODO:memory64 support for 32 bit arch.
+          SLJIT_UNREACHABLE();
+        }
       }
       m->sp--;
       sv = push_stackvalue(m, NULL);
-      sv->jit_type = SVT_GENERAL;
       switch (opcode) {
       case 0x28: // i32.load32
+        sv->wasm_type=WVT_I32;
+        sv->jit_type = SVT_GENERAL;
+        sv->val.op = SLJIT_MEM1(a);
+        sv->val.opw = offset;
+        pwart_EmitStackValueLoadReg(m, sv);
+        break;
       case 0x29: // i64.load64
+        sv->wasm_type=WVT_I64;
+        sv->jit_type = SVT_GENERAL;
+        sv->val.op = SLJIT_MEM1(a);
+        sv->val.opw = offset;
+        pwart_EmitStackValueLoadReg(m, sv);
+        break;
       case 0x2a: // f32.load32
+        sv->wasm_type=WVT_F32;
+        sv->jit_type = SVT_GENERAL;
+        sv->val.op = SLJIT_MEM1(a);
+        sv->val.opw = offset;
+        pwart_EmitStackValueLoadReg(m, sv);
+        break;
       case 0x2b: // f64.load64
+        sv->wasm_type=WVT_F64;
         sv->jit_type = SVT_GENERAL;
         sv->val.op = SLJIT_MEM1(a);
         sv->val.opw = offset;
@@ -1289,8 +1325,13 @@ static int pwart_GenCode(Module *m) {
         sljit_emit_op2(m->jitc, SLJIT_ADD32, a, 0, sv->val.op, sv->val.opw,
                        sv2->val.op, sv2->val.opw);
       } else {
-        // TODO:memory64 support
-        SLJIT_UNREACHABLE();
+        if(m->target_ptr_size==64){
+          sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
+                       sv2->val.op, sv2->val.opw);
+        }else{
+          // TODO:memory64 support for 32 bit arch.
+          SLJIT_UNREACHABLE();
+        }
       }
       m->sp--;
       sv = &stack[m->sp];

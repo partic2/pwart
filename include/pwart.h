@@ -20,24 +20,54 @@ extern pwart_module pwart_new_module();
 
 //free module and relative runtime context , if existed.
 //equal to call pwart_free_runtime and pwart_free_module separately.
-extern void pwart_delete_module(pwart_module m);
+//return error message if any, or NULL if succeded.
+extern char *pwart_delete_module(pwart_module m);
 
 //free compile infomation, have no effect to pwart_runtime_context and generated code.
-extern void pwart_free_module(pwart_module mod);
+//return error message if any, or NULL if succeded.
+extern char *pwart_free_module(pwart_module mod);
 
 //free runtime context and generated code.
-extern void pwart_free_runtime(pwart_runtime_context rc);
+//return error message if any, or NULL if succeded.
+extern char *pwart_free_runtime(pwart_runtime_context rc);
 
-extern int pwart_load(pwart_module m,char *data,int len);
+//load module and generate code.
+//return error message if any, or NULL if succeded.
+extern char *pwart_load(pwart_module m,char *data,int len);
 
-//this function can only called before module is free.
+//get wasmfunction exported by wasm module.
+//you can only get exported symbol before module is free.
 extern pwart_wasmfunction pwart_get_export_function(pwart_module module,char *name);
 
-// pwart_module config, must set before pwart_load.
-
-extern int pwart_set_symbol_resolver(pwart_module m,void (*resolver)(char *import_module,char *import_field,void *result));
+// pwart_module load config, must set before pwart_load.
+//return error message if any, or NULL if succeded.
+extern char *pwart_set_symbol_resolver(pwart_module m,void (*resolver)(char *import_module,char *import_field,void *result));
 // set max runtime stack size, default is 63KB.
-extern int pwart_set_stack_size(pwart_module m,int stack_size);
+// return error message if any, or NULL if succeded.
+extern char *pwart_set_stack_size(pwart_module m,int stack_size);
+
+struct pwart_load_config{
+    //To indicate the api version, should be set before get_config or set_config.
+    int size_of_this;
+    void (*import_resolver)(char *import_module,char *import_field,void *result);
+    int stack_size;
+    int memory_model;
+};
+//Default memory model, memory is initialize to the max size, memory.grow will always return -1
+#define PWART_MEMORY_MODEL_FIXED_SIZE 0
+
+//memory.grow will try realloc memory. 
+//NOTICE: This option will slow the generated code due to memory base reloading.
+#define PWART_MEMORY_MODEL_GROW_ENABLED 1
+
+//WIP
+//memory must be allocated by calling external function "malloc32(type:[i32]->[i32])" or "malloc64(type:[i64]->[i64])" (for memory64)
+//This option make PWART to try to use direct memory access instead of offset + base, which can make generated code faster.
+#define PWART_MEMORY_MODEL_MALLOC 2
+
+// return error message if any, or NULL if succeded.
+extern char *pwart_set_load_config(pwart_module m,struct pwart_load_config *config);
+extern char *pwart_get_load_config(pwart_module m,struct pwart_load_config *config);
 
 
 
@@ -57,12 +87,14 @@ struct pwart_inspect_result1{
     int globals_buffer_size;
     void *globals_buffer;
 };
-extern int pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_inspect_result1 *result);
+// return error message if any, or NULL if succeded.
+extern char *pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_inspect_result1 *result);
 
-extern int pwart_set_runtime_user_data(pwart_runtime_context c,void *ud);
+extern void pwart_set_runtime_user_data(pwart_runtime_context c,void *ud);
 extern void *pwart_get_runtime_user_data(pwart_runtime_context c);
 
-extern void pwart_free_module(pwart_module mod);
+// return error message if any, or NULL if succeded.
+extern char *pwart_free_module(pwart_module mod);
 
 
 //pwart invoke and runtime stack helper
