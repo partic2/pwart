@@ -907,7 +907,7 @@ static int pwart_GenCode(Module *m) {
       if (sv->jit_type == SVT_CMP) {
         int freer = pwart_GetFreeReg(m, RT_INTEGER, 0);
         sljit_emit_op_flags(m->jitc, SLJIT_MOV, freer, 0, sv->val.cmp.flag);
-        jump = sljit_emit_cmp(m->jitc, SLJIT_EQUAL, sv->val.op, sv->val.opw,
+        jump = sljit_emit_cmp(m->jitc, SLJIT_EQUAL, freer, 0,
                               SLJIT_IMM, 0);
       } else {
         //sljit_emit_cmp always use machine word length, So load to register first.
@@ -1042,6 +1042,8 @@ static int pwart_GenCode(Module *m) {
       break;
     case 0x0f: // return
       pwart_EmitFuncReturn(m);
+      //pop all value in stack, to avoid unnecessary value saved.
+      m->sp = -1;
       break;
 
     //
@@ -1203,16 +1205,16 @@ static int pwart_GenCode(Module *m) {
     case 0x28 ... 0x35:
       flags = read_LEB(bytes, &m->pc, 32); // align
       offset = read_LEB(bytes, &m->pc, 32);
-      *sv2 = stack[m->sp];                                       // addr
+      sv2 = &m->stack[m->sp];                                    // addr
       sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
       a = pwart_GetFreeReg(m, RT_BASE, 1);
       if (sv2->wasm_type == WVT_I32) {
         sljit_emit_op2(m->jitc, SLJIT_ADD32, a, 0, sv->val.op, sv->val.opw,
-                       sv2->val.op, sv2->val.opw);
+                      sv2->val.op, sv2->val.opw);
       } else {
         if(m->target_ptr_size==64){
           sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
-                       sv2->val.op, sv2->val.opw);
+                      sv2->val.op, sv2->val.opw);
         }else{
           // TODO:memory64 support for 32 bit arch.
           SLJIT_UNREACHABLE();

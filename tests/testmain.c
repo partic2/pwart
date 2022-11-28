@@ -55,10 +55,9 @@ int test1() {
     printf("runtime stack at %p\n", ctxinfo.runtime_stack);
 
     pwart_wasmfunction test1 = pwart_get_export_function(m, "test1");
-
     pwart_wasmfunction test2 = pwart_get_export_function(m, "test2");
-
     pwart_wasmfunction test3 = pwart_get_export_function(m, "test3");
+    pwart_wasmfunction fib_main=pwart_get_export_function(m,"fib_main");
 
     pwart_free_module(m);
 
@@ -139,13 +138,29 @@ int test1() {
     if ((int64_t)(3.25+4.75) != ri64) {
       return 0;
     }
+    
+    //fibnacci sequence
+    sp=ctxinfo.runtime_stack;
+    puti32(&sp,2);
+    puti32(&sp,8);
+    *(int *)((char *)ctxinfo.memory+8)=0;
+    *(int *)((char *)ctxinfo.memory+12)=16;
+    memcpy((char *)ctxinfo.memory+16,"30",3);
+    sp = ctxinfo.runtime_stack;
+    fib_main(sp,ctx);
+    ri32 = geti32(&sp);
+    printf("fib test, expect %d, got %d\n",832040,ri32);
+    if (832040 != ri32) {
+      return 0;
+    }
+
     pwart_free_runtime(ctx);
+    
   }
   free(data);
   return 1;
 }
 
-// base test
 int unary_test() {
   FILE *f = fopen("unary.wasm", "rb");
   // 8MB buffer;
@@ -1269,6 +1284,7 @@ int main(int argc, char *argv[]) {
     printf("test1 failed\n");
     return 1;
   }
+
   if ( unary_test()) {
     printf("unary_test pass\n");
   } else {

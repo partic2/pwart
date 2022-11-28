@@ -83,6 +83,77 @@
     i64.trunc_f64_s
   )
 
+  (func $fib:fib
+    (param $n i32) (result i32) 
+    local.get $n
+    i32.const 2
+    i32.lt_u
+    if
+    local.get $n
+    return
+    end
+    local.get $n
+    i32.const 1
+    i32.sub
+    call $fib:fib
+    local.get $n
+    i32.const 2
+    i32.sub
+    call $fib:fib
+    i32.add
+    return
+  )
+  (func $fib:parseInt
+    (param $str i32) (result i32) 
+    (local $res i32) (local $i i32) 
+    i32.const 0
+    local.set $res
+    block $2$
+    i32.const 0
+    local.set $i
+    loop $1$
+    local.get $str
+    local.get $i
+    i32.add
+    i32.load8_s offset=0 align=1
+    i32.const 0
+    i32.ne
+    i32.eqz
+    br_if $2$
+    block $3$
+    local.get $res
+    i32.const 10
+    i32.mul
+    local.get $str
+    local.get $i
+    i32.add
+    i32.load8_s offset=0 align=1
+    i32.add
+    i32.const 48
+    i32.sub
+    local.set $res
+    end $3$
+    local.get $i
+    i32.const 1
+    i32.add
+    local.set $i
+    br $1$
+    end $1$
+    end $2$
+    local.get $res
+    return
+  )
+  (func $fib:main (export "fib_main")
+    (param $args i32) (param $argv i32) (result i32) 
+    (local $n i32) 
+    local.get $argv
+    i32.load offset=4 align=4
+    call $fib:parseInt
+    local.tee $n
+    call $fib:fib
+    return
+  )
+
   (export "test1" (func $test1))
   (export "test2" (func $test2))
   (export "test3" (func $test3))
