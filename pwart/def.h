@@ -199,6 +199,7 @@ typedef struct Module {
     StackValue  stack[32]; // main operand stack
     struct dynarr *blocks; // block stacks, block type
     struct dynarr *br_table; // br_table branch indexes, uint32_t type
+    uint8_t eof;      // end of function
 
     //prepare info, used in compile time
     Type *function_type;   // function type current processing.
