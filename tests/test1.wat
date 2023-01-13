@@ -39,6 +39,14 @@
     i32.const 0x6f6c6c65
     i32.store
     i32.const 6
+    i32.const 1
+    i32.const 5
+    memory.copy
+    i32.const 11
+    i32.const 33
+    i32.const 4
+    memory.fill
+    i32.const 15
     i32.const 0
     i32.store8
     block $exit (result i32)
@@ -80,7 +88,7 @@
     f64.load
     local.get 1
     call $addTwoF
-    i64.trunc_f64_s
+    i64.trunc_sat_f64_s
   )
 
   (func $fib:fib

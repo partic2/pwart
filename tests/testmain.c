@@ -91,9 +91,9 @@ int test1() {
     }
 
     char *memstr = (uint8_t *)ctxinfo.memory;
-    *(memstr + 7) = 0;
-    printf("expect Hello, got %s\n", memstr + 1);
-    if (strcmp(memstr + 1, "Hello") != 0) {
+    *(memstr + 100) = 0;
+    printf("expect HelloHello!!!!, got %s\n", memstr + 1);
+    if (strcmp(memstr + 1, "HelloHello!!!!") != 0) {
       return 0;
     }
     printf("expect %p, got %p , %p\n", ctxinfo.table_entries[0],

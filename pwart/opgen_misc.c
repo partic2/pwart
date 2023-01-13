@@ -3,6 +3,8 @@
 
 #include "def.h"
 #include "extfunc.c"
+#include "opgen_num.c"
+#include "opgen_mem.c"
 #include "opgen_utils.c"
 
 static void opgen_GenRefNull(Module *m, int32_t tidx) {
@@ -42,8 +44,64 @@ static void opgen_GenRefFunc(Module *m, int32_t fidx) {
   sv->val.opw = 0;
 }
 
+static void opgen_GenMiscOp_FC(Module *m,int opcode){
+  #if DEBUG_BUILD
+  switch(opcode){
+    case 0 ... 7:
+    wa_debug("op fc %x:%s\n", m->pc, "ixx.trunc_sat_fxx_s|u");
+    break;
+    case 0x0a:
+    wa_debug("op fc %x:%s\n", m->pc, "memory.copy");
+    break;
+    case 0x0b:
+    wa_debug("op fc %x:%s\n", m->pc, "memory.fill");
+    break;
+  }
+  #endif
+  switch(opcode){
+    //Non-trapping Float-to-int Conversions
+    //the behavior when convert is overflow is depend on sljit implementation.
+    case 0x00: //i32.trunc_sat_f32_s
+    opgen_GenNumOp(m,0xa8);
+    break;
+    case 0x01: //i32.trunc_sat_f32_u
+    opgen_GenNumOp(m,0xa9);
+    break;
+    case 0x02: //i32.trunc_sat_f64_s
+    opgen_GenNumOp(m,0xaa);
+    break;
+    case 0x03: //i32.trunc_sat_f64_u
+    opgen_GenNumOp(m,0xab);
+    break; 
+    case 0x04: //i64.trunc_sat_f32_s
+    opgen_GenNumOp(m,0xae);
+    break;
+    case 0x05: //i64.trunc_sat_f32_u
+    opgen_GenNumOp(m,0xaf);
+    break;
+    case 0x06: //i64.trunc_sat_f64_s
+    opgen_GenNumOp(m,0xb0);
+    break;
+    case 0x07: //i64.trunc_sat_f64_u
+    opgen_GenNumOp(m,0xb1);
+    break; 
+    case 0x0a: //memory.copy
+    read_LEB_signed(m->bytes,&m->pc,32); //source memory index
+    read_LEB_signed(m->bytes,&m->pc,32); //destination memory index
+    opgen_GenMemoryCopy(m);
+    break;
+    case 0x0b: //memory.fill
+    read_LEB_signed(m->bytes,&m->pc,32); //destination memory index
+    opgen_GenMemoryFill(m);
+    break;
+    default:
+    wa_debug("unrecognized misc opcode 0xfc 0x%x at %d", opcode, m->pc);
+    exit(1);
+  }
+}
+
 static void opgen_GenMiscOp(Module *m, int opcode) {
-  int32_t tidx,fidx;
+  int32_t tidx,fidx,opcode2;
   uint8_t *bytes = m->bytes;
   switch (opcode) {
   case 0xd0:                            // ref.null
@@ -56,6 +114,11 @@ static void opgen_GenMiscOp(Module *m, int opcode) {
   case 0xd2: // ref.func
     fidx = read_LEB(bytes, &m->pc, 32);
     opgen_GenRefFunc(m, fidx);
+    break;
+  case 0xfc: // misc prefix
+    opcode2=m->bytes[m->pc];
+    opgen_GenMiscOp_FC(m,opcode2);
+    m->pc++;
     break;
   default:
     wa_debug("unrecognized opcode 0x%x at %d", opcode, m->pc);

@@ -63,6 +63,16 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     }
     read_LEB(bytes, pos, 32); // default target
     break;
+  case 0xfc: //misc op.
+    switch(bytes[*pos]){
+      case 0xa:
+      case 0xb:
+      read_LEB(bytes,pos,32); 
+      read_LEB(bytes,pos,32); 
+      break;
+    }
+    *pos++;
+    break;
   default: // no immediates
     break;
   }
@@ -223,7 +233,9 @@ static int pwart_GenCode(Module *m) {
     m->pc += 1;
 
 #if DEBUG_BUILD
-    wa_debug("op %d:%s\n", m->pc, OPERATOR_INFO[opcode]);
+    if(opcode<=0xd2){
+      wa_debug("op %x:%s\n", m->pc, OPERATOR_INFO[opcode]);
+    }
 #endif
 
     // XXX: save flag if next op is not if or br_if.

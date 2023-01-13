@@ -141,18 +141,31 @@ static void opgen_GenI64Load(Module *m, int32_t opcode, int32_t a,
   int32_t b;
   b = pwart_GetFreeRegExcept(m, RT_INTEGER, a, 0);
   StackValue *sv = push_stackvalue(m, NULL);
-
-  switch (opcode) {
-  case 0x29: // i64.load64
-    if (m->target_ptr_size == 32) {
+  if (m->target_ptr_size == 32) {
+    // i64.load64 on 32bit arch
+    if (opcode == 0x29) {
       sv->wasm_type = WVT_I64;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = SLJIT_MEM1(a);
       sv->val.opw = offset;
       pwart_EmitStackValueLoadReg(m, sv);
-    } else {
-      sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_MEM1(a), offset);
+      return;
+    }else{
+      sv->jit_type = SVT_TWO_REG;
+      sv->wasm_type = WVT_I64;
+      sv->val.tworeg.opr1 = a;
+      sv->val.tworeg.opr2 = b;
+      sljit_emit_op1(m->jitc,SLJIT_MOV,b,0,SLJIT_IMM,0);
     }
+  } else {
+    sv->jit_type = SVT_GENERAL;
+    sv->wasm_type = WVT_I64;
+    sv->val.op = a;
+    sv->val.opw = 0;
+  }
+  switch (opcode) {
+  case 0x29: // i64.load64
+    sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_MEM1(a), offset);
     break;
   case 0x30: // i64.load8_s
     sljit_emit_op1(m->jitc, SLJIT_MOV_S8, a, 0, SLJIT_MEM1(a), offset);
@@ -173,21 +186,7 @@ static void opgen_GenI64Load(Module *m, int32_t opcode, int32_t a,
     sljit_emit_op1(m->jitc, SLJIT_MOV_U32, a, 0, SLJIT_MEM1(a), offset);
     break;
   }
-  if (m->target_ptr_size == 32) {
-    sv->jit_type = SVT_TWO_REG;
-    sv->wasm_type = WVT_I64;
-    sv->val.tworeg.opr1 = a;
-    sv->val.tworeg.opr2 = b;
-    // i64.load64
-    if (opcode != 0x29) {
-      sljit_emit_op1(m->jitc, SLJIT_MOV, b, 0, SLJIT_IMM, 0);
-    }
-  } else {
-    sv->jit_type = SVT_GENERAL;
-    sv->wasm_type = WVT_I64;
-    sv->val.op = a;
-    sv->val.opw = 0;
-  }
+  
 }
 
 static void opgen_GenFloatLoad(Module *m, int32_t opcode, int32_t a,
@@ -210,12 +209,12 @@ static void opgen_GenFloatLoad(Module *m, int32_t opcode, int32_t a,
     break;
   }
 }
-
-// size: result size. size2: memory size.
-static void opgen_GenLoad(Module *m, int32_t opcode, sljit_sw offset,
-                          sljit_sw align) {
-  StackValue *sv, *sv2;
-  int32_t a;
+//pop stack top, and convert to base address stored in register, return the register.
+static int opgen_GenBaseAddressReg(Module *m){
+  StackValue *sv,*sv2;
+  int a;
+  sljit_s32 op;
+  sljit_sw opw;
   sv2 = &m->stack[m->sp];                                    // addr
   sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
   a = pwart_GetFreeReg(m, RT_BASE, 1);
@@ -227,11 +226,21 @@ static void opgen_GenLoad(Module *m, int32_t opcode, sljit_sw offset,
       sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
                      sv2->val.op, sv2->val.opw);
     } else {
-      // TODO:memory64 support for 32 bit arch.
-      SLJIT_UNREACHABLE();
+      // For 32bit arch, memory64 only use the least significant word. 
+      stackvalue_LowWord(m,sv2,&op,&opw);
+      sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
+                     op, opw);
     }
   }
   m->sp--;
+  return a;
+}
+
+// size: result size. size2: memory size.
+static void opgen_GenLoad(Module *m, int32_t opcode, sljit_sw offset,
+                          sljit_sw align) {
+  int32_t a;
+  a=opgen_GenBaseAddressReg(m);
   switch (opcode) {
   case 0x28: // i32.loadxx
   case 0x2c:
@@ -263,22 +272,7 @@ static void opgen_GenStore(Module *m, int32_t opcode, sljit_sw offset,
   int32_t a;
   StackValue *sv, *sv2;
   stackvalue_EmitSwapTopTwoValue(m);
-  sv2 = &m->stack[m->sp];
-  sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
-  a = pwart_GetFreeReg(m, RT_BASE, 1);
-  if (sv2->wasm_type == WVT_I32) {
-    sljit_emit_op2(m->jitc, SLJIT_ADD32, a, 0, sv->val.op, sv->val.opw,
-                   sv2->val.op, sv2->val.opw);
-  } else {
-    if (m->target_ptr_size == 64) {
-      sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
-                     sv2->val.op, sv2->val.opw);
-    } else {
-      // TODO:memory64 support for 32 bit arch.
-      SLJIT_UNREACHABLE();
-    }
-  }
-  m->sp--;
+  a=opgen_GenBaseAddressReg(m);
   sv = &m->stack[m->sp];
   switch (opcode) {
   case 0x36: // i32.store
@@ -356,6 +350,14 @@ static void opgen_GenF64Const(Module *m, double *c) {
   }
   // sljit only allow load float from memory
   pwart_EmitSaveStack(m, sv);
+}
+
+static void opgen_GenMemoryCopy(Module *m){
+  pwart_EmitCallFunc(m,&func_type_i32_i32_i32_ret_void,SLJIT_IMM,(sljit_sw)&insn_memorycopy32);
+}
+
+static void opgen_GenMemoryFill(Module *m){
+  pwart_EmitCallFunc(m,&func_type_i32_i32_i32_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
 }
 
 static void opgen_GenMemOp(Module *m, int opcode) {

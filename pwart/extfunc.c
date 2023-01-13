@@ -1,6 +1,7 @@
 #ifndef _PWART_EXTFUNC_C
 #define _PWART_EXTFUNC_C
 
+#include <stdlib.h>
 #include "def.h"
 
 static void insn_i64eqz(void *fp, RuntimeContext *m) {
@@ -307,6 +308,18 @@ static void insn_malloc32(uint32_t *fp,RuntimeContext *m){
 static void insn_malloc64(uint64_t *fp,RuntimeContext *m){
   *fp=(uint64_t)(size_t)malloc(*fp);
 }
+static void insn_memorycopy32(uint32_t *fp,RuntimeContext *m){
+  uint32_t n=*(fp+2);
+  uint32_t s=*(fp+1);
+  uint32_t d=*fp;
+  memmove(m->memory.bytes+d,m->memory.bytes+s,n);
+}
+static void insn_memoryfill32(uint32_t *fp,RuntimeContext *m){
+  uint32_t n=*(fp+2);
+  uint32_t val=*(fp+1);
+  uint32_t d=*fp;
+  memset(m->memory.bytes+d,val,n);
+}
 
 static uint8_t types_void[] = {0};
 
@@ -319,6 +332,8 @@ static uint8_t types_i32_i32[] = {WVT_I32, WVT_I32, 0};
 static uint8_t types_i64_i64[] = {WVT_I64, WVT_I64, 0};
 static uint8_t types_f32_f32[] = {WVT_F32, WVT_F32, 0};
 static uint8_t types_f64_f64[] = {WVT_F64, WVT_F64, 0};
+
+static uint8_t types_i32_i32_i32[] = {WVT_I32, WVT_I32, WVT_I32, 0};
 
 static Type func_type_ret_void = {.params = types_void, .results = types_void};
 static Type func_type_ret_i32 = {.params = types_void, .results = types_i32};
@@ -348,6 +363,8 @@ static Type func_type_i32_ret_f32 = {.params = types_i32, .results = types_f32};
 static Type func_type_i64_ret_f32 = {.params = types_i64, .results = types_f32};
 static Type func_type_i32_ret_f64 = {.params = types_i32, .results = types_f64};
 static Type func_type_i64_ret_f64 = {.params = types_i64, .results = types_f64};
+
+static Type func_type_i32_i32_i32_ret_void={.params=types_i32_i32_i32,.results=types_void};
 
 static void waexpr_run_const(Module *m, void *result) {
   int opcode=m->bytes[m->pc];
