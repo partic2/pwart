@@ -152,6 +152,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             wa_debug("Parsing Import(2) section (length: 0x%x)\n", slen);
             uint32_t import_count = read_LEB(bytes, &pos, 32);
             for (uint32_t gidx=0; gidx<import_count; gidx++) {
+                void *val;
                 uint32_t module_len, field_len;
                 char *import_module = read_string(bytes, &pos, &module_len);
                 char *import_field = read_string(bytes, &pos, &field_len);
@@ -179,16 +180,28 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                     (void)mutability; break;
                 }
 
-                void *val;
-                char *err, *sym = wa_malloc(module_len + field_len + 5);
-
+                
+                val=NULL;
                 if(m->cfg.import_resolver!=NULL){
                     m->cfg.import_resolver(import_module,import_field,&val);
                 }
 
-                wa_debug("  found '%s.%s' as symbol '%s' at address %p\n",
-                      import_module, import_field, sym, val);
-                wa_free(sym);
+                if(external_kind == KIND_FUNCTION && val == NULL && !strcmp("pwart_builtin",import_module)){
+                    if(!strcmp("version",import_field)){
+                        val=&insn_version;
+                    }else if(!strcmp("malloc32",import_field)){
+                        val=&insn_malloc32;
+                    }else if(!strcmp("malloc64",import_field)){
+                        val=&insn_malloc64;
+                    }else if(!strcmp("ref_from_i32",import_field)){
+                        val=&insn_reffromi32;
+                    }else if(!strcmp("ref_from_i64",import_field)){
+                        val=&insn_reffromi64;
+                    }
+                }
+
+                wa_debug("  found '%s.%s' at address %p\n",
+                      import_module, import_field, val);
 
                 // Store in the right place
                 switch (external_kind) {
@@ -459,10 +472,11 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     //set functionentry
     m->context->funcentries=wa_calloc(m->functions->len*sizeof(WasmFunctionEntry));
     m->context->funcentries_count=m->functions->len;
+    m->context->import_funcentries_count=m->import_count;
     for(int i=0;i<m->functions->len;i++){
         m->context->funcentries[i]=dynarr_get(m->functions,WasmFunction,i)->func_ptr;
     }
-
+    
     //update table entries to real function entries.
     for(int i=0;i<m->context->table.size;i++){
         if(m->context->table.entries[i]!=NULL){
@@ -497,7 +511,8 @@ static int free_runtimectx(RuntimeContext *rc){
         wa_free(rc->table.entries);
         rc->table.entries=NULL;
     }
-    for(int i=0;i<rc->funcentries_count;i++){
+    //only free code generate by module self.
+    for(int i=rc->import_funcentries_count;i<rc->funcentries_count;i++){
         pwart_FreeFunction(rc->funcentries[i]);
     }
     wa_free(rc->funcentries);

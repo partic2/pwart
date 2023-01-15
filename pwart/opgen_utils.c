@@ -2,6 +2,7 @@
 #define _PWART_OPGEN_UTILS_C
 
 #include "def.h"
+#include <stddef.h>
 
 //
 // Stack machine (byte code related functions)
@@ -311,7 +312,6 @@ static void stackvalue_EmitSwapTopTwoValue(Module *m) {
     pwart_EmitSaveStack(m, sv);
   }
 }
-
 static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
                               sljit_sw offset) {
   StackValue *sv;
@@ -326,10 +326,19 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
   sv = dynarr_get(m->locals, StackValue,
                   m->runtime_ptr_local); // RuntimeContext *
   sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R1, 0, sv->val.op, sv->val.opw);
-  m->sp -= strlen(type->params);
+  len = strlen(type->params);
+  if(len == 0){
+    //no argument, push dummy stackvalue
+    push_stackvalue(m,NULL);
+    m->sp--;
+  }else{
+    m->sp -= len;
+  }
   sv = &m->stack[m->sp + 1]; // first argument
+  
   sljit_emit_op2(m->jitc, SLJIT_ADD, SLJIT_R0, 0, SLJIT_S0, 0, SLJIT_IMM,
-                 sv->frame_offset);
+                sv->frame_offset);
+
   sljit_emit_icall(m->jitc, SLJIT_CALL, SLJIT_ARGS2(VOID, W, W), memreg,
                    offset);
   len = strlen(type->results);
@@ -379,20 +388,34 @@ static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype, int upstack) {
   if (regtype != RT_FLOAT) {
 // XXX: on x86-32, R3 - R6 (same as S3 - S6) are emulated, and cannot be used
 // for memory addressing
-#if (defined SLJIT_CONFIG_X86_32 && SLJIT_CONFIG_X86_32)
-    if (regtype == RT_BASE) {
-      for (fr = SLJIT_R0; fr < SLJIT_R0 + 3; fr++) {
-        if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
-          continue;
+    if(sljit_get_register_index(SLJIT_R3)<0){
+      if (regtype == RT_BASE) {
+        for (fr = SLJIT_R0; fr < SLJIT_R0 + 3; fr++) {
+          if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
+            continue;
+          }
+          sv = stackvalue_FindSvalueUseReg(m, fr, regtype, upstack);
+          if (sv == NULL) {
+            return fr;
+          }
         }
-        sv = stackvalue_FindSvalueUseReg(m, fr, regtype, upstack);
-        if (sv == NULL) {
-          return fr;
+      } else {
+        for (fr = SLJIT_R0; fr < SLJIT_R0 + SLJIT_NUMBER_OF_SCRATCH_REGISTERS;
+            fr++) {
+          if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
+            continue;
+          }
+          sv = stackvalue_FindSvalueUseReg(m, fr, regtype, upstack);
+          if (sv == NULL) {
+            return fr;
+          }
         }
       }
-    } else {
+      pwart_EmitSaveStack(m, sv);
+      return SLJIT_R0;
+    }else{
       for (fr = SLJIT_R0; fr < SLJIT_R0 + SLJIT_NUMBER_OF_SCRATCH_REGISTERS;
-           fr++) {
+          fr++) {
         if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
           continue;
         }
@@ -401,23 +424,9 @@ static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype, int upstack) {
           return fr;
         }
       }
+      pwart_EmitSaveStack(m, sv);
+      return SLJIT_R0;
     }
-    pwart_EmitSaveStack(m, sv);
-    return SLJIT_R0;
-#else
-    for (fr = SLJIT_R0; fr < SLJIT_R0 + SLJIT_NUMBER_OF_SCRATCH_REGISTERS;
-         fr++) {
-      if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
-        continue;
-      }
-      sv = stackvalue_FindSvalueUseReg(m, fr, regtype, upstack);
-      if (sv == NULL) {
-        return fr;
-      }
-    }
-    pwart_EmitSaveStack(m, sv);
-    return SLJIT_R0;
-#endif
   } else {
     for (fr = SLJIT_FR0;
          fr <= SLJIT_FR0 + SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS; fr++) {

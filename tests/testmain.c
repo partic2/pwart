@@ -58,6 +58,7 @@ int test1() {
     pwart_wasmfunction test2 = pwart_get_export_function(m, "test2");
     pwart_wasmfunction test3 = pwart_get_export_function(m, "test3");
     pwart_wasmfunction fib_main=pwart_get_export_function(m,"fib_main");
+    pwart_wasmfunction builtinFuncTest=pwart_get_export_function(m,"builtinFuncTest");
 
     pwart_free_module(m);
 
@@ -153,6 +154,17 @@ int test1() {
     if (832040 != ri32) {
       return 0;
     }
+
+    //builtinFuncTest test
+    sp=ctxinfo.runtime_stack;
+    sp = ctxinfo.runtime_stack;
+    builtinFuncTest(sp,ctx);
+    ri32 = geti32(&sp);
+    printf("builtinFuncTest test, get pwart version, expect %d, got %d\n",pwart_get_version(),ri32);
+    if (pwart_get_version() != ri32) {
+      return 0;
+    }
+
 
     pwart_free_runtime(ctx);
     
@@ -253,7 +265,7 @@ int unary_test() {
   fn(sp, ctx);
   printf("i64_clz check...");
   if (*(uint64_t *)sp != 56) {
-    printf("failed, expect %llu, got %llu\n", 56, *(uint64_t *)sp);
+    printf("failed, expect %llu, got %llu\n", 56ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -263,7 +275,7 @@ int unary_test() {
   fn(sp, ctx);
   printf("i64_ctz check...");
   if (*(uint64_t *)sp != 7) {
-    printf("failed, expect %llu, got %llu\n", 7, *(uint64_t *)sp);
+    printf("failed, expect %llu, got %llu\n", 7ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -273,7 +285,7 @@ int unary_test() {
   fn(sp, ctx);
   printf("i64_popcnt check...");
   if (*(uint64_t *)sp != 1) {
-    printf("failed, expect %llu, got %llu\n", 1, *(uint64_t *)sp);
+    printf("failed, expect %llu, got %llu\n", 1ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -515,7 +527,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i32_div_s check...");
   if (*(uint32_t *)sp != 4294967294) {
-    printf("failed, expect %u, got %u\n", 4294967294, *(uint32_t *)sp);
+    printf("failed, expect %u, got %u\n", (uint32_t)4294967294, *(uint32_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -535,7 +547,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i32_rem_s check...");
   if (*(uint32_t *)sp != 4294967295) {
-    printf("failed, expect %u, got %u\n", 4294967295, *(uint32_t *)sp);
+    printf("failed, expect %u, got %u\n", (uint32_t)4294967295, *(uint32_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -585,7 +597,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i32_shl check...");
   if (*(uint32_t *)sp != 4294966496) {
-    printf("failed, expect %u, got %u\n", 4294966496, *(uint32_t *)sp);
+    printf("failed, expect %u, got %u\n", (uint32_t)4294966496, *(uint32_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -595,7 +607,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i32_shr_u check...");
   if (*(uint32_t *)sp != 536870899) {
-    printf("failed, expect %u, got %u\n", 536870899, *(uint32_t *)sp);
+    printf("failed, expect %u, got %u\n", (uint32_t)536870899, *(uint32_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -605,7 +617,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i32_shr_s check...");
   if (*(uint32_t *)sp != 4294967283) {
-    printf("failed, expect %u, got %u\n", 4294967283, *(uint32_t *)sp);
+    printf("failed, expect %u, got %u\n", (uint32_t)4294967283, *(uint32_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -615,7 +627,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i32_rotl check...");
   if (*(uint32_t *)sp != 4294966503) {
-    printf("failed, expect %u, got %u\n", 4294966503, *(uint32_t *)sp);
+    printf("failed, expect %u, got %u\n", (uint32_t)4294966503, *(uint32_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -625,7 +637,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i32_rotr check...");
   if (*(uint32_t *)sp != 2684354547) {
-    printf("failed, expect %u, got %u\n", 2684354547, *(uint32_t *)sp);
+    printf("failed, expect %u, got %u\n", (uint32_t)2684354547, *(uint32_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -635,7 +647,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i64_add check...");
   if (*(uint64_t *)sp != 3L) {
-    printf("failed, expect %llu, got %llu\n", 3L, *(uint64_t *)sp);
+    printf("failed, expect %llu, got %llu\n", 3ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -644,8 +656,8 @@ int binary_test() {
   sp = ctxinfo.runtime_stack;
   fn(sp, ctx);
   printf("i64_sub check...");
-  if (*(uint64_t *)sp != 16L) {
-    printf("failed, expect %llu, got %llu\n", 16L, *(uint64_t *)sp);
+  if (*(uint64_t *)sp != 16ll) {
+    printf("failed, expect %llu, got %llu\n", 16ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -654,8 +666,8 @@ int binary_test() {
   sp = ctxinfo.runtime_stack;
   fn(sp, ctx);
   printf("i64_mul check...");
-  if (*(uint64_t *)sp != 21L) {
-    printf("failed, expect %llu, got %llu\n", 21L, *(uint64_t *)sp);
+  if (*(uint64_t *)sp != 21ll) {
+    printf("failed, expect %llu, got %llu\n", 21ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -698,7 +710,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i64_rem_u check...");
   if (*(uint64_t *)sp != 1L) {
-    printf("failed, expect %llu, got %llu\n", 1L, *(uint64_t *)sp);
+    printf("failed, expect %llu, got %llu\n", 1ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -708,7 +720,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i64_and check...");
   if (*(uint64_t *)sp != 1L) {
-    printf("failed, expect %llu, got %llu\n", 1L, *(uint64_t *)sp);
+    printf("failed, expect %llu, got %llu\n", 1ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -718,7 +730,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i64_or check...");
   if (*(uint64_t *)sp != 15L) {
-    printf("failed, expect %llu, got %llu\n", 15L, *(uint64_t *)sp);
+    printf("failed, expect %llu, got %llu\n", 15ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -728,7 +740,7 @@ int binary_test() {
   fn(sp, ctx);
   printf("i64_xor check...");
   if (*(uint64_t *)sp != 14L) {
-    printf("failed, expect %llu, got %llu\n", 14L, *(uint64_t *)sp);
+    printf("failed, expect %llu, got %llu\n", 14ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -1069,7 +1081,7 @@ int convert_test(){
   fn(sp,ctx);
   printf("i32_wrap_i64 check...");
   if(*(uint32_t *)sp!=4294967295){
-      printf("failed, expect %u, got %u\n",4294967295,*(uint32_t *)sp);
+      printf("failed, expect %u, got %u\n",(uint32_t)4294967295,*(uint32_t *)sp);
       return 0;
   }
   printf("pass\n");
@@ -1079,7 +1091,7 @@ int convert_test(){
   fn(sp,ctx);
   printf("i32_trunc_s_f32 check...");
   if(*(uint32_t *)sp!=4294967196){
-      printf("failed, expect %u, got %u\n",4294967196,*(uint32_t *)sp);
+      printf("failed, expect %u, got %u\n",(uint32_t)4294967196,*(uint32_t *)sp);
       return 0;
   }
   printf("pass\n");
@@ -1089,7 +1101,7 @@ int convert_test(){
   fn(sp,ctx);
   printf("i32_trunc_u_f32 check...");
   if(*(uint32_t *)sp!=3000000000){
-      printf("failed, expect %u, got %u\n",3000000000,*(uint32_t *)sp);
+      printf("failed, expect %u, got %u\n",(uint32_t)3000000000,*(uint32_t *)sp);
       return 0;
   }
   printf("pass\n");
@@ -1099,7 +1111,7 @@ int convert_test(){
   fn(sp,ctx);
   printf("i32_trunc_s_f64 check...");
   if(*(uint32_t *)sp!=4294967196){
-      printf("failed, expect %u, got %u\n",4294967196,*(uint32_t *)sp);
+      printf("failed, expect %u, got %u\n",(uint32_t)4294967196,*(uint32_t *)sp);
       return 0;
   }
   printf("pass\n");
@@ -1109,7 +1121,7 @@ int convert_test(){
   fn(sp,ctx);
   printf("i32_trunc_u_f64 check...");
   if(*(uint32_t *)sp!=3000000000){
-      printf("failed, expect %u, got %u\n",3000000000,*(uint32_t *)sp);
+      printf("failed, expect %u, got %u\n",(uint32_t)3000000000,*(uint32_t *)sp);
       return 0;
   }
   printf("pass\n");

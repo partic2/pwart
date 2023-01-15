@@ -5,7 +5,7 @@
 
 PWART use sljit to generate native code, no other dependency. All code is writen in C, include sljit.
 
-PWART support 32bit and 64bit architecture, test only on x86_64 and i686, but should also work on arm, aarch64, etc. benefit by sljit.
+PWART support 32bit and 64bit architecture, test only on x86_64, i686 and armv7l, but should also work on aarch64,risc-v etc. thanks to sljit.
 
 Currently, PWART still need more test to improve and verify the stablity. 
 
@@ -14,7 +14,7 @@ about sljit: https://github.com/zherczeg/sljit
 
 ## Usage
 
-Current only support GCC-like toolchain, consider use MinGW on Windows please.
+Currently only support GCC-like toolchain, consider use MinGW on Windows please.
 
 1. set environment variable PWART_SOURCE_ROOT to the project directory.
 
@@ -51,7 +51,7 @@ See [include/pwart.h](include/pwart.h) , [tests/testmain.c](tests/testmain.c) an
 
 ## Test
 
-To run the test, your need WAT2WASM to compile wat file. You can get it by compile [wabt](https://github.com/WebAssembly/wabt),Then
+To run the test, you need WAT2WASM to compile wat file. You can get it by compile [wabt](https://github.com/WebAssembly/wabt),Then
 ```
 export PWART_SOURCE_ROOT=<the project directory>
 export WAT2WASM=<the executable wat2wasm path>
@@ -59,25 +59,29 @@ cd $PWART_SOURCE_ROOT/tests
 make
 ```
 
-## Feature
+## Features
 
 
 ### Implemented
 
-Basic instruction (0 < opcode < 0xd2).
+WebAssembly MVP
 
 Sign-extension operators
 
 Multi-value
 
+Non-trapping Float-to-int Conversions (For performance, the behavior depend on the host.)
+
+Bulk Memory Operations(currently only implement memory.copy, memory.fill)
+
+Memory64(support i64 index, offset and align are still 32bit.)
+
 
 ### NOT Implemented
 
+Conditional Segment Initialization
+
 Fixed-width SIMD.
-
-Non-trapping float-to-int conversions
-
-Bulk memory operations
 
 Multiple memories and tables
 
@@ -89,3 +93,5 @@ Multiple memories and tables
 2. Performance optimization.
 
 3. Implement more feature.
+
+4. WASI Support.

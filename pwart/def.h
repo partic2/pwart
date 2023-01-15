@@ -156,6 +156,7 @@ typedef struct RuntimeContext{
     uint8_t      memory_model;   // PWART_MEMORY_MODEL_xxxx
     WasmFunctionEntry *funcentries;  // imported and locally defined functions, type WasmFunctionEntry
     int funcentries_count;
+    int import_funcentries_count;
     //XXX: maybe use fixed size array is better
     struct dynarr *globals; // globals variable buffer, type uint8_t
     Memory      memory;         // memory 0 infomation

@@ -327,26 +327,28 @@ static void opgen_GenI64Const(Module *m, uint64_t c) {
     sv->val.opw = c;
   }
 }
-static void opgen_GenF32Const(Module *m, float *c) {
+static void opgen_GenF32Const(Module *m, uint8_t *c) {
   StackValue *sv = push_stackvalue(m, NULL);
   sv->wasm_type = WVT_F32;
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
+  //use memmove to avoid align error.
+  memmove(&sv->val.opw,c,4);
   sv->val.opw = *(sljit_s32 *)c;
   // sljit only allow load float from memory
   pwart_EmitSaveStack(m, sv);
 }
 
-static void opgen_GenF64Const(Module *m, double *c) {
+static void opgen_GenF64Const(Module *m, uint8_t *c) {
   StackValue *sv = push_stackvalue(m, NULL);
   sv->wasm_type = WVT_F64;
   if (m->target_ptr_size == 32) {
     sv->jit_type = SVT_I64CONST;
-    sv->val.const64 = *(uint64_t *)c;
+    memmove(&sv->val.const64,c,8);
   } else {
     sv->jit_type = SVT_GENERAL;
     sv->val.op = SLJIT_IMM;
-    sv->val.opw = *(sljit_sw *)c;
+    memmove(&sv->val.opw,c,8);
   }
   // sljit only allow load float from memory
   pwart_EmitSaveStack(m, sv);
@@ -430,11 +432,11 @@ static void opgen_GenMemOp(Module *m, int opcode) {
     opgen_GenI64Const(m, arg64);
     break;
   case 0x43: // f32.const
-    opgen_GenF32Const(m, (float *)(m->bytes + m->pc));
+    opgen_GenF32Const(m, m->bytes + m->pc);
     m->pc += 4;
     break;
   case 0x44: // f64.const
-    opgen_GenF64Const(m, (double *)(m->bytes + m->pc));
+    opgen_GenF64Const(m, m->bytes + m->pc);
     m->pc += 8;
     break;
   default:

@@ -150,3 +150,14 @@ extern double pwart_rstack_get_f64(void **sp){
     *sp+=8;
     return *sp2;
 }
+
+static struct pwart_builtin_functable default_builtin_functable={
+    .version=(void *)&insn_version,
+    .malloc32=(void *)&insn_malloc32,
+    .malloc64=(void *)&insn_malloc64,
+    .ref_from_i32=(void *)&insn_reffromi32,
+    .ref_from_i64=(void *)&insn_reffromi64
+};
+extern struct pwart_builtin_functable *pwart_get_builtin_functable(){
+    return &default_builtin_functable;
+}

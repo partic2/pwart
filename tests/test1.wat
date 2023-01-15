@@ -1,9 +1,11 @@
 (module
+(import "pwart_builtin" "version" (func $getPwartVersion (result i32) ))
 (memory 4)
-  (table 16 funcref )
-  (elem 0 (i32.const 0) $addTwo )
   (type $typeAddTwo (func (param i64 i64) (result i64)))
   (type $longtype (func (param f64 f64 i32 i32 f32 f32 i64 i64) (result i64)))
+  
+  (table 16 funcref )
+  (elem 0 (i32.const 0) $addTwo )
   (global $one i32 (i32.const 1))
   (global $two i32 (i32.const 2))
   (func $nop
@@ -162,7 +164,12 @@
     return
   )
 
+  (func $builtinFuncTest (result i32)
+  call $getPwartVersion
+  )
+
   (export "test1" (func $test1))
   (export "test2" (func $test2))
   (export "test3" (func $test3))
+  (export "builtinFuncTest" (func $builtinFuncTest))
 )

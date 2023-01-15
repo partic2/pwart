@@ -301,13 +301,37 @@ static void insn_memorygrow(void *fp, RuntimeContext *m) {
   }
   return;
 }
-
+//get pwart version
+static void insn_version(uint32_t *fp,RuntimeContext *m){
+  *fp=pwart_get_version();
+}
+//allocate memory
 static void insn_malloc32(uint32_t *fp,RuntimeContext *m){
   *fp=(uint32_t)(size_t)malloc(*fp);
 }
 static void insn_malloc64(uint64_t *fp,RuntimeContext *m){
   *fp=(uint64_t)(size_t)malloc(*fp);
 }
+//convert i32/i64 to native raw pointer, depend on memory model.
+static void insn_reffromi32(uint32_t *fp,RuntimeContext *m){
+  if(m->memory_model==PWART_MEMORY_MODEL_RAW){
+    //already native pointer, do nothing.
+  }else{
+    *(size_t *)fp=(size_t)m->memory.bytes+*(uint32_t *)fp;
+  }
+}
+static void insn_reffromi64(uint32_t *fp,RuntimeContext *m){
+  if(m->memory_model==PWART_MEMORY_MODEL_RAW){
+    //already native pointer, do nothing.
+  }else{
+    *(size_t *)fp=(size_t)m->memory.bytes+*(uint64_t *)fp;
+  }
+}
+
+static void insn_call_cdecl(void *fp,RuntimeContext *m){
+
+}
+
 static void insn_memorycopy32(uint32_t *fp,RuntimeContext *m){
   uint32_t n=*(fp+2);
   uint32_t s=*(fp+1);
@@ -320,6 +344,7 @@ static void insn_memoryfill32(uint32_t *fp,RuntimeContext *m){
   uint32_t d=*fp;
   memset(m->memory.bytes+d,val,n);
 }
+
 
 static uint8_t types_void[] = {0};
 

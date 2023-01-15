@@ -41,6 +41,7 @@ extern pwart_wasmfunction pwart_get_export_function(pwart_module module,char *na
 
 // pwart_module load config, must set before pwart_load.
 //return error message if any, or NULL if succeded.
+//currently only implement function import.
 extern char *pwart_set_symbol_resolver(pwart_module m,void (*resolver)(char *import_module,char *import_field,void *result));
 // set max runtime stack size, default is 63KB.
 // return error message if any, or NULL if succeded.
@@ -60,10 +61,11 @@ struct pwart_load_config{
 //NOTICE: This option will slow the generated code due to memory base reloading.
 #define PWART_MEMORY_MODEL_GROW_ENABLED 1
 
-//WIP
-//memory must be allocated by calling external function "malloc32(type:[i32]->[i32])" or "malloc64(type:[i64]->[i64])" (for memory64)
-//This option make PWART to try to use direct memory access instead of offset + base, which can make generated code faster.
-#define PWART_MEMORY_MODEL_MALLOC 2
+//EXPERIMENTAL
+//This option make PWART to use direct memory access instead of offset + base, which can make generated code faster.
+//But If set this flag, you can only use i32 to access memory on 32bit arch, and i64 on 64bit arch.
+//Memory must be allocated by calling external function "pwart_builtin.malloc32(type:[i32]->[i32])" or "pwart_builtin.malloc64(type:[i64]->[i64])" (for memory64)
+#define PWART_MEMORY_MODEL_RAW 2
 
 // return error message if any, or NULL if succeded.
 extern char *pwart_set_load_config(pwart_module m,struct pwart_load_config *config);
@@ -111,4 +113,26 @@ extern long long pwart_rstack_get_i64(void **sp);
 extern float pwart_rstack_get_f32(void **sp);
 extern double pwart_rstack_get_f64(void **sp);
 
+
+//pwart builtin WasmFunction, can be call by import pwart_builtin module in wasm.
+struct pwart_builtin_functable{
+    //get pwart version, []->[i32]
+    pwart_wasmfunction version;
+
+    //allocate memory, see also PWART_MEMORY_MODEL_RAW flag.
+
+    //function type [i32]->[i32]
+    pwart_wasmfunction malloc32;
+    //function  type [i64]->[i64]
+    pwart_wasmfunction malloc64;
+
+    //convert i32/i64 to ref type.
+
+    //function type [i32]->[ref]
+    pwart_wasmfunction ref_from_i32;
+    //function type [i64]->[ref]
+    pwart_wasmfunction ref_from_i64;
+};
+
+extern struct pwart_builtin_functable *pwart_get_builtin_functable();
 #endif
