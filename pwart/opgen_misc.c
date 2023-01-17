@@ -8,8 +8,7 @@
 #include "opgen_utils.c"
 
 static void opgen_GenRefNull(Module *m, int32_t tidx) {
-  StackValue *sv = push_stackvalue(m, sv);
-  sv->wasm_type = tidx;
+  StackValue *sv = stackvalue_Push(m, tidx);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
   sv->val.opw = 0;
@@ -19,11 +18,13 @@ static void opgen_GenIsNull(Module *m) {
   if (sv->wasm_type == WVT_REF || sv->wasm_type == WVT_FUNC) {
     sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_Z, sv->val.op, sv->val.opw,
                     SLJIT_IMM, 0);
-    sv->wasm_type = WVT_I32;
+    m->sp--;
+    stackvalue_Push(m,WVT_I32);
     sv->jit_type = SVT_CMP;
     sv->val.cmp.flag = SLJIT_EQUAL;
   } else {
-    sv->wasm_type = WVT_I32;
+    m->sp--;
+    stackvalue_Push(m,WVT_I32);
     sv->jit_type = SVT_GENERAL;
     sv->val.opw = 0;
     sv->val.op = SLJIT_IMM;
@@ -37,8 +38,7 @@ static void opgen_GenRefFunc(Module *m, int32_t fidx) {
   sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
   sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
                  sizeof(void *) * fidx);
-  sv = push_stackvalue(m, NULL);
-  sv->wasm_type = WVT_FUNC;
+  sv = stackvalue_Push(m, WVT_FUNC);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_MEM1(a);
   sv->val.opw = 0;

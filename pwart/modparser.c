@@ -79,6 +79,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     m->byte_count = byte_count;
     m->context=wa_calloc(sizeof(RuntimeContext));
     m->context->memory_model=m->cfg.memory_model;
+    m->context->stack_flags=m->cfg.stack_flags;
     if(m->cfg.stack_size==0){
         m->cfg.stack_size=PAGE_SIZE-1024;
     }

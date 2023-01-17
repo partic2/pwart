@@ -154,6 +154,7 @@ typedef struct RuntimeContext{
     uint8_t     *stack_buffer;           // runtime stack buffer
     int8_t       stack_start_offset;     // stack_start_offset, to align the stack bottom(align to 16 byte).
     uint8_t      memory_model;   // PWART_MEMORY_MODEL_xxxx
+    uint8_t      stack_flags;    //PWART_STACK_FLAGS_xxx
     WasmFunctionEntry *funcentries;  // imported and locally defined functions, type WasmFunctionEntry
     int funcentries_count;
     int import_funcentries_count;

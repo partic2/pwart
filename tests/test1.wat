@@ -18,10 +18,10 @@
       i64.add
   )
 
-  (func $addTwoF (param f64 f64) (result f64)
-      (f64.store (i32.const 0) (local.get 0))
-      (f64.load (i32.const 0))
+  (func $addTwoF (param i32 f64 f64) (result i32 f64)
+      local.get 0
       local.get 1
+      local.get 2
       f64.add
   )
     
@@ -38,7 +38,10 @@
     i32.const 0x48
     i32.store8
     i32.const 2
-    i32.const 0x6f6c6c65
+    i32.const 0x6c65
+    i32.store16
+    i32.const 4
+    i32.const 0x6f6c
     i32.store
     i32.const 6
     i32.const 1
@@ -82,14 +85,21 @@
     call $addTwo
   )
 
-  (func $test3 (param f64 f64) (result i64) 
-    i32.const 0
+  (func $test3 (param i32 f64 f64) (result i32 i64) (local i32)
+    i32.const 1
     local.get 0
+    i32.const 0
+    local.get 1
     f64.store
     i32.const 0
     f64.load
-    local.get 1
+    local.get 2
     call $addTwoF
+    local.set 2
+    local.set 3
+    drop
+    local.get 3
+    local.get 2
     i64.trunc_sat_f64_s
   )
 

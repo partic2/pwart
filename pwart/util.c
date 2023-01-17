@@ -145,6 +145,7 @@ static void *dynarr_push(struct dynarr **buf,int count){
     return newelem;
 }
 #if DEBUG_BUILD
+
 static void *dynarr_push_sizecheck(struct dynarr **buf,int count,int size){
     struct dynarr *arr=*buf;
     if(arr->elemSize!=size){

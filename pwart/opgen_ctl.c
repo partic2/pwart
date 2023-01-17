@@ -150,7 +150,7 @@ static void opgen_GenBrTable(Module *m) {
   Block *block;
   StackValue *sv;
   sv=m->stack+m->sp;
-  count = m->br_table->len;
+  count = m->br_table->len-1;
   for (int i = 0; i < m->sp; i++) {
     pwart_EmitSaveStack(m, &m->stack[i]);
   }

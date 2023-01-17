@@ -75,6 +75,7 @@ extern char *pwart_set_load_config(pwart_module m2,struct pwart_load_config *con
     m->cfg.import_resolver=config->import_resolver;
     m->cfg.stack_size=config->stack_size;
     m->cfg.memory_model=config->memory_model;
+    m->cfg.stack_flags=config->stack_flags;
     return NULL;
 }
 extern char *pwart_get_load_config(pwart_module m2,struct pwart_load_config *config){
@@ -82,6 +83,7 @@ extern char *pwart_get_load_config(pwart_module m2,struct pwart_load_config *con
     config->import_resolver=m->cfg.import_resolver;
     config->stack_size=m->cfg.stack_size;
     config->memory_model=m->cfg.memory_model;
+    config->stack_flags=m->cfg.stack_flags;
     return NULL;
 }
 

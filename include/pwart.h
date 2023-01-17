@@ -52,7 +52,10 @@ struct pwart_load_config{
     int size_of_this;
     void (*import_resolver)(char *import_module,char *import_field,void *result);
     int stack_size;
-    int memory_model;
+    // PWART_MEMORY_MODEL_xxx flags
+    char memory_model;
+    // PWART_STACK_FLAGS_xxx flags
+    char stack_flags;
 };
 //Default memory model, memory is initialize to the max size, memory.grow will always return -1
 #define PWART_MEMORY_MODEL_FIXED_SIZE 0
@@ -66,6 +69,10 @@ struct pwart_load_config{
 //But If set this flag, you can only use i32 to access memory on 32bit arch, and i64 on 64bit arch.
 //Memory must be allocated by calling external function "pwart_builtin.malloc32(type:[i32]->[i32])" or "pwart_builtin.malloc64(type:[i64]->[i64])" (for memory64)
 #define PWART_MEMORY_MODEL_RAW 2
+
+//If set, elements on stack will align to it's size, and function frame base will align to 8. 
+//Some arch require this flag to avoid align error.
+#define PWART_STACK_FLAGS_AUTO_ALIGN 1
 
 // return error message if any, or NULL if succeded.
 extern char *pwart_set_load_config(pwart_module m,struct pwart_load_config *config);
@@ -102,6 +109,8 @@ extern char *pwart_free_module(pwart_module mod);
 //pwart invoke and runtime stack helper
 
 //For version 1.0, arguments and results are all stored on stack.
+//PWART_STACK_FLAGS_AUTO_ALIGN currently has no effect to these function, user need add padding by self.
+
 //put value to *sp, move *sp to next entries.
 extern void pwart_rstack_put_i32(void **sp,int val);
 extern void pwart_rstack_put_i64(void **sp,long long val);
@@ -115,6 +124,7 @@ extern double pwart_rstack_get_f64(void **sp);
 
 
 //pwart builtin WasmFunction, can be call by import pwart_builtin module in wasm.
+//Unless explicitly mark as Overwriteable,  Modifing the value may take no effect and should be avoided.
 struct pwart_builtin_functable{
     //get pwart version, []->[i32]
     pwart_wasmfunction version;

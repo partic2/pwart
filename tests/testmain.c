@@ -22,6 +22,28 @@ static void test_wasmfn(void *fp, pwart_runtime_context c) {
   puti64(&sp, r);
 }
 
+static void test_printf64(void *fp, pwart_runtime_context c) {
+  void *sp = fp;
+  printf("testaid:%lf\n",getf64(&sp));
+  sp=fp;
+  printf("testaid:%lld\n",geti64(&sp));
+}
+
+static void test_printi64(void *fp, pwart_runtime_context c) {
+  void *sp = fp;
+  printf("testaid:%lld\n",geti64(&sp));
+}
+
+static void symbol_resolver(char *mod,char *name,void **val){
+  if(!strcmp("testaid",mod)){
+    if(!strcmp("printi64",name)){
+      *val=&test_printi64;
+    }else if(!strcmp("printf64",name)){
+      *val=&test_printf64;
+    }
+  }
+}
+
 // base test
 int test1() {
   struct pwart_load_config cfg;
@@ -32,17 +54,25 @@ int test1() {
   fclose(f);
   cfg.size_of_this=sizeof(cfg);
 
-  for(int i1=0;i1<2;i1++){
+  for(int i1=0;i1<3;i1++){
     pwart_module m = pwart_new_module();
+    pwart_set_symbol_resolver(m,(void *)symbol_resolver);
     //different config
     switch(i1){
       case 0:
+      pwart_get_load_config(m,&cfg);
       printf("test config:default\n");
       break;
       case 1:
       printf("test config:memory_model=PWART_MEMORY_MODEL_GROW_ENABLED\n");
       pwart_get_load_config(m,&cfg);
       cfg.memory_model=PWART_MEMORY_MODEL_GROW_ENABLED;
+      pwart_set_load_config(m,&cfg);
+      break;
+      case 2:
+      printf("test config:stack_flags=PWART_STACK_FLAGS_AUTO_ALIGN\n");
+      pwart_get_load_config(m,&cfg);
+      cfg.stack_flags=PWART_STACK_FLAGS_AUTO_ALIGN;
       pwart_set_load_config(m,&cfg);
       break;
     }
@@ -130,13 +160,26 @@ int test1() {
     }
 
     sp = ctxinfo.runtime_stack;
+    //align and float add test
+    puti32(&sp,3844);
+    if(cfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+      //In this casse, we must add padding on stack before call into wasm
+      puti32(&sp,1111);
+    }
     putf64(&sp, 3.25);
     putf64(&sp, 4.75);
     sp = ctxinfo.runtime_stack;
     test3(sp, ctx);
+    ri32 = geti32(&sp);
+    if(cfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+      geti32(&sp);
+    }
     ri64 = geti64(&sp);
-    printf("expect %llu, got %llu\n", (int64_t)(3.25+4.75), ri64);
+    printf("expect %d,%llu, got %d,%llu\n", 3844,(int64_t)(3.25+4.75), ri32, ri64);
     if ((int64_t)(3.25+4.75) != ri64) {
+      return 0;
+    }
+    if(ri32!=3844){
       return 0;
     }
     

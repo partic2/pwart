@@ -22,7 +22,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     sv=m->stack+m->sp;
     sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_Z, sv->val.op, sv->val.opw,
                     SLJIT_IMM, 0);
-    sv->wasm_type = WVT_I32;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_I32);
     sv->jit_type = SVT_CMP;
     sv->val.cmp.flag = SLJIT_EQUAL;
     break;
@@ -34,7 +35,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     } else {
       sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_Z, sv->val.op, sv->val.opw,
                       SLJIT_IMM, 0);
-      sv->wasm_type = WVT_I32;
+      m->sp--;
+      stackvalue_Push(m,WVT_I32);
       sv->jit_type = SVT_CMP;
       sv->val.cmp.flag = SLJIT_EQUAL;
     }
@@ -43,65 +45,65 @@ static void opgen_GenNumOp(Module *m, int opcode) {
   // i32 binary
   case 0x46 ... 0x4f:
     sv2 = &stack[m->sp];
-    m->sp -= 1;
-    sv = &stack[m->sp];
-
-    sv->wasm_type = WVT_I32;
-    sv->jit_type = SVT_CMP;
+    sv = &stack[m->sp-1];
 
     switch (opcode) {
     case 0x46:
       sljit_emit_op2u(m->jitc,
                       SLJIT_SUB32 | SLJIT_SET_Z | SLJIT_CURRENT_FLAGS_COMPARE,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_EQUAL;
+      a = SLJIT_EQUAL;
       break; // i32.eq
     case 0x47:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_Z, sv->val.op,
                       sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_NOT_EQUAL;
+      a = SLJIT_NOT_EQUAL;
       break; // i32.ne
     case 0x48:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_SIG_LESS, sv->val.op,
                       sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_SIG_LESS;
+      a = SLJIT_SIG_LESS;
       break; // i32.lt_s
     case 0x49:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_LESS, sv->val.op,
                       sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_LESS;
+      a = SLJIT_LESS;
       break; // i32.lt_u
     case 0x4a:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_SIG_GREATER, sv->val.op,
                       sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_SIG_GREATER;
+      a = SLJIT_SIG_GREATER;
       break; // i32.gt_s
     case 0x4b:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_GREATER, sv->val.op,
                       sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_GREATER;
+      a = SLJIT_GREATER;
       break; // i32.gt_u
     case 0x4c:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_SIG_LESS_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_SIG_LESS_EQUAL;
+      a = SLJIT_SIG_LESS_EQUAL;
       break; // i32.le_s
     case 0x4d:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_LESS_EQUAL, sv->val.op,
                       sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_LESS_EQUAL;
+      a = SLJIT_LESS_EQUAL;
       break; // i32.le_u
     case 0x4e:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_SIG_GREATER_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_SIG_GREATER_EQUAL;
+      a = SLJIT_SIG_GREATER_EQUAL;
       break; // i32.ge_s
     case 0x4f:
       sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_GREATER_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-      sv->val.cmp.flag = SLJIT_GREATER_EQUAL;
+      a = SLJIT_GREATER_EQUAL;
       break; // i32.ge_u
     }
+    m->sp-=2;
+    stackvalue_Push(m,WVT_I32);
+    sv->jit_type = SVT_CMP;
+    sv->val.cmp.flag=a;
     break;
   case 0x51 ... 0x5a:
     if (m->target_ptr_size == 32) {
@@ -147,67 +149,67 @@ static void opgen_GenNumOp(Module *m, int opcode) {
                            (sljit_sw)&insn_i64geu);
         break;
       }
+      break;
     } else {
       sv2 = &stack[m->sp];
-      m->sp -= 1;
-      sv = &stack[m->sp];
-
-      sv->wasm_type = WVT_I32;
-      sv->jit_type = SVT_CMP;
+      sv = &stack[m->sp-1];
 
       switch (opcode) {
       case 0x51:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_Z, sv->val.op,
                         sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_EQUAL;
+        a = SLJIT_EQUAL;
         break; // i64.eq
       case 0x52:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_Z, sv->val.op,
                         sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_NOT_EQUAL;
+        a = SLJIT_NOT_EQUAL;
         break; // i64.ne
       case 0x53:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_SIG_LESS, sv->val.op,
                         sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_SIG_LESS;
+        a = SLJIT_SIG_LESS;
         break; // i64.lt_s
       case 0x54:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_LESS, sv->val.op,
                         sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_LESS;
+        a = SLJIT_LESS;
         break; // i64.lt_u
       case 0x55:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_SIG_GREATER, sv->val.op,
                         sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_SIG_GREATER;
+        a = SLJIT_SIG_GREATER;
         break; // i64.gt_s
       case 0x56:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_GREATER, sv->val.op,
                         sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_GREATER;
+        a = SLJIT_GREATER;
         break; // i64.gt_u
       case 0x57:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_SIG_LESS_EQUAL,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_SIG_LESS_EQUAL;
+        a = SLJIT_SIG_LESS_EQUAL;
         break; // i64.le_s
       case 0x58:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_LESS_EQUAL, sv->val.op,
                         sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_LESS_EQUAL;
+        a = SLJIT_LESS_EQUAL;
         break; // i64.le_u
       case 0x59:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_SIG_GREATER_EQUAL,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_SIG_GREATER_EQUAL;
+        a = SLJIT_SIG_GREATER_EQUAL;
         break; // i64.ge_s
       case 0x5a:
         sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_GREATER_EQUAL,
                         sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
-        sv->val.cmp.flag = SLJIT_GREATER_EQUAL;
+        a = SLJIT_GREATER_EQUAL;
         break; // i64.ge_u
       }
     }
+    sv=stackvalue_Push(m,WVT_I32);
+    sv->jit_type = SVT_CMP;
+    sv->val.cmp.flag=a;
     break;
   case 0x5b ... 0x60:
     sv2 = &stack[m->sp];
@@ -255,8 +257,7 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       sljit_set_label(jump2, sljit_emit_label(m->jitc));
     }
     m->sp -= 2;
-    sv = push_stackvalue(m, NULL);
-    sv->wasm_type = WVT_I32;
+    sv = stackvalue_Push(m, WVT_I32);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = b;
     sv->val.opw = 0;
@@ -307,8 +308,7 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       sljit_set_label(jump2, sljit_emit_label(m->jitc));
     }
     m->sp -= 2;
-    sv = push_stackvalue(m, NULL);
-    sv->wasm_type = WVT_I32;
+    sv = stackvalue_Push(m, WVT_I32);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = b;
     sv->val.opw = 0;
@@ -387,8 +387,7 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_FLOAT, 1); // free register
     sljit_emit_fop1(m->jitc, SLJIT_ABS_F64, a, 0, sv->val.op, sv->val.opw);
-    sv = push_stackvalue(m, NULL);
-    sv->wasm_type = WVT_F64;
+    sv = stackvalue_Push(m, WVT_F64);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -397,8 +396,7 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_FLOAT, 1); // free register
     sljit_emit_fop1(m->jitc, SLJIT_NEG_F64, a, 0, sv->val.op, sv->val.opw);
-    sv = push_stackvalue(m, NULL);
-    sv->wasm_type = WVT_F64;
+    sv = stackvalue_Push(m, WVT_F64);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -559,9 +557,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     }
     if (opcode != 0x77 && opcode != 0x78) {
       m->sp -= 2;
-      sv = push_stackvalue(m, NULL);
+      sv = stackvalue_Push(m, WVT_I32);
       sv->jit_type = SVT_GENERAL;
-      sv->wasm_type = WVT_I32;
       sv->val.op = a;
       sv->val.opw = 0;
     }
@@ -703,9 +700,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       }
       if (opcode != 0x89 && opcode != 0x8a) {
         m->sp -= 2;
-        sv = push_stackvalue(m, NULL);
+        sv = stackvalue_Push(m, WVT_I64);
         sv->jit_type = SVT_GENERAL;
-        sv->wasm_type = WVT_I64;
         sv->val.op = a;
         sv->val.opw = 0;
       }
@@ -920,9 +916,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     }
     if (opcode <= 0x95) {
       m->sp -= 2;
-      sv = push_stackvalue(m, NULL);
+      sv = stackvalue_Push(m, WVT_F64);
       sv->jit_type = SVT_GENERAL;
-      sv->wasm_type = WVT_F64;
       sv->val.op = a;
       sv->val.opw = 0;
     }
@@ -967,9 +962,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     }
     if (opcode <= 0xa3) {
       m->sp -= 2;
-      sv = push_stackvalue(m, NULL);
+      sv = stackvalue_Push(m, WVT_F64);
       sv->jit_type = SVT_GENERAL;
-      sv->wasm_type = WVT_F64;
       sv->val.op = a;
       sv->val.opw = 0;
     }
@@ -991,7 +985,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       sljit_emit_op2(m->jitc, SLJIT_AND, a, 0, sv->val.op, sv->val.opw,
                      SLJIT_IMM, 0xffffffff);
     }
-    sv->wasm_type = WVT_I32;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_I32);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -1001,7 +996,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     sljit_emit_fop1(m->jitc, SLJIT_CONV_S32_FROM_F32, a, 0, sv->val.op,
                     sv->val.opw);
-    sv->wasm_type = WVT_I32;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_I32);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -1015,7 +1011,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     sljit_emit_fop1(m->jitc, SLJIT_CONV_S32_FROM_F64, a, 0, sv->val.op,
                     sv->val.opw);
-    sv->wasm_type = WVT_I32;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_I32);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -1028,7 +1025,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     sljit_emit_op1(m->jitc, SLJIT_MOV_S32, a, 0, sv->val.op, sv->val.opw);
-    sv->wasm_type = WVT_I64;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_I64);
     if (m->target_ptr_size == 32) {
       b = pwart_GetFreeRegExcept(m, RT_INTEGER, a, 1);
       sljit_emit_op2(m->jitc, SLJIT_ASHR, b, 0, a, 0, SLJIT_IMM, 31);
@@ -1045,7 +1043,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     sljit_emit_op1(m->jitc, SLJIT_MOV_U32, a, 0, sv->val.op, sv->val.opw);
-    sv->wasm_type = WVT_I64;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_I64);
     if (m->target_ptr_size == 32) {
       b = pwart_GetFreeRegExcept(m, RT_INTEGER, a, 1);
       sljit_emit_op1(m->jitc, SLJIT_MOV, b, 0, SLJIT_IMM, 0);
@@ -1067,7 +1066,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       a = pwart_GetFreeReg(m, RT_INTEGER, 1);
       sljit_emit_fop1(m->jitc, SLJIT_CONV_SW_FROM_F32, a, 0, sv->val.op,
                       sv->val.opw);
-      sv->wasm_type = WVT_I64;
+      m->sp--;
+      sv=stackvalue_Push(m,WVT_I64);
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
@@ -1087,7 +1087,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       a = pwart_GetFreeReg(m, RT_INTEGER, 1);
       sljit_emit_fop1(m->jitc, SLJIT_CONV_SW_FROM_F64, a, 0, sv->val.op,
                       sv->val.opw);
-      sv->wasm_type = WVT_I64;
+      m->sp--;
+      sv=stackvalue_Push(m,WVT_I64);
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
@@ -1102,7 +1103,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     a = pwart_GetFreeReg(m, RT_FLOAT, 1);
     sljit_emit_fop1(m->jitc, SLJIT_CONV_F32_FROM_S32, a, 0, sv->val.op,
                     sv->val.opw);
-    sv->wasm_type = WVT_F32;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_F32);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -1120,7 +1122,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       a = pwart_GetFreeReg(m, RT_FLOAT, 1);
       sljit_emit_fop1(m->jitc, SLJIT_CONV_F32_FROM_SW, a, 0, sv->val.op,
                       sv->val.opw);
-      sv->wasm_type = WVT_F32;
+      m->sp--;
+      sv=stackvalue_Push(m,WVT_F32);
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
@@ -1135,7 +1138,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     a = pwart_GetFreeReg(m, RT_FLOAT, 1);
     sljit_emit_fop1(m->jitc, SLJIT_CONV_F32_FROM_F64, a, 0, sv->val.op,
                     sv->val.opw);
-    sv->wasm_type = WVT_F32;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_F32);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -1145,7 +1149,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     a = pwart_GetFreeReg(m, RT_FLOAT, 1);
     sljit_emit_fop1(m->jitc, SLJIT_CONV_F64_FROM_S32, a, 0, sv->val.op,
                     sv->val.opw);
-    sv->wasm_type = WVT_F64;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_F64);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -1163,7 +1168,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       a = pwart_GetFreeReg(m, RT_FLOAT, 1);
       sljit_emit_fop1(m->jitc, SLJIT_CONV_F64_FROM_SW, a, 0, sv->val.op,
                       sv->val.opw);
-      sv->wasm_type = WVT_F64;
+      m->sp--;
+      sv=stackvalue_Push(m,WVT_F64);
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
@@ -1178,7 +1184,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     a = pwart_GetFreeReg(m, RT_FLOAT, 1);
     sljit_emit_fop1(m->jitc, SLJIT_CONV_F64_FROM_F32, a, 0, sv->val.op,
                     sv->val.opw);
-    sv->wasm_type = WVT_F64;
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_F64);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
     sv->val.opw = 0;
@@ -1190,7 +1197,7 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     if (!(sv->val.op & SLJIT_MEM)) {
       pwart_EmitSaveStack(m, sv);
     }
-    sv->wasm_type = WVT_I32;
+    sv->wasm_type = WVT_I64;
     break;
   case 0xbd: // i64.reinterpret_f64
     sv = &stack[m->sp];

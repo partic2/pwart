@@ -7,13 +7,8 @@
 //
 // Stack machine (byte code related functions)
 //
-
-static int stackvalue_IsFloat(StackValue *sv) {
-  return sv->wasm_type == WVT_F32 || sv->wasm_type == WVT_F64;
-}
-
-static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv, uint32_t *align) {
-  switch (sv->wasm_type) {
+static uint32_t wasmtype_GetSizeAndAlign(int wasm_type,uint32_t *align){
+  switch (wasm_type) {
   case WVT_I32:
   case WVT_F32:
     if (align != NULL)
@@ -29,6 +24,25 @@ static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv, uint32_t *align) {
       *align = sizeof(void *);
     return sizeof(void *);
   }
+}
+static int stackvalue_IsFloat(StackValue *sv) {
+  return sv->wasm_type == WVT_F32 || sv->wasm_type == WVT_F64;
+}
+static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv, uint32_t *align) {
+  return wasmtype_GetSizeAndAlign(sv->wasm_type,align);
+}
+//return offset where can place the StackValue 'sv' behind the free 'offset', set the next free offset to 'nextOffset', if not NULL.
+static uint32_t stackvalue_GetAlignedOffset(StackValue *sv,uint32_t offset,uint32_t *nextOffset){
+  uint32_t align,size,t;
+  size=stackvalue_GetSizeAndAlign(sv,&align);
+  t=offset&(align-1);
+  if(t>0){
+    offset=offset+align-t;
+  }
+  if(nextOffset!=NULL){
+    *nextOffset=offset+size;
+  }
+  return offset;
 }
 // 32bit arch only, get most significant word in 64bit stackvalue
 static void stackvalue_HighWord(Module *m, StackValue *sv, sljit_s32 *op,
@@ -270,36 +284,45 @@ static inline size_t get_globalsbuf_offset(Module *m) {
 // Don't emit any code here.
 // Don't write other stackvalue (due to stackvalue_EmitSwapTopTwoValue
 // function).
-static StackValue *push_stackvalue(Module *m, StackValue *sv) {
-  StackValue *sv2;
+static StackValue *stackvalue_Push(Module *m, int32_t wasm_type) {
+  StackValue *sv2,*sv;
+  uint32_t align,a;
   sv2 = &m->stack[++m->sp];
-  if (sv != NULL) {
-    *sv2 = *sv;
-  } else {
-    sv2->jit_type = SVT_GENERAL;
-  }
+  sv2->jit_type = SVT_GENERAL;
+  sv2->wasm_type=wasm_type;
   if (sv2 - m->stack == 0) {
     // first stack value
     sv2->frame_offset = m->first_stackvalue_offset;
   } else {
     sv = sv2 - 1;
     sv2->frame_offset = sv->frame_offset + stackvalue_GetSizeAndAlign(sv, NULL);
+    if(m->cfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+      sv2->frame_offset=stackvalue_GetAlignedOffset(sv2,sv2->frame_offset,NULL);
+    }
   }
   return sv2;
+}
+
+static StackValue *stackvalue_PushStackValueLike(Module *m,StackValue *refsv){
+  StackValue *sv;
+  sv=stackvalue_Push(m,refsv->wasm_type);
+  sv->jit_type=refsv->jit_type;
+  sv->val=refsv->val;
+  return sv;
 }
 
 static void stackvalue_EmitSwapTopTwoValue(Module *m) {
   StackValue *sv;
   // copy stack[sp-1]
-  sv = push_stackvalue(m, &m->stack[m->sp - 1]);
+  sv = stackvalue_PushStackValueLike(m, &m->stack[m->sp - 1]);
   if (sv->jit_type == SVT_GENERAL && sv->val.op == SLJIT_MEM1(SLJIT_S0) &&
       sv->val.opw >= m->first_stackvalue_offset) {
     // value are on stack, we need save it otherwhere.
     pwart_EmitStackValueLoadReg(m, sv);
   }
   m->sp -= 3;
-  push_stackvalue(m, &m->stack[m->sp + 2]);
-  push_stackvalue(m, &m->stack[m->sp + 2]);
+  stackvalue_PushStackValueLike(m, &m->stack[m->sp + 2]);
+  stackvalue_PushStackValueLike(m, &m->stack[m->sp + 2]);
   // recover value on stack
   sv = &m->stack[m->sp - 1];
   if (sv->jit_type == SVT_GENERAL && sv->val.op == SLJIT_MEM1(SLJIT_S0) &&
@@ -314,8 +337,8 @@ static void stackvalue_EmitSwapTopTwoValue(Module *m) {
 }
 static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
                               sljit_sw offset) {
-  StackValue *sv;
-  uint32_t a, b, len;
+  StackValue *sv,sv2;
+  uint32_t a, b, len,func_frame_offset;
   pwart_EmitSaveStackAll(m);
   if ((memreg & (SLJIT_MEM - 1)) == SLJIT_R0 ||
       (memreg & (SLJIT_MEM - 1)) == SLJIT_R1) {
@@ -329,25 +352,50 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
   len = strlen(type->params);
   if(len == 0){
     //no argument, push dummy stackvalue
-    push_stackvalue(m,NULL);
+    stackvalue_Push(m,WVT_I32);
     m->sp--;
   }else{
     m->sp -= len;
   }
-  sv = &m->stack[m->sp + 1]; // first argument
+  sv = m->stack+m->sp + 1; // first argument
+
+  if((m->cfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN) && ((sv->frame_offset&7)>0)){
+    //XXX: move stack value to align frame to 8 ,we should avoid this happen.
+    sv->frame_offset+=4;
+    if(len>0){
+      b=sv->frame_offset+stackvalue_GetSizeAndAlign(sv,NULL);
+      m->sp+=len;
+      for(a=1;a<len;a++){
+        sv++;
+        sv->frame_offset = stackvalue_GetAlignedOffset(sv,b,&b);
+      }
+      //re-save stackvalue from last to head, to avoid stack overwriting
+      sv=m->stack+m->sp;
+      for(a=0;a<len;a++){
+        pwart_EmitSaveStack(m,sv);
+        sv--;
+      }
+      //move sp back
+      m->sp-=len;
+      sv=m->stack+m->sp+1; // first argument
+    }
+  }
+
+  func_frame_offset=sv->frame_offset;
   
-  sljit_emit_op2(m->jitc, SLJIT_ADD, SLJIT_R0, 0, SLJIT_S0, 0, SLJIT_IMM,
-                sv->frame_offset);
+  sljit_emit_op2(m->jitc, SLJIT_ADD, SLJIT_R0, 0, SLJIT_S0, 0, SLJIT_IMM,func_frame_offset);
 
   sljit_emit_icall(m->jitc, SLJIT_CALL, SLJIT_ARGS2(VOID, W, W), memreg,
                    offset);
   len = strlen(type->results);
   for (a = 0; a < len; a++) {
     b = type->results[a];
-    sv = push_stackvalue(m, NULL);
+    sv = stackvalue_Push(m, b);
     sv->jit_type = SVT_GENERAL;
-    sv->wasm_type = b;
     sv->val.op = SLJIT_MEM1(SLJIT_S0);
+    if(a==0){
+      sv->frame_offset=func_frame_offset;
+    }
     sv->val.opw = sv->frame_offset;
   }
   if(m->cfg.memory_model==PWART_MEMORY_MODEL_GROW_ENABLED){
@@ -369,12 +417,16 @@ static int pwart_EmitFuncReturn(Module *m) {
   int idx, len, off;
   StackValue *sv;
   off = 0;
-
   len = strlen(m->function_type->results);
   for (idx = 0; idx < len; idx++) {
     sv = &m->stack[m->sp - len + idx + 1];
-    pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0), off);
-    off += stackvalue_GetSizeAndAlign(sv, NULL);
+    if(m->cfg.stack_flags & PWART_STACK_FLAGS_AUTO_ALIGN){
+      pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0),
+        stackvalue_GetAlignedOffset(sv,off,&off));
+    }else{
+      pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0), off);
+      off += stackvalue_GetSizeAndAlign(sv, NULL);
+    }
   }
   sljit_emit_return_void(m->jitc);
 }
@@ -519,8 +571,12 @@ static int pwart_EmitFuncEnter(Module *m) {
     sv->wasm_type = m->function_type->params[i];
     sv->jit_type = SVT_GENERAL;
     sv->val.op = SLJIT_MEM1(SLJIT_S0);
-    sv->val.opw = nextLoc;
-    nextLoc += stackvalue_GetSizeAndAlign(sv, NULL);
+    if(m->cfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+      sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
+    }else{
+      sv->val.opw=nextLoc;
+      nextLoc+=stackvalue_GetSizeAndAlign(sv,NULL);
+    }
   }
   m->first_stackvalue_offset = nextLoc;
 
@@ -544,8 +600,8 @@ static int pwart_EmitFuncEnter(Module *m) {
         }
       }
       sv->val.op = SLJIT_MEM1(SLJIT_SP);
-      sv->val.opw = nextLoc;
-      nextLoc += stackvalue_GetSizeAndAlign(sv, NULL);
+      //XXX: we force local variable aligned, no mater PWART_STACK_FLAGS_AUTO_ALIGN flags is set.
+      sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
     } else {
       if (stackvalue_IsFloat(sv)) {
         if (nextSfr >= SLJIT_FIRST_SAVED_FLOAT_REG) {
@@ -563,8 +619,7 @@ static int pwart_EmitFuncEnter(Module *m) {
         }
       }
       sv->val.op = SLJIT_MEM1(SLJIT_SP);
-      sv->val.opw = nextLoc;
-      nextLoc += stackvalue_GetSizeAndAlign(sv, NULL);
+      sv->val.opw = sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
     }
   }
   sljit_emit_enter(m->jitc, 0, SLJIT_ARGS2(VOID, W, W),

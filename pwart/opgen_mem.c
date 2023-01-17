@@ -8,7 +8,7 @@
 #include "opgen_utils.c"
 
 static void opgen_GenLocalGet(Module *m, uint32_t idx) {
-  push_stackvalue(m, dynarr_get(m->locals, StackValue, idx));
+  stackvalue_PushStackValueLike(m, dynarr_get(m->locals, StackValue, idx));
 }
 
 static void opgen_GenLocalSet(Module *m, uint32_t idx) {
@@ -40,7 +40,7 @@ static void opgen_GenGlobalGet(Module *m, uint32_t idx) {
   a = pwart_GetFreeReg(m, RT_BASE, 0);
   sv = dynarr_get(m->locals, StackValue, m->globals_base_local);
   sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.op, sv->val.opw);
-  sv = push_stackvalue(m, dynarr_get(m->globals, StackValue, idx));
+  sv = stackvalue_PushStackValueLike(m, dynarr_get(m->globals, StackValue, idx));
   sv->val.op = SLJIT_MEM1(a);
   sv->jit_type = SVT_GENERAL;
   pwart_EmitStackValueLoadReg(m, sv);
@@ -68,8 +68,8 @@ static void opgen_GenTableGet(Module *m, uint32_t idx) {
   sv2 = dynarr_get(m->locals, StackValue, m->table_entries_local);
   sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv2->val.op, sv2->val.opw);
   sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_MEM1(a), 0);
-  sv = &m->stack[m->sp];
-  sv->wasm_type = WVT_FUNC;
+  m->sp--;
+  sv = stackvalue_Push(m,WVT_FUNC);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = a;
   sv->val.opw = 0;
@@ -99,9 +99,8 @@ static void opgen_GenCurrentMemory(Module *m) {
   sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.op, sv->val.opw);
   sljit_emit_op1(m->jitc, SLJIT_MOV32, a, 0, SLJIT_MEM1(a),
                  offsetof(RuntimeContext, memory.pages));
-  sv = push_stackvalue(m, NULL);
+  sv = stackvalue_Push(m, WVT_I32);
   sv->jit_type = SVT_GENERAL;
-  sv->wasm_type = WVT_I32;
   sv->val.op = a;
   sv->val.opw = 0;
 }
@@ -113,7 +112,7 @@ static void opgen_GenMemoryGrow(Module *m) {
 // be pushed to stack.
 static void opgen_GenI32Load(Module *m, int32_t opcode, int32_t a,
                              sljit_sw offset) {
-  StackValue *sv = push_stackvalue(m, NULL);
+  StackValue *sv = stackvalue_Push(m, WVT_I32);
   switch (opcode) {
   case 0x28: // i32.load32
     sljit_emit_op1(m->jitc, SLJIT_MOV32, a, 0, SLJIT_MEM1(a), offset);
@@ -132,7 +131,6 @@ static void opgen_GenI32Load(Module *m, int32_t opcode, int32_t a,
     break;
   }
   sv->jit_type = SVT_GENERAL;
-  sv->wasm_type = WVT_I32;
   sv->val.op = a;
   sv->val.opw = 0;
 }
@@ -140,11 +138,10 @@ static void opgen_GenI64Load(Module *m, int32_t opcode, int32_t a,
                              sljit_sw offset) {
   int32_t b;
   b = pwart_GetFreeRegExcept(m, RT_INTEGER, a, 0);
-  StackValue *sv = push_stackvalue(m, NULL);
+  StackValue *sv = stackvalue_Push(m, WVT_I64);
   if (m->target_ptr_size == 32) {
     // i64.load64 on 32bit arch
     if (opcode == 0x29) {
-      sv->wasm_type = WVT_I64;
       sv->jit_type = SVT_GENERAL;
       sv->val.op = SLJIT_MEM1(a);
       sv->val.opw = offset;
@@ -152,14 +149,12 @@ static void opgen_GenI64Load(Module *m, int32_t opcode, int32_t a,
       return;
     }else{
       sv->jit_type = SVT_TWO_REG;
-      sv->wasm_type = WVT_I64;
       sv->val.tworeg.opr1 = a;
       sv->val.tworeg.opr2 = b;
       sljit_emit_op1(m->jitc,SLJIT_MOV,b,0,SLJIT_IMM,0);
     }
   } else {
     sv->jit_type = SVT_GENERAL;
-    sv->wasm_type = WVT_I64;
     sv->val.op = a;
     sv->val.opw = 0;
   }
@@ -191,17 +186,17 @@ static void opgen_GenI64Load(Module *m, int32_t opcode, int32_t a,
 
 static void opgen_GenFloatLoad(Module *m, int32_t opcode, int32_t a,
                                uint32_t offset) {
-  StackValue *sv = push_stackvalue(m, NULL);
+  StackValue *sv;
   switch (opcode) {
   case 0x2a: // f32.load32
-    sv->wasm_type = WVT_F32;
+    sv=stackvalue_Push(m, WVT_F32);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = SLJIT_MEM1(a);
     sv->val.opw = offset;
     pwart_EmitStackValueLoadReg(m, sv);
     break;
   case 0x2b: // f64.load64
-    sv->wasm_type = WVT_F64;
+    sv=stackvalue_Push(m, WVT_F64);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = SLJIT_MEM1(a);
     sv->val.opw = offset;
@@ -309,15 +304,13 @@ static void opgen_GenStore(Module *m, int32_t opcode, sljit_sw offset,
 }
 
 static void opgen_GenI32Const(Module *m, uint32_t c) {
-  StackValue *sv = push_stackvalue(m, NULL);
-  sv->wasm_type = WVT_I32;
+  StackValue *sv = stackvalue_Push(m, WVT_I32);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
   sv->val.opw = c;
 }
 static void opgen_GenI64Const(Module *m, uint64_t c) {
-  StackValue *sv = push_stackvalue(m, NULL);
-  sv->wasm_type = WVT_I64;
+  StackValue *sv = stackvalue_Push(m, WVT_I64);
   if (m->target_ptr_size == 32) {
     sv->jit_type = SVT_I64CONST;
     sv->val.const64 = c;
@@ -328,8 +321,7 @@ static void opgen_GenI64Const(Module *m, uint64_t c) {
   }
 }
 static void opgen_GenF32Const(Module *m, uint8_t *c) {
-  StackValue *sv = push_stackvalue(m, NULL);
-  sv->wasm_type = WVT_F32;
+  StackValue *sv = stackvalue_Push(m, WVT_F32);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
   //use memmove to avoid align error.
@@ -340,8 +332,7 @@ static void opgen_GenF32Const(Module *m, uint8_t *c) {
 }
 
 static void opgen_GenF64Const(Module *m, uint8_t *c) {
-  StackValue *sv = push_stackvalue(m, NULL);
-  sv->wasm_type = WVT_F64;
+  StackValue *sv = stackvalue_Push(m, WVT_F64);
   if (m->target_ptr_size == 32) {
     sv->jit_type = SVT_I64CONST;
     memmove(&sv->val.const64,c,8);
