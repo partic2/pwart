@@ -339,16 +339,14 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
                               sljit_sw offset) {
   StackValue *sv,sv2;
   uint32_t a, b, len,func_frame_offset;
+  //Caution: Do not use scratch register before sljit_emit_icall to avoid overwrite [memreg,offset]
+  //XXX: Maybe we need use RS_RESERVED to avoid unexpected overwrite.
   pwart_EmitSaveStackAll(m);
-  if ((memreg & (SLJIT_MEM - 1)) == SLJIT_R0 ||
-      (memreg & (SLJIT_MEM - 1)) == SLJIT_R1) {
+  if ((memreg & (SLJIT_MEM - 1)) == SLJIT_R0 ) {
     sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R2, 0, memreg, offset);
     memreg = SLJIT_R2;
     offset = 0;
   }
-  sv = dynarr_get(m->locals, StackValue,
-                  m->runtime_ptr_local); // RuntimeContext *
-  sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R1, 0, sv->val.op, sv->val.opw);
   len = strlen(type->params);
   if(len == 0){
     //no argument, push dummy stackvalue
@@ -385,7 +383,7 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
   
   sljit_emit_op2(m->jitc, SLJIT_ADD, SLJIT_R0, 0, SLJIT_S0, 0, SLJIT_IMM,func_frame_offset);
 
-  sljit_emit_icall(m->jitc, SLJIT_CALL, SLJIT_ARGS2(VOID, W, W), memreg,
+  sljit_emit_icall(m->jitc, SLJIT_CALL, SLJIT_ARGS1(VOID, W), memreg,
                    offset);
   len = strlen(type->results);
   for (a = 0; a < len; a++) {
@@ -557,13 +555,13 @@ static void pwart_EmitStackValueLoadReg(Module *m, StackValue *sv) {
 }
 
 static int pwart_EmitFuncEnter(Module *m) {
-  int nextSr = SLJIT_S2;
+  int nextSr = SLJIT_S1;
   int nextSfr = SLJIT_FS0;
   int i, len;
-  int nextLoc; // next local offset to store locals variable, base on SLJIT_SP;
+  int nextLoc; 
   StackValue *sv;
 
-  // temprorary use nextLoc to represent offset of argument, base on SLJIT_S0
+  // temporarily use nextLoc to represent offset of argument, base on SLJIT_S0
   nextLoc = 0;
   len = strlen(m->function_type->params);
   for (i = 0; i < len; i++) {
@@ -580,6 +578,8 @@ static int pwart_EmitFuncEnter(Module *m) {
   }
   m->first_stackvalue_offset = nextLoc;
 
+  //nextLoc: next local offset to store locals variable, base on SLJIT_SP;
+  nextLoc=0;
   for (i = len; i < m->locals->len; i++) {
     sv = dynarr_get(m->locals, StackValue, i);
     sv->jit_type = SVT_GENERAL;
@@ -622,48 +622,103 @@ static int pwart_EmitFuncEnter(Module *m) {
       sv->val.opw = sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
     }
   }
-  sljit_emit_enter(m->jitc, 0, SLJIT_ARGS2(VOID, W, W),
+  sljit_emit_enter(m->jitc, 0, SLJIT_ARGS1(VOID, W),
                    SLJIT_NUMBER_OF_SCRATCH_REGISTERS, SLJIT_S0 - nextSr,
                    SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS, SLJIT_FS0 - nextSfr,
                    nextLoc);
+  
 
+  if(m->mem_base_local>=0 || m->table_entries_local>=0 || m->functions_base_local >= 0 
+      || m->globals_base_local >= 0){
+    sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,(sljit_sw)m->context);
+  }
+  if (m->mem_base_local >= 0) {
+    sv = dynarr_get(m->locals, StackValue, m->mem_base_local);
+    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
+                   SLJIT_MEM1(SLJIT_R0), get_memorybytes_offset(m));
+  }
   if (m->table_entries_local >= 0) {
     sv = dynarr_get(m->locals, StackValue, m->table_entries_local);
     sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
-                   SLJIT_MEM1(SLJIT_S1), get_tableentries_offset(m));
+                   SLJIT_MEM1(SLJIT_R0), get_tableentries_offset(m));
   }
   if (m->functions_base_local >= 0) {
     sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
     sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
-                   SLJIT_MEM1(SLJIT_S1), get_funcarr_offset(m));
+                   SLJIT_MEM1(SLJIT_R0), get_funcarr_offset(m));
   }
   if (m->globals_base_local >= 0) {
     sv = dynarr_get(m->locals, StackValue, m->globals_base_local);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R0, 0, SLJIT_MEM1(SLJIT_S1),
+    sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R1, 0, SLJIT_MEM1(SLJIT_R0),
                    get_globalsbuf_offset(m));
-    sljit_emit_op2(m->jitc, SLJIT_ADD, sv->val.op, sv->val.opw, SLJIT_R0, 0,
+    sljit_emit_op2(m->jitc, SLJIT_ADD, sv->val.op, sv->val.opw, SLJIT_R1, 0,
                    SLJIT_IMM, offsetof(struct dynarr, data));
   }
 
   m->runtime_ptr_local = m->locals->len;
   sv = dynarr_push_type(&m->locals, StackValue);
   sv->jit_type = SVT_GENERAL;
-  sv->val.op = SLJIT_S1;
-  sv->val.opw = 0;
-  // for performance, put memory base to SLJIT_S1, and save RuntimeContext
-  // pointer. Must be the last step.
-  if (m->mem_base_local >= 0) {
-    int16_t t;
-    sv = dynarr_get(m->locals, StackValue, m->mem_base_local);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R0, 0, SLJIT_MEM1(SLJIT_S1),
-                   get_memorybytes_offset(m));
-    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw, SLJIT_S1, 0);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_S1, 0, SLJIT_R0, 0);
-    t = m->mem_base_local;
-    m->mem_base_local = m->runtime_ptr_local;
-    m->runtime_ptr_local = t;
-  }
+  sv->val.op = SLJIT_IMM;
+  sv->val.opw = (sljit_sw)m->context;
 }
 
+
+static void opgen_GenI32Const(Module *m, uint32_t c) {
+  StackValue *sv = stackvalue_Push(m, WVT_I32);
+  sv->jit_type = SVT_GENERAL;
+  sv->val.op = SLJIT_IMM;
+  sv->val.opw = c;
+}
+static void opgen_GenI64Const(Module *m, uint64_t c) {
+  StackValue *sv = stackvalue_Push(m, WVT_I64);
+  if (m->target_ptr_size == 32) {
+    sv->jit_type = SVT_I64CONST;
+    sv->val.const64 = c;
+  } else {
+    sv->jit_type = SVT_GENERAL;
+    sv->val.op = SLJIT_IMM;
+    sv->val.opw = c;
+  }
+}
+static void opgen_GenF32Const(Module *m, uint8_t *c) {
+  StackValue *sv = stackvalue_Push(m, WVT_F32);
+  sv->jit_type = SVT_GENERAL;
+  sv->val.op = SLJIT_IMM;
+  //use memmove to avoid align error.
+  memmove(&sv->val.opw,c,4);
+  sv->val.opw = *(sljit_s32 *)c;
+  // sljit only allow load float from memory
+  pwart_EmitSaveStack(m, sv);
+}
+
+static void opgen_GenF64Const(Module *m, uint8_t *c) {
+  StackValue *sv = stackvalue_Push(m, WVT_F64);
+  if (m->target_ptr_size == 32) {
+    sv->jit_type = SVT_I64CONST;
+    memmove(&sv->val.const64,c,8);
+  } else {
+    sv->jit_type = SVT_GENERAL;
+    sv->val.op = SLJIT_IMM;
+    memmove(&sv->val.opw,c,8);
+  }
+  // sljit only allow load float from memory
+  pwart_EmitSaveStack(m, sv);
+}
+static void opgen_GenRefConst(Module *m,void *c) {
+  StackValue *sv=stackvalue_Push(m,WVT_REF);
+  sv->jit_type=SVT_GENERAL;
+  sv->val.op=SLJIT_IMM;
+  sv->val.opw=(sljit_sw)c;
+}
+
+//if fn is stub/inline function, generate native code and return 1, else return 0.
+static int pwart_CheckAndGenStubFunction(Module *m,WasmFunctionEntry fn){
+  struct pwart_builtin_functable *functbl=pwart_get_builtin_functable();
+  if(fn==functbl->get_self_runtime_context){
+    opgen_GenRefConst(m,m->context);
+    return 1;
+  }
+  return 0;
+}
 
 #endif

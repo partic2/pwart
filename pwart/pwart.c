@@ -15,7 +15,6 @@ extern int pwart_get_version(){
 
 extern pwart_module pwart_new_module(){
     Module *m=wa_calloc(sizeof(Module));
-    m->cfg.stack_size=63*1024;
     m->cfg.import_resolver=NULL;
     return m;
 }
@@ -48,7 +47,7 @@ extern char *pwart_load(pwart_module m,char *data,int len){
 
 }
 
-extern pwart_wasmfunction pwart_get_export_function(pwart_module module,char *name){
+extern pwart_wasm_function pwart_get_export_function(pwart_module module,char *name){
     Module *m=module;
     Export *exp=get_export(m,name,KIND_FUNCTION);
     if(exp!=NULL){
@@ -64,16 +63,10 @@ extern char *pwart_set_symbol_resolver(pwart_module m2,void (*resolver)(char *im
     m->cfg.import_resolver=resolver;
     return NULL;
 }
-extern char *pwart_set_stack_size(pwart_module m2,int stack_size){
-    Module *m=m2;
-    m->cfg.stack_size=stack_size;
-    return NULL;
-}
 
 extern char *pwart_set_load_config(pwart_module m2,struct pwart_load_config *config){
     Module *m=m2;
     m->cfg.import_resolver=config->import_resolver;
-    m->cfg.stack_size=config->stack_size;
     m->cfg.memory_model=config->memory_model;
     m->cfg.stack_flags=config->stack_flags;
     return NULL;
@@ -81,7 +74,6 @@ extern char *pwart_set_load_config(pwart_module m2,struct pwart_load_config *con
 extern char *pwart_get_load_config(pwart_module m2,struct pwart_load_config *config){
     Module *m=m2;
     config->import_resolver=m->cfg.import_resolver;
-    config->stack_size=m->cfg.stack_size;
     config->memory_model=m->cfg.memory_model;
     config->stack_flags=m->cfg.stack_flags;
     return NULL;
@@ -96,7 +88,6 @@ extern char *pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_
     RuntimeContext *rc=c;
     result->memory_size=rc->memory.pages*PAGE_SIZE;
     result->memory=rc->memory.bytes;
-    result->runtime_stack=rc->stack_buffer+rc->stack_start_offset;
     result->table_entries_count=rc->table.size;
     result->table_entries=rc->table.entries;
     result->globals_buffer_size=rc->globals->len;
@@ -115,6 +106,21 @@ extern void *pwart_get_runtime_user_data(pwart_runtime_context c){
     return rc->userdata;
 }
 
+extern void *pwart_allocate_stack(int size){
+    uint8_t *mem=wa_malloc(size+16);
+    uint8_t *stack_buffer=(uint8_t *)((((size_t)mem)+16) & (~(size_t)(0xf)));
+    stack_buffer[-1]=stack_buffer-mem;
+    return stack_buffer;
+}
+
+extern void pwart_free_stack(void *stack){
+    uint8_t *stack_buffer=stack;
+    int off=stack_buffer[-1];
+    stack_buffer-=off;
+    wa_free(stack_buffer);
+}
+
+
 extern void pwart_rstack_put_i32(void **sp,int val){
     *(int32_t *)(*sp)=val;
     *sp+=4;
@@ -130,6 +136,10 @@ extern void pwart_rstack_put_f32(void **sp,float val){
 extern void pwart_rstack_put_f64(void **sp,double val){
     *(double *)(*sp)=val;
     *sp+=8;
+}
+extern void pwart_rstack_put_ref(void **sp,void *val){
+    *(void **)(*sp)=val;
+    *sp+=sizeof(void *);
 }
 
 extern int pwart_rstack_get_i32(void **sp){
@@ -152,14 +162,32 @@ extern double pwart_rstack_get_f64(void **sp){
     *sp+=8;
     return *sp2;
 }
+extern void *pwart_rstack_get_ref(void **sp){
+    void **sp2=*sp;
+    *sp+=sizeof(void *);
+    return *sp2;
+}
 
-static struct pwart_builtin_functable default_builtin_functable={
-    .version=(void *)&insn_version,
-    .malloc32=(void *)&insn_malloc32,
-    .malloc64=(void *)&insn_malloc64,
-    .ref_from_i32=(void *)&insn_reffromi32,
-    .ref_from_i64=(void *)&insn_reffromi64
-};
+extern pwart_wasm_function pwart_wrap_host_function_c(pwart_host_function_c host_func){
+    //currently, we don't need wrap host function.
+    return host_func;
+}
+
+extern void pwart_free_wrapped_function(pwart_wasm_function wrapped){
+}
+
+extern void pwart_call_wasm_function(pwart_wasm_function fn,void *stack_pointer){
+    WasmFunctionEntry fn2=fn;
+    (*fn2)(stack_pointer);
+}
+
+static struct pwart_builtin_functable default_builtin_functable={NULL};
 extern struct pwart_builtin_functable *pwart_get_builtin_functable(){
+    if(default_builtin_functable.version==NULL){
+        default_builtin_functable.version=pwart_wrap_host_function_c((void *)insn_version);
+        default_builtin_functable.malloc32=pwart_wrap_host_function_c((void *)insn_malloc32);
+        default_builtin_functable.malloc64=pwart_wrap_host_function_c((void *)insn_malloc64);
+        default_builtin_functable.get_self_runtime_context=pwart_wrap_host_function_c((void *)insn_get_self_runtime_context);
+    }
     return &default_builtin_functable;
 }

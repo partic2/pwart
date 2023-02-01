@@ -7,6 +7,8 @@
 #include "extfunc.c"
 #include "opgen_utils.c"
 
+
+
 static void opgen_GenLocalGet(Module *m, uint32_t idx) {
   stackvalue_PushStackValueLike(m, dynarr_get(m->locals, StackValue, idx));
 }
@@ -105,7 +107,9 @@ static void opgen_GenCurrentMemory(Module *m) {
   sv->val.opw = 0;
 }
 static void opgen_GenMemoryGrow(Module *m) {
-  pwart_EmitCallFunc(m, &func_type_i32_ret_i32, SLJIT_IMM,
+  opgen_GenI32Const(m,0);
+  opgen_GenRefConst(m,m->context);
+  pwart_EmitCallFunc(m, &func_type_i32_i32_ref_ret_i32, SLJIT_IMM,
                      (sljit_sw)&insn_memorygrow);
 }
 // a:memory access base register, can be result register. result StackValue will
@@ -303,54 +307,20 @@ static void opgen_GenStore(Module *m, int32_t opcode, sljit_sw offset,
   m->sp--;
 }
 
-static void opgen_GenI32Const(Module *m, uint32_t c) {
-  StackValue *sv = stackvalue_Push(m, WVT_I32);
-  sv->jit_type = SVT_GENERAL;
-  sv->val.op = SLJIT_IMM;
-  sv->val.opw = c;
-}
-static void opgen_GenI64Const(Module *m, uint64_t c) {
-  StackValue *sv = stackvalue_Push(m, WVT_I64);
-  if (m->target_ptr_size == 32) {
-    sv->jit_type = SVT_I64CONST;
-    sv->val.const64 = c;
-  } else {
-    sv->jit_type = SVT_GENERAL;
-    sv->val.op = SLJIT_IMM;
-    sv->val.opw = c;
-  }
-}
-static void opgen_GenF32Const(Module *m, uint8_t *c) {
-  StackValue *sv = stackvalue_Push(m, WVT_F32);
-  sv->jit_type = SVT_GENERAL;
-  sv->val.op = SLJIT_IMM;
-  //use memmove to avoid align error.
-  memmove(&sv->val.opw,c,4);
-  sv->val.opw = *(sljit_s32 *)c;
-  // sljit only allow load float from memory
-  pwart_EmitSaveStack(m, sv);
-}
-
-static void opgen_GenF64Const(Module *m, uint8_t *c) {
-  StackValue *sv = stackvalue_Push(m, WVT_F64);
-  if (m->target_ptr_size == 32) {
-    sv->jit_type = SVT_I64CONST;
-    memmove(&sv->val.const64,c,8);
-  } else {
-    sv->jit_type = SVT_GENERAL;
-    sv->val.op = SLJIT_IMM;
-    memmove(&sv->val.opw,c,8);
-  }
-  // sljit only allow load float from memory
-  pwart_EmitSaveStack(m, sv);
-}
-
 static void opgen_GenMemoryCopy(Module *m){
-  pwart_EmitCallFunc(m,&func_type_i32_i32_i32_ret_void,SLJIT_IMM,(sljit_sw)&insn_memorycopy32);
+  opgen_GenI32Const(m,0);
+  opgen_GenI32Const(m,0);
+  opgen_GenI32Const(m,0);
+  opgen_GenRefConst(m,m->context);
+  pwart_EmitCallFunc(m,&func_type_i32x6_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memorycopy32);
 }
 
 static void opgen_GenMemoryFill(Module *m){
-  pwart_EmitCallFunc(m,&func_type_i32_i32_i32_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
+  opgen_GenI32Const(m,0);
+  opgen_GenI32Const(m,0);
+  opgen_GenI32Const(m,0);
+  opgen_GenRefConst(m,m->context);
+  pwart_EmitCallFunc(m,&func_type_i32x6_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
 }
 
 static void opgen_GenMemOp(Module *m, int opcode) {

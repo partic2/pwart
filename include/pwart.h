@@ -9,7 +9,10 @@ typedef  void *pwart_module;
 typedef void *pwart_runtime_context;
 
 //webassembly function definition (for 1.0 version)
-typedef void (*pwart_wasmfunction)(void *stack_frame,pwart_runtime_context context);
+
+typedef void *pwart_wasm_function;
+
+typedef void (*pwart_host_function_c)(void *stack_frame);
 
 //currently only have 1.0 version
 #define PWART_VERSION_1 1
@@ -35,9 +38,22 @@ extern char *pwart_free_runtime(pwart_runtime_context rc);
 //return error message if any, or NULL if succeded.
 extern char *pwart_load(pwart_module m,char *data,int len);
 
-//get wasmfunction exported by wasm module.
+//return wasm start function, or NULL if no start function specified.
+//you should call the start function to init module, according to WebAssembly spec.
+//Though it's may not necessary for PWART.
+extern pwart_wasm_function pwart_get_start_function(pwart_module m);
+
+//get wasm function exported by wasm module.
 //you can only get exported symbol before module is free.
-extern pwart_wasmfunction pwart_get_export_function(pwart_module module,char *name);
+extern pwart_wasm_function pwart_get_export_function(pwart_module module,char *name);
+
+
+//wrap host function to wasm function, must be free by pwart_free_wrapped_function.
+extern pwart_wasm_function pwart_wrap_host_function_c(pwart_host_function_c host_func);
+
+extern void pwart_free_wrapped_function(pwart_wasm_function wrapped);
+
+extern void pwart_call_wasm_function(pwart_wasm_function fn,void *stack_pointer);
 
 // pwart_module load config, must set before pwart_load.
 //return error message if any, or NULL if succeded.
@@ -51,7 +67,6 @@ struct pwart_load_config{
     //To indicate the api version, should be set before get_config or set_config.
     int size_of_this;
     void (*import_resolver)(char *import_module,char *import_field,void *result);
-    int stack_size;
     // PWART_MEMORY_MODEL_xxx flags
     char memory_model;
     // PWART_STACK_FLAGS_xxx flags
@@ -84,8 +99,6 @@ extern pwart_runtime_context pwart_get_runtime_context(pwart_module m);
 
 //runtime_context inspect result
 struct pwart_inspect_result1{
-    //default runtime stack bottom.
-    void *runtime_stack;
     //memory 0 size , in byte
     int memory_size;
     void *memory;
@@ -108,6 +121,10 @@ extern char *pwart_free_module(pwart_module mod);
 
 //pwart invoke and runtime stack helper
 
+//allocate a stack buffer, with align 16. can only be free by pwart_free_stack.
+extern void *pwart_allocate_stack(int size);
+extern void pwart_free_stack(void *stack);
+
 //For version 1.0, arguments and results are all stored on stack.
 //PWART_STACK_FLAGS_AUTO_ALIGN currently has no effect to these function, user need add padding by self.
 
@@ -116,32 +133,35 @@ extern void pwart_rstack_put_i32(void **sp,int val);
 extern void pwart_rstack_put_i64(void **sp,long long val);
 extern void pwart_rstack_put_f32(void **sp,float val);
 extern void pwart_rstack_put_f64(void **sp,double val);
+extern void pwart_rstack_put_ref(void **sp,void *val);
 //get value on *sp, move *sp to next entries.
 extern int pwart_rstack_get_i32(void **sp);
 extern long long pwart_rstack_get_i64(void **sp);
 extern float pwart_rstack_get_f32(void **sp);
 extern double pwart_rstack_get_f64(void **sp);
+extern void *pwart_rstack_get_ref(void **sp);
 
 
 //pwart builtin WasmFunction, can be call by import pwart_builtin module in wasm.
 //Unless explicitly mark as Overwriteable,  Modifing the value may take no effect and should be avoided.
 struct pwart_builtin_functable{
     //get pwart version, []->[i32]
-    pwart_wasmfunction version;
+    pwart_wasm_function version;
 
     //allocate memory, see also PWART_MEMORY_MODEL_RAW flag.
 
     //function type [i32]->[i32]
-    pwart_wasmfunction malloc32;
+    pwart_wasm_function malloc32;
     //function  type [i64]->[i64]
-    pwart_wasmfunction malloc64;
+    pwart_wasm_function malloc64;
 
-    //convert i32/i64 to ref type.
+    //Stub function, can only be called DIRECTLY by wasm.
+    //PWART will compile these 'call' instruction into native code, instead of function call.
 
-    //function type [i32]->[ref]
-    pwart_wasmfunction ref_from_i32;
-    //function type [i64]->[ref]
-    pwart_wasmfunction ref_from_i64;
+    //get pwart_runtime_context attached to current function.
+    //function type []->[ref]
+    pwart_wasm_function get_self_runtime_context;
+
 };
 
 extern struct pwart_builtin_functable *pwart_get_builtin_functable();

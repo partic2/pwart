@@ -88,8 +88,12 @@ static void opgen_GenEnd(Module *m) {
 
   } else if (block->block_type == 0x00) {
     // function
-    pwart_EmitFuncReturn(m);
-    SLJIT_ASSERT(m->blocks->len == 0);
+    //Check if there is already a redundant return instruction, if so, skip pwart_EmitFuncReturn.
+    //XXX:May we need better way to avoid access m->bytes directly.
+    if(m->bytes[m->pc-2]!=0x0f){
+      pwart_EmitFuncReturn(m);
+    }
+    wa_assert(m->blocks->len == 0,"block stack not empty");
     m->eof = 1;
   }
   if (block->br_jump != NULL) {
@@ -197,12 +201,14 @@ static void opgen_GenCall(Module *m, int32_t fidx) {
   StackValue *sv;
   Type *type;
   fn = dynarr_get(m->functions, WasmFunction, fidx);
-  a = pwart_GetFreeReg(m, RT_INTEGER, 0);
-  sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
-  sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
-                 sizeof(void *) * fidx);
-  type = dynarr_get(m->types, Type, fn->tidx);
-  pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
+  if(!pwart_CheckAndGenStubFunction(m,fn->func_ptr)){
+    a = pwart_GetFreeReg(m, RT_INTEGER, 0);
+    sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
+    sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
+                  sizeof(void *) * fidx);
+    type = dynarr_get(m->types, Type, fn->tidx);
+    pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
+  }
 }
 
 static void opgen_GenCallIndirect(Module *m, int32_t typeidx,

@@ -60,6 +60,7 @@ static Memory *get_export_memory(Module *m, char *name) {
 static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     uint8_t   vt;
     uint32_t  pos = 0, word;
+    struct pwart_builtin_functable *builtinfunc=pwart_get_builtin_functable();
 
     // Allocate the module
 
@@ -79,14 +80,6 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     m->byte_count = byte_count;
     m->context=wa_calloc(sizeof(RuntimeContext));
     m->context->memory_model=m->cfg.memory_model;
-    m->context->stack_flags=m->cfg.stack_flags;
-    if(m->cfg.stack_size==0){
-        m->cfg.stack_size=PAGE_SIZE-1024;
-    }
-    m->context->stack_buffer=wa_malloc(m->cfg.stack_size+16);
-    m->context->stack_start_offset=
-        (((sljit_sw)m->context->stack_buffer)+15) & (~(sljit_sw)(0xf))-
-        (sljit_sw)m->context->stack_buffer;
     
     dynarr_init(&m->context->globals,sizeof(uint8_t));
     dynarr_init(&m->functions,sizeof(WasmFunction));
@@ -189,16 +182,18 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
 
                 if(external_kind == KIND_FUNCTION && val == NULL && !strcmp("pwart_builtin",import_module)){
                     if(!strcmp("version",import_field)){
-                        val=&insn_version;
+                        val=builtinfunc->version;
                     }else if(!strcmp("malloc32",import_field)){
-                        val=&insn_malloc32;
+                        val=builtinfunc->malloc32;
                     }else if(!strcmp("malloc64",import_field)){
-                        val=&insn_malloc64;
-                    }else if(!strcmp("ref_from_i32",import_field)){
-                        val=&insn_reffromi32;
-                    }else if(!strcmp("ref_from_i64",import_field)){
-                        val=&insn_reffromi64;
+                        val=builtinfunc->malloc64;
+                    }else if(!strcmp("get_self_runtime_context",import_field)){
+                        val=builtinfunc->get_self_runtime_context;
                     }
+                }
+                
+                if(val==NULL){
+                    return "import function not found";
                 }
 
                 wa_debug("  found '%s.%s' at address %p\n",
@@ -485,21 +480,12 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
         }
     }
 
-    if (m->start_function != -1) {
-        uint32_t fidx = m->start_function;
-        WasmFunction *entf=dynarr_get(m->functions,WasmFunction,fidx);
-        entf->func_ptr(m->context->stack_buffer+m->context->stack_start_offset,m->context);
-    }
-
     return NULL;
 }
 
 static int free_runtimectx(RuntimeContext *rc){
     if(rc->globals!=NULL){
         dynarr_free(&rc->globals);
-    }
-    if(rc->stack_buffer!=NULL){
-        wa_free(rc->stack_buffer);
     }
     if(rc->memory.bytes!=NULL){
         if(rc->memory.export_name!=NULL){
@@ -516,7 +502,9 @@ static int free_runtimectx(RuntimeContext *rc){
     for(int i=rc->import_funcentries_count;i<rc->funcentries_count;i++){
         pwart_FreeFunction(rc->funcentries[i]);
     }
-    wa_free(rc->funcentries);
+    if(rc->funcentries!=NULL){
+        wa_free(rc->funcentries);
+    }
     wa_free(rc);
     return 0;
 }

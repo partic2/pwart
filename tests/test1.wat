@@ -1,5 +1,7 @@
 (module
 (import "pwart_builtin" "version" (func $getPwartVersion (result i32) ))
+(import "pwart_builtin" "get_self_runtime_context" (func $get_self_runtime_context (result externref) ))
+(import "testaid" "printi64" (func $printi64 (param i64) (result i64) ))
 (memory 4)
   (type $typeAddTwo (func (param i64 i64) (result i64)))
   (type $longtype (func (param f64 f64 i32 i32 f32 f32 i64 i64) (result i64)))
@@ -8,9 +10,12 @@
   (elem 0 (i32.const 0) $addTwo )
   (global $one i32 (i32.const 1))
   (global $two i32 (i32.const 2))
+
+  ;; function 0
   (func $nop
   )
 
+  ;; function 1
   (func $addTwo (param i64 i64) (result i64) 
       (i64.store (i32.const 0) (local.get 0))
       (i64.load (i32.const 0))
@@ -18,13 +23,15 @@
       i64.add
   )
 
+  ;; function 2
   (func $addTwoF (param i32 f64 f64) (result i32 f64)
       local.get 0
       local.get 1
       local.get 2
       f64.add
   )
-    
+  
+  ;; function 3
   (func $test1 (param i32 i32) (result i32) (local i32 i64)
     i32.const 2
     i32.const 1
@@ -43,14 +50,29 @@
     i32.const 4
     i32.const 0x6f6c
     i32.store
+
+    i64.const 300
+    call $printi64
+    drop
+
     i32.const 6
     i32.const 1
     i32.const 5
     memory.copy
+
+    i64.const 400
+    call $printi64
+    drop
+
     i32.const 11
     i32.const 33
     i32.const 4
     memory.fill
+
+    i64.const 500
+    call $printi64
+    drop
+
     i32.const 15
     i32.const 0
     i32.store8
@@ -72,6 +94,7 @@
     local.get 2
   )
 
+  ;; function 4
   (func $test2 (param i64 i64) (result i64) 
     i32.const 0
     local.get 0
@@ -85,6 +108,7 @@
     call $addTwo
   )
 
+  ;; function 5
   (func $test3 (param i32 f64 f64) (result i32 i64) (local i32)
     i32.const 1
     local.get 0
@@ -103,6 +127,7 @@
     i64.trunc_sat_f64_s
   )
 
+  ;; function 6
   (func $fib:fib
     (param $n i32) (result i32) 
     local.get $n
@@ -123,6 +148,8 @@
     i32.add
     return
   )
+
+  ;; function 7
   (func $fib:parseInt
     (param $str i32) (result i32) 
     (local $res i32) (local $i i32) 
@@ -163,6 +190,8 @@
     local.get $res
     return
   )
+
+  ;; function 8
   (func $fib:main (export "fib_main")
     (param $args i32) (param $argv i32) (result i32) 
     (local $n i32) 
@@ -174,10 +203,14 @@
     return
   )
 
-  (func $builtinFuncTest (result i32)
+  ;; function 9
+  (func $builtinFuncTest (result i32 i32 externref)
   call $getPwartVersion
+  i32.const 0 ;; padding
+  call $get_self_runtime_context
   )
 
+  (export "addTwo" (func $addTwo))
   (export "test1" (func $test1))
   (export "test2" (func $test2))
   (export "test3" (func $test3))

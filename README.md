@@ -29,23 +29,15 @@ your_target:build_pwart
 	$(CC) $(PWART_CFLAGS) $(CFLAGS) -o your_output your_source.c $(PWART_LDFLAGS) $(LDFLAGS)
 ```
 
-4. In your source, include "pwart.h". simple demo show below.
+4. In your source, include "pwart.h". A simple demo show below.
 
 ```C
-FILE *f = fopen("test1.wasm", "rb");
-uint8_t *data = malloc(1024 * 1024 * 8);
-void *sp;
-int len = fread(data, 1, 1024 * 1024 * 8, f);
-fclose(f);
+void *sp=pwart_allocate_stack(64*1024);
 pwart_module m = pwart_new_module();
-struct pwart_inspect_result1 ctxinfo;
-pwart_load(m, data, len);
-pwart_runtime_context ctx = pwart_get_runtime_context(m);
-pwart_inspect_runtime_context(ctx, &ctxinfo);
+pwart_load(m, wasm_data, len);
 pwart_wasmfunction test1 = pwart_get_export_function(m, "test1");
-pwart_free_module(m);
-sp = ctxinfo.runtime_stack;
-test1(sp, ctx);
+pwart_call_wasm_function(test1,sp);
+...
 ```
 See [include/pwart.h](include/pwart.h) , [tests/testmain.c](tests/testmain.c) and [tests/Makefile](tests/Makefile) for detail usage.
 

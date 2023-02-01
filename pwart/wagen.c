@@ -204,8 +204,7 @@ static int pwart_PrepareFunc(Module *m) {
 
 /*
 r0,r1,r2 is scratch registers(at least three registers are required.).
-s0(arg0) contains runtime frame pointer.
-s1(arg1) contains the pointer refer to Module m.
+s0(arg0) contains stack frame pointer.
 */
 static int pwart_GenCode(Module *m) {
   Block *block;
