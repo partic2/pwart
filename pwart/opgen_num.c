@@ -5,18 +5,12 @@
 #include "extfunc.c"
 #include "opgen_utils.c"
 
-static void opgen_GenNumOp(Module *m, int opcode) {
-  StackValue *sv, *sv2;
-  int32_t a, b;
-  sljit_s32 op1, op2;
-  sljit_sw opw1, opw2;
+static void opgen_GenCompareOp(Module *m,int opcode){
+  StackValue *sv,*sv2;
+  int32_t a,b;
   struct sljit_jump *jump;
-  StackValue *stack = m->stack;
-  
-  switch (opcode) {
-    //
+  switch(opcode){
   // Comparison operators
-  //
   // unary
   case 0x45: // i32.eqz
     sv=m->stack+m->sp;
@@ -44,13 +38,13 @@ static void opgen_GenNumOp(Module *m, int opcode) {
 
   // i32 binary
   case 0x46 ... 0x4f:
-    sv2 = &stack[m->sp];
-    sv = &stack[m->sp-1];
+    sv2 = m->stack+m->sp;
+    sv = m->stack+m->sp-1;
 
     switch (opcode) {
     case 0x46:
       sljit_emit_op2u(m->jitc,
-                      SLJIT_SUB32 | SLJIT_SET_Z | SLJIT_CURRENT_FLAGS_COMPARE,
+                      SLJIT_SUB32 | SLJIT_SET_Z ,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       a = SLJIT_EQUAL;
       break; // i32.eq
@@ -151,8 +145,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       }
       break;
     } else {
-      sv2 = &stack[m->sp];
-      sv = &stack[m->sp-1];
+      sv2 = m->stack+m->sp;
+      sv = m->stack+m->sp-1;
 
       switch (opcode) {
       case 0x51:
@@ -212,8 +206,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     sv->val.cmp.flag=a;
     break;
   case 0x5b ... 0x60:
-    sv2 = &stack[m->sp];
-    sv = &stack[m->sp - 1];
+    sv2 = m->stack+m->sp;
+    sv = m->stack+m->sp-1;
     b = pwart_GetFreeReg(m, RT_INTEGER, 2);
     jump = sljit_emit_fcmp(m->jitc, SLJIT_32 | SLJIT_UNORDERED, sv->val.op,
                            sv->val.opw, sv2->val.op, sv2->val.opw);
@@ -263,8 +257,8 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     sv->val.opw = 0;
     break;
   case 0x61 ... 0x66:
-    sv2 = &stack[m->sp];
-    sv = &stack[m->sp];
+    sv2 = &m->stack[m->sp];
+    sv = &m->stack[m->sp]-1;
     b = pwart_GetFreeReg(m, RT_INTEGER, 2);
     jump = sljit_emit_fcmp(m->jitc, SLJIT_UNORDERED, sv->val.op, sv->val.opw,
                            sv2->val.op, sv2->val.opw);
@@ -313,7 +307,18 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     sv->val.op = b;
     sv->val.opw = 0;
     break;
+  }
+}
 
+static void opgen_GenArithmeticOp(Module *m,int opcode){
+  StackValue *sv, *sv2;
+  int32_t a, b;
+  sljit_s32 op1, op2;
+  sljit_sw opw1, opw2;
+  struct sljit_jump *jump;
+  StackValue *stack = m->stack;
+  switch (opcode) {
+  
   //
   // Numeric operators
   //
@@ -968,6 +973,18 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       sv->val.opw = 0;
     }
     break;
+  }
+}
+
+static void opgen_GenConvertOp(Module *m,int opcode){
+  StackValue *sv, *sv2;
+  int32_t a, b;
+  sljit_s32 op1, op2;
+  sljit_sw opw1, opw2;
+  struct sljit_jump *jump;
+  StackValue *stack = m->stack;
+
+  switch(opcode){
 
   // conversion operations
   // case 0xa7 ... 0xbb:
@@ -1277,10 +1294,19 @@ static void opgen_GenNumOp(Module *m, int opcode) {
       sv->val.opw = 0;
     }
     break;
-  default:
+  }
+}
+
+static void opgen_GenNumOp(Module *m, int opcode) {
+  if(opcode>=0x45 && opcode <=0x66){
+    opgen_GenCompareOp(m,opcode);
+  }else if(opcode>=0x67 && opcode <=0xa6){
+    opgen_GenArithmeticOp(m,opcode);
+  }else if(opcode>=0xa7 && opcode <=0xc4){
+    opgen_GenConvertOp(m,opcode);
+  }else{
     wa_debug("unrecognized opcode 0x%x at %d", opcode, m->pc);
     exit(1);
-    break;
   }
 }
 

@@ -14,4 +14,5 @@ test:build_pwart
 	$(WAT2WASM) binary.wat
 	$(WAT2WASM) control.wat
 	$(WAT2WASM) convert.wat
+	$(WAT2WASM) compare.wat
 	./testexe

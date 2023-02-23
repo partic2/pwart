@@ -117,4 +117,18 @@
   (func (export "brtable3") (result i32)
     i32.const 2 
     call $brtable0)
+
+  (func (export "expr_block") (result i32)
+    block (result i32)
+      i32.const 10
+      drop 
+      i32.const 1
+    end
+  )
+  (func (export "expr_brif") (param i32) (result i32)
+    (block $exit (result i32)
+      (i32.sub
+        (br_if $exit (i32.const 42) (local.get 0))
+        (i32.const 13))))
+
 )
