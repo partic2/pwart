@@ -310,17 +310,15 @@ static void opgen_GenStore(Module *m, int32_t opcode, sljit_sw offset,
 static void opgen_GenMemoryCopy(Module *m){
   opgen_GenI32Const(m,0);
   opgen_GenI32Const(m,0);
-  opgen_GenI32Const(m,0);
   opgen_GenRefConst(m,m->context);
-  pwart_EmitCallFunc(m,&func_type_i32x6_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memorycopy32);
+  pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memorycopy32);
 }
 
 static void opgen_GenMemoryFill(Module *m){
   opgen_GenI32Const(m,0);
   opgen_GenI32Const(m,0);
-  opgen_GenI32Const(m,0);
   opgen_GenRefConst(m,m->context);
-  pwart_EmitCallFunc(m,&func_type_i32x6_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
+  pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
 }
 
 static void opgen_GenMemOp(Module *m, int opcode) {

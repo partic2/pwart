@@ -16,6 +16,7 @@ extern int pwart_get_version(){
 extern pwart_module pwart_new_module(){
     Module *m=wa_calloc(sizeof(Module));
     m->cfg.import_resolver=NULL;
+    m->cfg.memory_model=pwart_gcfg.memory_model;
     return m;
 }
 
@@ -64,18 +65,22 @@ extern char *pwart_set_symbol_resolver(pwart_module m2,void (*resolver)(char *im
     return NULL;
 }
 
+extern char *pwart_set_global_compile_config(struct pwart_global_compile_config *cfg){
+    memcpy(&pwart_gcfg,cfg,sizeof(struct pwart_global_compile_config));
+};
+extern char *pwart_get_global_compile_config(struct pwart_global_compile_config *cfg){
+    memcpy(cfg,&pwart_gcfg,sizeof(struct pwart_global_compile_config));
+}
 extern char *pwart_set_load_config(pwart_module m2,struct pwart_load_config *config){
     Module *m=m2;
     m->cfg.import_resolver=config->import_resolver;
     m->cfg.memory_model=config->memory_model;
-    m->cfg.stack_flags=config->stack_flags;
     return NULL;
 }
 extern char *pwart_get_load_config(pwart_module m2,struct pwart_load_config *config){
     Module *m=m2;
     config->import_resolver=m->cfg.import_resolver;
     config->memory_model=m->cfg.memory_model;
-    config->stack_flags=m->cfg.stack_flags;
     return NULL;
 }
 
@@ -126,6 +131,12 @@ extern void pwart_rstack_put_i32(void **sp,int val){
     *sp+=4;
 }
 extern void pwart_rstack_put_i64(void **sp,long long val){
+    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+        int t=(size_t)sp&7;
+        if(t>0){
+            sp=(void *)sp+8-t;
+        }
+    }
     *(int64_t *)(*sp)=val;
     *sp+=8;
 }
@@ -134,10 +145,22 @@ extern void pwart_rstack_put_f32(void **sp,float val){
     *sp+=4;
 }
 extern void pwart_rstack_put_f64(void **sp,double val){
+    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+        int t=(size_t)sp&7;
+        if(t>0){
+            sp=(void *)sp+8-t;
+        }
+    }
     *(double *)(*sp)=val;
     *sp+=8;
 }
 extern void pwart_rstack_put_ref(void **sp,void *val){
+    if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN) && (sizeof(void *)==8)){
+        int t=(size_t)sp&7;
+        if(t>0){
+            sp=(void *)sp+8-t;
+        }
+    }
     *(void **)(*sp)=val;
     *sp+=sizeof(void *);
 }
@@ -148,6 +171,12 @@ extern int pwart_rstack_get_i32(void **sp){
     return *sp2;
 }
 extern long long pwart_rstack_get_i64(void **sp){
+    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+        int t=(size_t)sp&7;
+        if(t>0){
+            sp=(void *)sp+8-t;
+        }
+    }
     int64_t *sp2=*sp;
     *sp+=8;
     return *sp2;
@@ -158,11 +187,23 @@ extern float pwart_rstack_get_f32(void **sp){
     return *sp2;
 }
 extern double pwart_rstack_get_f64(void **sp){
+    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+        int t=(size_t)sp&7;
+        if(t>0){
+            sp=(void *)sp+8-t;
+        }
+    }
     double *sp2=*sp;
     *sp+=8;
     return *sp2;
 }
 extern void *pwart_rstack_get_ref(void **sp){
+    if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN) && (sizeof(void *)==8)){
+        int t=(size_t)sp&7;
+        if(t>0){
+            sp=(void *)sp+8-t;
+        }
+    }
     void **sp2=*sp;
     *sp+=sizeof(void *);
     return *sp2;

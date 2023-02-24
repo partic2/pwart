@@ -160,7 +160,7 @@ typedef struct RuntimeContext{
     struct dynarr *globals; // globals variable buffer, type uint8_t
     Memory      memory;         // memory 0 infomation
     Table       table;          // table 0 information
-    void *userdata;  //user data, not used by pwart.
+    void *userdata;  //user data, pwart don't use it.
 }RuntimeContext;
 
 
@@ -477,6 +477,11 @@ static uint32_t LOAD_SIZE[] = {
 
 // global exception message
 char  exception[4096];
+
+static struct pwart_global_compile_config pwart_gcfg={
+    .memory_model=PWART_MEMORY_MODEL_FIXED_SIZE,
+    .stack_flags=0
+};
 
 static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype,int upstack);
 static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv,uint32_t *align);

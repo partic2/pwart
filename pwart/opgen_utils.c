@@ -296,7 +296,7 @@ static StackValue *stackvalue_Push(Module *m, int32_t wasm_type) {
   } else {
     sv = sv2 - 1;
     sv2->frame_offset = sv->frame_offset + stackvalue_GetSizeAndAlign(sv, NULL);
-    if(m->cfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
       sv2->frame_offset=stackvalue_GetAlignedOffset(sv2,sv2->frame_offset,NULL);
     }
   }
@@ -357,7 +357,7 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
   }
   sv = m->stack+m->sp + 1; // first argument
 
-  if((m->cfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN) && ((sv->frame_offset&7)>0)){
+  if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN) && ((sv->frame_offset&7)>0)){
     //XXX: move stack value to align frame to 8 ,we should avoid this happen.
     sv->frame_offset+=4;
     if(len>0){
@@ -418,7 +418,7 @@ static int pwart_EmitFuncReturn(Module *m) {
   len = strlen(m->function_type->results);
   for (idx = 0; idx < len; idx++) {
     sv = &m->stack[m->sp - len + idx + 1];
-    if(m->cfg.stack_flags & PWART_STACK_FLAGS_AUTO_ALIGN){
+    if(pwart_gcfg.stack_flags & PWART_STACK_FLAGS_AUTO_ALIGN){
       pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0),
         stackvalue_GetAlignedOffset(sv,off,&off));
     }else{
@@ -569,7 +569,7 @@ static int pwart_EmitFuncEnter(Module *m) {
     sv->wasm_type = m->function_type->params[i];
     sv->jit_type = SVT_GENERAL;
     sv->val.op = SLJIT_MEM1(SLJIT_S0);
-    if(m->cfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
+    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
       sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
     }else{
       sv->val.opw=nextLoc;

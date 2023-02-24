@@ -56,21 +56,23 @@ extern void pwart_free_wrapped_function(pwart_wasm_function wrapped);
 extern void pwart_call_wasm_function(pwart_wasm_function fn,void *stack_pointer);
 
 // pwart_module load config, must set before pwart_load.
-//return error message if any, or NULL if succeded.
-//currently only implement function import.
-extern char *pwart_set_symbol_resolver(pwart_module m,void (*resolver)(char *import_module,char *import_field,void *result));
-// set max runtime stack size, default is 63KB.
-// return error message if any, or NULL if succeded.
-extern char *pwart_set_stack_size(pwart_module m,int stack_size);
+
+// These config are related to ABI of the generated code, so keep same config to load module at same time in one process.
+struct pwart_global_compile_config{
+    // PWART_STACK_FLAGS_xxx flags, indicate how operand stored in stack.
+    char stack_flags;
+    // PWART_MEMORY_MODEL_xxx flags, indicate how code access memory, this flag can be overwrite by pwart_load_config.memory_model.
+    char memory_model;
+};
+
+//If set, elements on stack will align to it's size, and function frame base will align to 8. 
+//Some arch require this flag to avoid align error.
+#define PWART_STACK_FLAGS_AUTO_ALIGN 1
 
 struct pwart_load_config{
-    //To indicate the api version, should be set before get_config or set_config.
-    int size_of_this;
     void (*import_resolver)(char *import_module,char *import_field,void *result);
     // PWART_MEMORY_MODEL_xxx flags
     char memory_model;
-    // PWART_STACK_FLAGS_xxx flags
-    char stack_flags;
 };
 //Default memory model, memory is initialize to the max size, memory.grow will always return -1
 #define PWART_MEMORY_MODEL_FIXED_SIZE 0
@@ -85,14 +87,16 @@ struct pwart_load_config{
 //Memory must be allocated by calling external function "pwart_builtin.malloc32(type:[i32]->[i32])" or "pwart_builtin.malloc64(type:[i64]->[i64])" (for memory64)
 #define PWART_MEMORY_MODEL_RAW 2
 
-//If set, elements on stack will align to it's size, and function frame base will align to 8. 
-//Some arch require this flag to avoid align error.
-#define PWART_STACK_FLAGS_AUTO_ALIGN 1
 
 // return error message if any, or NULL if succeded.
+extern char *pwart_set_global_compile_config(struct pwart_global_compile_config *config);
+extern char *pwart_get_global_compile_config(struct pwart_global_compile_config *config);
 extern char *pwart_set_load_config(pwart_module m,struct pwart_load_config *config);
 extern char *pwart_get_load_config(pwart_module m,struct pwart_load_config *config);
 
+//return error message if any, or NULL if succeded.
+//currently only implement function import.
+extern char *pwart_set_symbol_resolver(pwart_module m,void (*resolver)(char *import_module,char *import_field,void *result));
 
 
 extern pwart_runtime_context pwart_get_runtime_context(pwart_module m);
@@ -126,7 +130,7 @@ extern void *pwart_allocate_stack(int size);
 extern void pwart_free_stack(void *stack);
 
 //For version 1.0, arguments and results are all stored on stack.
-//PWART_STACK_FLAGS_AUTO_ALIGN currently has no effect to these function, user need add padding by self.
+//stack_flags has effect on these function.
 
 //put value to *sp, move *sp to next entries.
 extern void pwart_rstack_put_i32(void **sp,int val);

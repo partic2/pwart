@@ -370,14 +370,31 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             uint32_t element_count = read_LEB(bytes, &pos, 32);
 
             for(uint32_t c=0; c<element_count; c++) {
-                uint32_t index = read_LEB(bytes, &pos, 32);
+                uint32_t flags = read_LEB(bytes, &pos, 32);
+                uint32_t index=0;
                 uint32_t offset;
-                wa_assert(index == 0, "Only 1 default table in MVP");
-
-                // Run the init_expr to get offset
-                m->pc=pos;
-                waexpr_run_const(m,&offset);
-                pos=m->pc;
+                void *elem_expr;
+                switch(flags){
+                    case 0:case 4:
+                    index=0;
+                    // Run the init_expr to get offset
+                    m->pc=pos;waexpr_run_const(m,&offset);pos=m->pc;
+                    break;
+                    case 1:case 3:
+                    index=0;
+                    pos++; //extern_kind, ignored.
+                    break;
+                    case 2:
+                    index=read_LEB(bytes, &pos, 32);
+                    m->pc=pos;waexpr_run_const(m,&offset);pos=m->pc;
+                    pos++;
+                    break;
+                    case 6:
+                    index=read_LEB(bytes, &pos, 32);
+                    m->pc=pos;waexpr_run_const(m,&elem_expr);pos=m->pc;
+                    case 5:case 7:
+                    m->pc=pos;waexpr_run_const(m,&elem_expr);pos=m->pc;
+                }
                 
                 uint32_t num_elem = read_LEB(bytes, &pos, 32);
                 wa_debug("  table.entries: %p, offset: 0x%x\n", m->context->table.entries, offset);
@@ -395,24 +412,36 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             wa_debug("Parsing Data(11) section (length: 0x%x)\n", slen);
             uint32_t seg_count = read_LEB(bytes, &pos, 32);
             for (uint32_t s=0; s<seg_count; s++) {
-                uint32_t midx = read_LEB(bytes, &pos, 32);
+                uint32_t flags = read_LEB(bytes, &pos, 32);
+                uint32_t midx;
                 uint32_t offset;
-                wa_assert(midx == 0, "Only 1 default memory in MVP");
-
+                switch(flags){
+                    case 0:  //active
+                    midx=0;
+                    break;
+                    case 1:  //passive
+                    return "passive segment not support yet";
+                    break;
+                    case 2:  //active with memory index
+                    midx=read_LEB(bytes, &pos, 32);
+                    break;
+                    default:
+                    return "Illegal segment flags.";
+                }
+                wa_assert(midx==0,"multimemory not support yet.");
                 // Run the init_expr to get the offset
                 m->pc=pos;
                 waexpr_run_const(m,&offset);
                 pos=m->pc;
 
-                
-
                 // Copy the data to the memory offset
                 uint32_t size = read_LEB(bytes, &pos, 32);
                 
-                wa_debug("  setting 0x%x bytes of memory at 0x%x + offset 0x%x\n",
-                     size, m->context->memory.bytes, offset);
+                wa_debug("  setting %d bytes of memory at %p + offset %d\n",
+                    size, m->context->memory.bytes, offset);
                 memcpy(m->context->memory.bytes+offset, bytes+pos, size);
                 pos += size;
+                
             }
 
             break;
@@ -484,6 +513,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
 }
 
 static int free_runtimectx(RuntimeContext *rc){
+    int i;
     if(rc->globals!=NULL){
         dynarr_free(&rc->globals);
     }
@@ -499,12 +529,14 @@ static int free_runtimectx(RuntimeContext *rc){
         rc->table.entries=NULL;
     }
     //only free code generate by module self.
-    for(int i=rc->import_funcentries_count;i<rc->funcentries_count;i++){
+    for(i=rc->import_funcentries_count;i<rc->funcentries_count;i++){
         pwart_FreeFunction(rc->funcentries[i]);
     }
     if(rc->funcentries!=NULL){
         wa_free(rc->funcentries);
     }
+    
+    
     wa_free(rc);
     return 0;
 }

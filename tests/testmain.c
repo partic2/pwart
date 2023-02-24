@@ -49,6 +49,7 @@ static void symbol_resolver(char *mod, char *name, void **val) {
 // base test
 int test1() {
   struct pwart_load_config cfg;
+  struct pwart_global_compile_config gcfg;
   void *stackbase = pwart_allocate_stack(64 * 1024);
 
   FILE *f = fopen("test1.wasm", "rb");
@@ -56,8 +57,8 @@ int test1() {
   uint8_t *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);
   fclose(f);
-  cfg.size_of_this = sizeof(cfg);
 
+  pwart_get_global_compile_config(&gcfg);
   for (int i1 = 0; i1 < 3; i1++) {
     pwart_module m = pwart_new_module();
     pwart_set_symbol_resolver(m, (void *)symbol_resolver);
@@ -76,7 +77,8 @@ int test1() {
     case 2:
       printf("test config:stack_flags=PWART_STACK_FLAGS_AUTO_ALIGN\n");
       pwart_get_load_config(m, &cfg);
-      cfg.stack_flags = PWART_STACK_FLAGS_AUTO_ALIGN;
+      gcfg.stack_flags&=PWART_STACK_FLAGS_AUTO_ALIGN;
+      pwart_set_global_compile_config(&gcfg);
       pwart_set_load_config(m, &cfg);
       break;
     }
@@ -187,18 +189,11 @@ int test1() {
     sp = stackbase;
     // align and float add test
     puti32(&sp, 3844);
-    if (cfg.stack_flags & PWART_STACK_FLAGS_AUTO_ALIGN) {
-      // In this case, we must add padding on stack before call into wasm
-      puti32(&sp, 1111);
-    }
     putf64(&sp, 3.25);
     putf64(&sp, 4.75);
     sp = stackbase;
     pwart_call_wasm_function(test3, sp);
     ri32 = geti32(&sp);
-    if (cfg.stack_flags & PWART_STACK_FLAGS_AUTO_ALIGN) {
-      geti32(&sp);
-    }
     ri64 = geti64(&sp);
     printf("expect %d,%llu, got %d,%llu\n", 3844, (int64_t)(3.25 + 4.75), ri32,
            ri64);

@@ -46,9 +46,8 @@ static void opgen_GenIf(Module *m) {
   dynarr_init(&block->br_jump, sizeof(struct sljit_jump *));
   sv = &stack[m->sp];
   if (sv->jit_type == SVT_CMP) {
-    int freer = pwart_GetFreeReg(m, RT_INTEGER, 0);
-    sljit_emit_op_flags(m->jitc, SLJIT_MOV, freer, 0, sv->val.cmp.flag);
-    jump = sljit_emit_cmp(m->jitc, SLJIT_EQUAL, freer, 0, SLJIT_IMM, 0);
+    //inverse flag, we supposed inverse flag are always set.
+    jump = sljit_emit_jump(m->jitc,sv->val.cmp.flag^0x1);
   } else {
     // sljit_emit_cmp always use machine word length, So load to register first.
     pwart_EmitStackValueLoadReg(m, sv);

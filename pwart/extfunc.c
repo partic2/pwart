@@ -318,23 +318,28 @@ static void insn_malloc64(uint64_t *fp){
 static void insn_call_cdecl(void *fp){
 
 }
-//(i32 destination,i32 source,i32 count,i32 memory_indexA,i32 memory_indexB,i32 padding,ref runtime_context)
-static void insn_memorycopy32(uint32_t *fp){
-  RuntimeContext *m=*(RuntimeContext **)(((uint8_t *)fp)+24);
-  uint32_t n=*(fp+2);
-  uint32_t s=*(fp+1);
-  uint32_t d=*fp;
+//(i32 destination,i32 source,i32 count,i32 memory_indexA,i32 memory_indexB,ref runtime_context)
+static void insn_memorycopy32(void *fp){
+  void *sp=fp;
+  uint32_t d=pwart_rstack_get_i32(&sp);
+  uint32_t s=pwart_rstack_get_i32(&sp);
+  uint32_t n=pwart_rstack_get_i32(&sp);
+  pwart_rstack_get_i32(&sp);pwart_rstack_get_i32(&sp);
+  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
+  
   #ifdef DEBUG_BUILD
   printf("test_aid:insn_memorycopy32(%d,%d,%d,%p)\n",d,s,n,m);
   #endif
   memmove(m->memory.bytes+d,m->memory.bytes+s,n);
 }
-//(i32 destination,i32 value,i32 count,i32 memory_index,i32 reserved,i32 padding,ref runtime_context)
-static void insn_memoryfill32(uint32_t *fp){
-  RuntimeContext *m=*(RuntimeContext **)(((uint8_t *)fp)+24);
-  uint32_t n=*(fp+2);
-  uint32_t val=*(fp+1);
-  uint32_t d=*fp;
+//(i32 destination,i32 value,i32 count,i32 memory_index,i32 reserve,ref runtime_context)
+static void insn_memoryfill32(void *fp){
+  void *sp=fp;
+  uint32_t d=pwart_rstack_get_i32(&sp);
+  uint32_t val=pwart_rstack_get_i32(&sp);
+  uint32_t n=pwart_rstack_get_i32(&sp);
+  pwart_rstack_get_i32(&sp);pwart_rstack_get_i32(&sp);
+  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
   memset(m->memory.bytes+d,val,n);
 }
 
@@ -355,7 +360,7 @@ static uint8_t types_i64_i64[] = {WVT_I64, WVT_I64, 0};
 static uint8_t types_f32_f32[] = {WVT_F32, WVT_F32, 0};
 static uint8_t types_f64_f64[] = {WVT_F64, WVT_F64, 0};
 
-static uint8_t types_i32x6_ref[] = {WVT_I32, WVT_I32, WVT_I32, WVT_I32,WVT_I32,WVT_I32, WVT_REF,0};
+static uint8_t types_i32x5_ref[] = {WVT_I32, WVT_I32, WVT_I32, WVT_I32,WVT_I32, WVT_REF,0};
 
 static uint8_t types_i32_i32_ref[] = {WVT_I32, WVT_I32, WVT_REF,0};
 
@@ -390,7 +395,7 @@ static Type func_type_i64_ret_f64 = {.params = types_i64, .results = types_f64};
 
 
 static Type func_type_i32_i32_ref_ret_i32 = {.params = types_i32_i32_ref, .results = types_i32};
-static Type func_type_i32x6_ref_ret_void={.params=types_i32x6_ref,.results=types_void};
+static Type func_type_i32x5_ref_ret_void={.params=types_i32x5_ref,.results=types_void};
 
 static void waexpr_run_const(Module *m, void *result) {
   int opcode=m->bytes[m->pc];
@@ -420,6 +425,14 @@ static void waexpr_run_const(Module *m, void *result) {
       *(uint32_t *)result = *(uint32_t *)(&m->context->globals->data+sv->val.opw);
     }
   } break;
+  case 0xd0: //ref.null
+    *(void **)result=NULL;
+    break;
+  case 0xd2: //ref.func
+  {
+    uint32_t arg = read_LEB(m->bytes, &m->pc, 32);
+    *(WasmFunction **)result = dynarr_get(m->functions,WasmFunction,arg);
+  }
   default:
     SLJIT_UNREACHABLE();
     break;

@@ -213,32 +213,32 @@ static void opgen_GenCompareOp(Module *m,int opcode){
                            sv->val.opw, sv2->val.op, sv2->val.opw);
     switch (opcode) {
     case 0x5b: // f32.eq
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET(SLJIT_F_EQUAL),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET_F_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_EQUAL);
       break;
     case 0x5c: // f32.ne
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET(SLJIT_F_NOT_EQUAL),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET_F_NOT_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_NOT_EQUAL);
       break;
     case 0x5d: // f32.lt
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET(SLJIT_F_LESS),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET_F_LESS,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_LESS);
       break;
     case 0x5e: // f32.gt
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET(SLJIT_F_GREATER),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET_F_GREATER,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_GREATER);
       break;
     case 0x5f: // f32.le
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET(SLJIT_F_LESS_EQUAL),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET_F_LESS_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_LESS_EQUAL);
       break;
     case 0x60: // f32.ge
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET(SLJIT_F_GREATER_EQUAL),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F32 | SLJIT_SET_F_GREATER_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_GREATER_EQUAL);
       break;
@@ -264,32 +264,32 @@ static void opgen_GenCompareOp(Module *m,int opcode){
                            sv2->val.op, sv2->val.opw);
     switch (opcode) {
     case 0x61: // f64.eq
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET(SLJIT_F_EQUAL),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET_F_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_EQUAL);
       break;
     case 0x62: // f64.ne
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET(SLJIT_F_NOT_EQUAL),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET_F_NOT_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_NOT_EQUAL);
       break;
     case 0x63: // f64.lt
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET(SLJIT_F_LESS),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET_F_LESS,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_LESS);
       break;
     case 0x64: // f64.gt
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET(SLJIT_F_GREATER),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET_F_GREATER,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_GREATER);
       break;
     case 0x65: // f64.le
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET(SLJIT_F_LESS_EQUAL),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET_F_LESS_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_LESS_EQUAL);
       break;
     case 0x66: // f64.ge
-      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET(SLJIT_F_GREATER_EQUAL),
+      sljit_emit_fop1(m->jitc, SLJIT_CMP_F64 | SLJIT_SET_F_GREATER_EQUAL,
                       sv->val.op, sv->val.opw, sv2->val.op, sv2->val.opw);
       sljit_emit_op_flags(m->jitc, SLJIT_MOV, b, 0, SLJIT_F_GREATER_EQUAL);
       break;
