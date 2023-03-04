@@ -145,6 +145,21 @@ extern float pwart_rstack_get_f32(void **sp);
 extern double pwart_rstack_get_f64(void **sp);
 extern void *pwart_rstack_get_ref(void **sp);
 
+struct pwart_wasm_table {
+    uint8_t     elem_type;   // type of entries (only FUNC in MVP)
+    uint8_t     is_import;   // is this table imported, if it is, pwart_free_runtime will not free the entries
+    uint32_t    initial;     // initial table size
+    uint32_t    maximum;     // maximum table size
+    uint32_t    size;        // current table size
+    void        **entries;
+};
+struct pwart_wasm_memory {
+    uint32_t    initial;     // initial size (64K pages)
+    uint32_t    maximum;     // maximum size (64K pages)
+    uint32_t    pages;       // current size (64K pages)
+    uint8_t    *bytes;       // memory area
+    char       *export_name; // when exported
+};
 
 //pwart builtin WasmFunction, can be call by import pwart_builtin module in wasm.
 //Unless explicitly mark as Overwriteable,  Modifing the value may take no effect and should be avoided.

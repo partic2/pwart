@@ -64,18 +64,18 @@ Multi-value
 
 Non-trapping Float-to-int Conversions (For performance, the behavior depend on the host.)
 
-Bulk Memory Operations(currently only implement memory.copy, memory.fill)
+Bulk Memory Operations(Conditional Segment Initialization is not support yet.)
 
 Memory64(support i64 index, offset and align are still 32bit.)
+
+Reference types
 
 
 ### NOT Implemented
 
-Conditional Segment Initialization
-
 Fixed-width SIMD.
 
-Multiple memories and tables
+Multiple memories.
 
 
 ## Roadmap

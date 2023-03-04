@@ -213,8 +213,8 @@ static void opgen_GenCall(Module *m, int32_t fidx) {
 static void opgen_GenCallIndirect(Module *m, int32_t typeidx,
                                   int32_t tableidx) {
   Type *type;
-  StackValue *sv;
-  int a;
+  StackValue *sv,*sv2;
+  int a,b;
   StackValue *stack = m->stack;
   type = dynarr_get(m->types, Type, typeidx);
   sv = &stack[m->sp];
@@ -222,8 +222,14 @@ static void opgen_GenCallIndirect(Module *m, int32_t typeidx,
   sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
                  sizeof(void *) == 4 ? 2 : 3);
 
-  sv = dynarr_get(m->locals, StackValue, m->table_entries_local);
-  sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv->val.op, sv->val.opw);
+  if(tableidx==0){
+    sv2 = dynarr_get(m->locals, StackValue, m->table_entries_local);
+    sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv2->val.op, sv2->val.opw);
+  }else{
+    b=pwart_GetFreeRegExcept(m,RT_BASE,a,1);
+    opgen_GenTableEntriesBase(m,tableidx,b);
+    sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, b, 0);
+  }
   m->sp--;
 
   pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
@@ -257,7 +263,7 @@ static void opgen_GenSelect(Module *m) {
 
 static void opgen_GenCtlOp(Module *m, int opcode) {
   uint8_t *bytes = m->bytes;
-  int32_t blktype, depth, count, *i32p, fidx, tidx;
+  int32_t blktype, depth, count, *i32p, fidx, tidx,tabidx;
 
   switch (opcode) {
   case 0x00: // unreachable
@@ -310,8 +316,8 @@ static void opgen_GenCtlOp(Module *m, int opcode) {
     break;
   case 0x11: // call_indirect
     tidx = read_LEB(bytes, &m->pc, 32);
-    read_LEB(bytes, &m->pc, 1); // tableidx. only support 1 table now.
-    opgen_GenCallIndirect(m, tidx, 0);
+    tabidx=read_LEB(bytes, &m->pc, 1); // tableidx. only support 1 table now.
+    opgen_GenCallIndirect(m, tidx, tabidx);
     break;
   //
   // Parametric operators

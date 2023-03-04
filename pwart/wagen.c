@@ -66,8 +66,12 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
   case 0xfc: //misc op.
     switch(bytes[*pos]){
       case 0xa:
-      case 0xb:
+      case 0xe:
       read_LEB(bytes,pos,32); 
+      read_LEB(bytes,pos,32); 
+      break;
+      case 0x0b:
+      case 0x0f ... 0x11:
       read_LEB(bytes,pos,32); 
       break;
     }
@@ -85,7 +89,7 @@ static int pwart_PrepareFunc(Module *m) {
 
   uint32_t cur_pc;
 
-  uint32_t arg, val, fidx, tidx, depth, count;
+  uint32_t arg, val, fidx, tidx, depth, count,tabidx;
   uint32_t flags, offset, addr;
   uint8_t opcode, eof;
   uint32_t len = 0;
@@ -133,9 +137,9 @@ static int pwart_PrepareFunc(Module *m) {
       m->functions_base_local = -2;
       break;
     case 0x11: // call_indirect
-      tidx = read_LEB(bytes, &m->pc, 32);
-      read_LEB(bytes, &m->pc, 1);
-      m->table_entries_local = -2;
+      tidx = read_LEB(bytes, &m->pc, 32); //type
+      tabidx=read_LEB(bytes, &m->pc, 1); //table index
+      if(tabidx==0)m->table_entries_local = -2;
       break;
     case 0x23: // global.get
       arg = read_LEB(bytes, &m->pc, 32);
@@ -147,11 +151,11 @@ static int pwart_PrepareFunc(Module *m) {
       break;
     case 0x25:                            // table.get
       tidx = read_LEB(bytes, &m->pc, 32); // table index
-      m->table_entries_local = -2;
+      if(tidx==0)m->table_entries_local = -2;
       break;
     case 0x26:                            // table.set
       tidx = read_LEB(bytes, &m->pc, 32); // table index
-      m->table_entries_local = -2;
+      if(tidx==0)m->table_entries_local = -2;
       break;
     // Memory load operators
     case 0x28 ... 0x35:

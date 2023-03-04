@@ -271,14 +271,8 @@ static int pwart_EmitLoadReg(Module *m, StackValue *sv, int reg) {
 static inline size_t get_memorybytes_offset(Module *m) {
   return offsetof(RuntimeContext, memory.bytes);
 }
-static inline size_t get_tableentries_offset(Module *m) {
-  return offsetof(RuntimeContext, table.entries);
-}
 static inline size_t get_funcarr_offset(Module *m) {
   return offsetof(RuntimeContext, funcentries);
-}
-static inline size_t get_globalsbuf_offset(Module *m) {
-  return offsetof(RuntimeContext, globals);
 }
 
 // Don't emit any code here.
@@ -639,8 +633,9 @@ static int pwart_EmitFuncEnter(Module *m) {
   }
   if (m->table_entries_local >= 0) {
     sv = dynarr_get(m->locals, StackValue, m->table_entries_local);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
-                   SLJIT_MEM1(SLJIT_R0), get_tableentries_offset(m));
+    sljit_emit_op2(m->jitc, SLJIT_ADD, SLJIT_R1, 0, SLJIT_MEM1(SLJIT_R0), offsetof(RuntimeContext,tables),
+                   SLJIT_IMM, offsetof(struct dynarr, data)+offsetof(Table,entries));
+    sljit_emit_op1(m->jitc,SLJIT_MOV,sv->val.op,sv->val.opw,SLJIT_MEM1(SLJIT_R1),0);
   }
   if (m->functions_base_local >= 0) {
     sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
@@ -650,7 +645,7 @@ static int pwart_EmitFuncEnter(Module *m) {
   if (m->globals_base_local >= 0) {
     sv = dynarr_get(m->locals, StackValue, m->globals_base_local);
     sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R1, 0, SLJIT_MEM1(SLJIT_R0),
-                   get_globalsbuf_offset(m));
+                   offsetof(RuntimeContext, globals));
     sljit_emit_op2(m->jitc, SLJIT_ADD, sv->val.op, sv->val.opw, SLJIT_R1, 0,
                    SLJIT_IMM, offsetof(struct dynarr, data));
   }
@@ -720,5 +715,15 @@ static int pwart_CheckAndGenStubFunction(Module *m,WasmFunctionEntry fn){
   }
   return 0;
 }
+
+//get the table entries base and store into register r
+static int opgen_GenTableEntriesBase(Module *m,int index,int r){
+  StackValue *sv;
+  sv=dynarr_get(m->locals,StackValue,m->runtime_ptr_local);
+  sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,sv->val.op,sv->val.opw,SLJIT_IMM,offsetof(RuntimeContext,tables));
+  sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,SLJIT_MEM1(r),0,SLJIT_IMM,offsetof(struct dynarr,data)+sizeof(Table)*index+offsetof(Table,entries));
+  sljit_emit_op1(m->jitc,SLJIT_MOV,r,0,SLJIT_MEM1(r),0);
+}
+
 
 #endif

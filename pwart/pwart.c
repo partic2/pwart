@@ -91,10 +91,11 @@ extern pwart_runtime_context pwart_get_runtime_context(pwart_module mod){
 
 extern char *pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_inspect_result1 *result){
     RuntimeContext *rc=c;
+    Table *tab=dynarr_get(rc->tables,Table,0);
     result->memory_size=rc->memory.pages*PAGE_SIZE;
     result->memory=rc->memory.bytes;
-    result->table_entries_count=rc->table.size;
-    result->table_entries=rc->table.entries;
+    result->table_entries_count=tab->size;
+    result->table_entries=tab->entries;
     result->globals_buffer_size=rc->globals->len;
     result->globals_buffer=&rc->globals->data;
     return NULL;

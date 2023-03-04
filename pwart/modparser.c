@@ -4,21 +4,40 @@
 #include "def.h"
 #include "wagen.c"
 
+// Reads a string from the bytes array at pos that starts with a LEB length
+// the length of string(include tailing 0) must less than maxlen, or the function read nothing.
+// return the real length of the string(include tailing 0), no matter with 'maxlen'.
+static uint32_t read_string(uint8_t *bytes, uint32_t *pos, uint32_t maxlen,char *buf) {
+    uint32_t savedpos=*pos;
+    uint32_t str_len = read_LEB(bytes, pos, 32);
+    uint32_t copy_len=str_len;
+    if(str_len+1>maxlen){
+        *pos=savedpos;
+        return str_len+1;
+    }
+    memcpy(buf,bytes+*pos,str_len);
+    buf[str_len] = '\0';
+    *pos += str_len;
+    return str_len+1;
+}
 
-static void parse_table_type(Module *m, uint32_t *pos) {
-  m->context->table.elem_type = read_LEB(m->bytes, pos, 7);
-  uint32_t flags = read_LEB(m->bytes, pos, 32);
-  uint32_t tsize = read_LEB(m->bytes, pos, 32); // Initial size
-  m->context->table.initial = tsize;
-  m->context->table.size = tsize;
+
+static void parse_table_type(Module *m, uint32_t *pos,Table *table) {
+  uint32_t flags,tsize;
+  table->elem_type = read_LEB(m->bytes, pos, 7);
+  flags = read_LEB(m->bytes, pos, 32);
+  tsize = read_LEB(m->bytes, pos, 32); // Initial size
+  table->initial = tsize;
+  table->size = tsize;
   // Limit maximum to 64K
   if (flags & 0x1) {
     tsize = read_LEB(m->bytes, pos, 32); // Max size
-    m->context->table.maximum = tsize;
+    table->maximum = tsize;
   } else {
-    m->context->table.maximum = tsize;
+    table->maximum = tsize;
   }
   wa_debug("  table size: %d\n", tsize);
+
 }
 
 static void parse_memory_type(Module *m, uint32_t *pos) {
@@ -72,7 +91,8 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     
 
     dynarr_init(&m->types,sizeof(Type));
-    pool_init(&m->types_pool,1024);
+    pool_init(&m->types_pool,256);
+    pool_init(&m->string_pool,512);
     dynarr_init(&m->globals,sizeof(StackValue));
     dynarr_init(&m->exports,sizeof(Export));
 
@@ -82,6 +102,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     m->context->memory_model=m->cfg.memory_model;
     
     dynarr_init(&m->context->globals,sizeof(uint8_t));
+    dynarr_init(&m->context->tables,sizeof(Table));
     dynarr_init(&m->functions,sizeof(WasmFunction));
     m->start_function = -1;
 
@@ -102,7 +123,10 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
         case 0:
             wa_debug("Parsing Custom(0) section (length: 0x%x)\n", slen);
             uint32_t end_pos = pos+slen;
-            char *name = read_string(bytes, &pos, NULL);
+            char *name = m->import_name_buffer;
+            if(read_string(bytes, &pos, 512,name)>500){
+                return "section name too long,must less than 500.";
+            }
             wa_debug("  Section name '%s'\n", name);
             if (strncmp(name, "dylink", 7) == 0) {
                 // https://github.com/WebAssembly/tool-conventions/blob/master/DynamicLinking.md
@@ -126,6 +150,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 Type *type = dynarr_push_type(&m->types,Type);
                 type->form = read_LEB(bytes, &pos, 7);
                 count2 = read_LEB(bytes, &pos, 32);
+                if(count2>255)return "type group too long.(should less than 256)";
                 type->params=pool_alloc(&m->types_pool,count2+1);
                 for (uint32_t p=0; p<count2; p++) {
                     type->params[p]=read_LEB(bytes, &pos, 32);
@@ -133,6 +158,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 type->params[count2]=0;
 
                 count2 = read_LEB(bytes, &pos, 32);
+                if(count2>255)return "type group too long.(should less than 256)";
                 type->results=pool_alloc(&m->types_pool,count2+1);
                 for (uint32_t r=0; r<count2; r++) {
                     type->results[r] = read_LEB(bytes, &pos, 32);
@@ -148,9 +174,13 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             for (uint32_t gidx=0; gidx<import_count; gidx++) {
                 void *val;
                 uint32_t module_len, field_len;
-                char *import_module = read_string(bytes, &pos, &module_len);
-                char *import_field = read_string(bytes, &pos, &field_len);
-
+                char *import_module,*import_field;
+                import_module=m->import_name_buffer;
+                module_len = read_string(bytes, &pos, 512,import_module);
+                if(module_len>500){return "import name too long, module+field should less than 500 byte.";};
+                import_field=import_module+module_len;
+                field_len  = read_string(bytes, &pos, 512-module_len,import_field);
+                if(module_len+field_len>500){return "import name too long, module+field should less than 500 byte.";};
                 uint32_t external_kind = bytes[pos++];
 
                 wa_debug("  import: %d/%d, external_kind: %d, %s.%s\n",
@@ -164,7 +194,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 case KIND_FUNCTION:
                     type_index = read_LEB(bytes, &pos, 32); break;
                 case KIND_TABLE:
-                    parse_table_type(m, &pos); break;
+                  parse_table_type(m, &pos,dynarr_push_type(&m->context->tables,Table)); break;
                 case KIND_MEMORY:
                     parse_memory_type(m, &pos); break;
                 case KIND_GLOBAL:
@@ -209,16 +239,17 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                     func->func_ptr = val;
                     break;
                 case KIND_TABLE:
-                    wa_assert(!m->context->table.entries,
-                           "More than 1 table not supported\n");
+                {
                     Table *tval = val;
-                    m->context->table.entries = val;
-                    wa_assert(m->context->table.initial <= tval->maximum,
+                    Table *dtab=dynarr_get(m->context->tables,Table,m->context->tables->len);
+                    wa_assert(dtab->initial <= tval->maximum,
                         "Imported table is not large enough\n");
-                    m->context->table.entries = val;
-                    m->context->table.size = tval->size;
-                    m->context->table.maximum = tval->maximum;
-                    m->context->table.entries = tval->entries;
+                    dtab->entries = val;
+                    dtab->size = tval->size;
+                    dtab->maximum = tval->maximum;
+                    dtab->entries = tval->entries;
+                    dtab->is_import=1;
+                }
                     break;
                 case KIND_MEMORY:
                     wa_assert(!m->context->memory.bytes,
@@ -276,10 +307,12 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             wa_debug("Parsing Table(4) section\n");
             uint32_t table_count = read_LEB(bytes, &pos, 32);
             wa_debug("  table count: 0x%x\n", table_count);
-            wa_assert(table_count == 1, "More than 1 table not supported");
-
-            parse_table_type(m, &pos);
-            m->context->table.entries = wa_calloc(m->context->table.size*sizeof(void *));
+            for(int i=0;i<table_count;i++){
+                Table *table=dynarr_push_type(&m->context->tables,Table);
+                parse_table_type(m, &pos,table);
+                table->entries = wa_calloc(table->size*sizeof(void *));
+                table->is_import=0;
+            }
             break;
         case 5:
             wa_debug("Parsing Memory(5) section\n");
@@ -332,7 +365,11 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             wa_debug("Parsing Export(7) section (length: 0x%x)\n", slen);
             uint32_t export_count = read_LEB(bytes, &pos, 32);
             for (uint32_t e=0; e<export_count; e++) {
-                char *name = read_string(bytes, &pos, NULL);
+                uint32_t strlen=read_string(bytes, &pos, 0,NULL);
+                char *name;
+                if(strlen>500){return "export name too long, should less than 500 byte.";}
+                name=pool_alloc(&m->string_pool,strlen);
+                read_string(bytes, &pos, 512,name);
 
                 uint32_t external_kind = bytes[pos++];
                 uint32_t index = read_LEB(bytes, &pos, 32);
@@ -346,8 +383,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                         exp->value = dynarr_get(m->functions,WasmFunction,index);
                         break;
                     case KIND_TABLE:
-                        wa_assert(index == 0, "Only 1 table in MVP");
-                        exp->value = &m->context->table;
+                        exp->value = dynarr_get(m->context->tables,Table,index);
                         break;
                     case KIND_MEMORY:
                         wa_assert(index == 0, "Only 1 memory in MVP");
@@ -397,12 +433,13 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 }
                 
                 uint32_t num_elem = read_LEB(bytes, &pos, 32);
-                wa_debug("  table.entries: %p, offset: 0x%x\n", m->context->table.entries, offset);
+                Table *dtab=dynarr_get(m->context->tables,Table,index);
+                wa_debug("  table.entries: %p, offset: 0x%x\n", dtab->entries, offset);
 
                 for (uint32_t n=0; n<num_elem; n++) {
                     wa_debug("  write table entries %p, offset: 0x%x, n: 0x%x, addr: %p\n",
-                            m->context->table.entries, offset, n, &m->context->table.entries[offset+n]);
-                    m->context->table.entries[offset+n] = dynarr_get(m->functions,WasmFunction,read_LEB(bytes, &pos, 32));
+                            dtab->entries, offset, n, &dtab->entries[offset+n]);
+                    dtab->entries[offset+n] = dynarr_get(m->functions,WasmFunction,read_LEB(bytes, &pos, 32));
                 }
             }
             pos = start_pos+slen;
@@ -503,9 +540,14 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     }
     
     //update table entries to real function entries.
-    for(int i=0;i<m->context->table.size;i++){
-        if(m->context->table.entries[i]!=NULL){
-            m->context->table.entries[i]=((WasmFunction *)m->context->table.entries[i])->func_ptr;
+    for(int i1=0;i1<m->context->tables->len;i1++){
+        Table *tab=dynarr_get(m->context->tables,Table,i1);
+        if(tab->elem_type==WVT_FUNC && tab->is_import==0){
+            for(int i=0;i<tab->size;i++){
+                if(tab->entries[i]!=NULL){
+                    tab->entries[i]=((WasmFunction *)tab->entries[i])->func_ptr;
+                }
+            }
         }
     }
 
@@ -523,17 +565,27 @@ static int free_runtimectx(RuntimeContext *rc){
             rc->memory.export_name=NULL;
         }
         wa_free(rc->memory.bytes);
+        rc->memory.bytes=NULL;
     }
-    if(rc->table.entries!=NULL){
-        wa_free(rc->table.entries);
-        rc->table.entries=NULL;
+    if(rc->tables!=NULL){
+        for(i=0;i<rc->tables->len;i++){
+            Table *tab=dynarr_get(rc->tables,Table,i);
+            if(tab->is_import==0 && tab->entries!=NULL){
+                wa_free(tab->entries);
+                tab->entries=NULL;
+            }
+        }
+        dynarr_free(&rc->tables);
     }
+    
+    
     //only free code generate by module self.
     for(i=rc->import_funcentries_count;i<rc->funcentries_count;i++){
         pwart_FreeFunction(rc->funcentries[i]);
     }
     if(rc->funcentries!=NULL){
         wa_free(rc->funcentries);
+        rc->funcentries=NULL;
     }
     
     
@@ -549,15 +601,9 @@ static int free_module(Module *m){
         dynarr_free(&m->globals);
     }
     if(m->exports!=NULL){
-        for(int i=0;i<m->exports->len;i++){
-            Export *exp=dynarr_get(m->exports,Export,i);
-            if(exp->export_name!=NULL){
-                wa_free(exp->export_name);
-                exp->export_name=NULL;
-            }
-        }
         dynarr_free(&m->exports);
     }
+    pool_free(&m->string_pool);
     if(m->functions!=NULL){
         dynarr_free(&m->functions);
     }

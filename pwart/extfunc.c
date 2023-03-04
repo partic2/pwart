@@ -286,21 +286,23 @@ static void insn_f64converti64u(double *fp){
 // keep argument aligned, to avoid effect from PWART_STACK_FLAGS_AUTO_ALIGN.
 // (i32 delta, i32 memory_index,ref runtime_context)
 static void insn_memorygrow(void *fp){
+  void *sp=fp;
+  uint32_t delta = pwart_rstack_get_i32(&sp);
+  pwart_rstack_get_i32(&sp); // memory index
   RuntimeContext *m=(RuntimeContext *)((uint8_t **)fp+8);
   uint32_t prev_pages = m->memory.pages;
-  uint32_t *arg1 = (uint32_t *)fp;
-  uint32_t delta = *arg1;
-  *arg1 = prev_pages;
   if (delta == 0) {
     return; // No change
   } else if (delta + prev_pages > m->memory.maximum) {
-    *arg1 = 0xffffffff;
+    prev_pages = 0xffffffff;
     return;
   }
   m->memory.pages += delta;
   if(m->memory_model==PWART_MEMORY_MODEL_GROW_ENABLED){
     m->memory.bytes = wa_realloc(m->memory.bytes, m->memory.pages * PAGE_SIZE);
   }
+  sp=fp;
+  pwart_rstack_put_i32(&sp,prev_pages);
   return;
 }
 //get pwart version
@@ -332,6 +334,19 @@ static void insn_memorycopy32(void *fp){
   #endif
   memmove(m->memory.bytes+d,m->memory.bytes+s,n);
 }
+
+//(i32 destination,i32 source,i32 count,i32 table_indexA,i32 table_indexB,ref runtime_context)
+static void insn_tablecopy32(void *fp){
+  void *sp=fp;
+  uint32_t d=pwart_rstack_get_i32(&sp);
+  uint32_t s=pwart_rstack_get_i32(&sp);
+  uint32_t n=pwart_rstack_get_i32(&sp);
+  uint32_t dtab=pwart_rstack_get_i32(&sp);
+  uint32_t stab=pwart_rstack_get_i32(&sp);
+  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
+  
+  memmove(dynarr_get(m->tables,Table,dtab)+d,dynarr_get(m->tables,Table,stab)+s,n*sizeof(void *));
+}
 //(i32 destination,i32 value,i32 count,i32 memory_index,i32 reserve,ref runtime_context)
 static void insn_memoryfill32(void *fp){
   void *sp=fp;
@@ -342,7 +357,20 @@ static void insn_memoryfill32(void *fp){
   RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
   memset(m->memory.bytes+d,val,n);
 }
-
+//(i32 destination,ref value,i32 count,i32 table_index,i32 reserve,ref runtime_context)
+static void insn_tablefill32(void *fp){
+  void *sp=fp;
+  uint32_t d=pwart_rstack_get_i32(&sp);
+  void *val=pwart_rstack_get_ref(&sp);
+  uint32_t n=pwart_rstack_get_i32(&sp);
+  uint32_t tabidx=pwart_rstack_get_i32(&sp);
+  pwart_rstack_get_i32(&sp);
+  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
+  void **ent=dynarr_get(m->tables,Table,tabidx)->entries;
+  for(int i1=d;i1<d+n;i1++){
+    ent[i1]=val;
+  }
+}
 static void insn_get_self_runtime_context(void *fp){
   wa_assert(0,"This is stub function. can only call directly.");
 }

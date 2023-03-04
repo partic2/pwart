@@ -97,18 +97,6 @@ static uint32_t read_uint32(uint8_t *bytes, uint32_t *pos) {
     return ((uint32_t *) (bytes+*pos-4))[0];
 }
 
-// Reads a string from the bytes array at pos that starts with a LEB length
-// if result_len is not NULL, then it will be set to the string length
-static char *read_string(uint8_t *bytes, uint32_t *pos, uint32_t *result_len) {
-    uint32_t str_len = read_LEB(bytes, pos, 32);
-    char * str = malloc(str_len+1);
-    memcpy(str, bytes+*pos, str_len);
-    str[str_len] = '\0';
-    *pos += str_len;
-    if (result_len) { *result_len = str_len; }
-    return str;
-}
-
 
 struct dynarr{
     uint32_t len;

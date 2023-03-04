@@ -44,7 +44,22 @@ static void opgen_GenRefFunc(Module *m, int32_t fidx) {
   sv->val.opw = 0;
 }
 
+static void opgen_GenTableSize(Module *m,int tabidx){
+  int32_t r;
+  StackValue *sv;
+  r = pwart_GetFreeReg(m, RT_INTEGER, 0);
+  sv=dynarr_get(m->locals,StackValue,m->runtime_ptr_local);
+  sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,sv->val.op,sv->val.opw,SLJIT_IMM,offsetof(RuntimeContext,tables));
+  sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,SLJIT_MEM1(r),0,SLJIT_IMM,offsetof(struct dynarr,data)+sizeof(Table)*tabidx+offsetof(Table,size));
+  sljit_emit_op1(m->jitc,SLJIT_MOV,r,0,SLJIT_MEM1(r),0);
+  sv = stackvalue_Push(m, WVT_I32);
+  sv->jit_type = SVT_GENERAL;
+  sv->val.op = r;
+  sv->val.opw = 0;
+}
+
 static void opgen_GenMiscOp_FC(Module *m,int opcode){
+  StackValue *sv;
   #if DEBUG_BUILD
   switch(opcode){
     case 0 ... 7:
@@ -86,13 +101,40 @@ static void opgen_GenMiscOp_FC(Module *m,int opcode){
     opgen_GenNumOp(m,0xb1);
     break; 
     case 0x0a: //memory.copy
-    read_LEB_signed(m->bytes,&m->pc,32); //source memory index
     read_LEB_signed(m->bytes,&m->pc,32); //destination memory index
+    read_LEB_signed(m->bytes,&m->pc,32); //source memory index
     opgen_GenMemoryCopy(m);
     break;
     case 0x0b: //memory.fill
     read_LEB_signed(m->bytes,&m->pc,32); //destination memory index
     opgen_GenMemoryFill(m);
+    break;
+    case 0x0e: //table.copy
+    {
+      int32_t dtab=read_LEB_signed(m->bytes,&m->pc,32); //destination table index
+      int32_t stab=read_LEB_signed(m->bytes,&m->pc,32); //source table index
+      opgen_GenTableCopy(m,dtab,stab);
+    }
+    break;
+    case 0x0f: //table.grow
+    //table are not allowed to grow
+    read_LEB_signed(m->bytes,&m->pc,32); //table index
+    m->sp-=2;
+    sv=stackvalue_Push(m,WVT_I32);
+    sv->val.op=SLJIT_IMM;
+    sv->val.opw=-1;
+    break;
+    case 0x10: //table.size
+    {
+      uint32_t tabidx=read_LEB_signed(m->bytes,&m->pc,32);
+      opgen_GenTableSize(m,tabidx);
+    }
+    break;
+    case 0x11:  //table.fill
+    {
+      uint32_t tabidx=read_LEB_signed(m->bytes,&m->pc,32);
+      opgen_GenTableFill(m,tabidx);
+    }
     break;
     default:
     wa_debug("unrecognized misc opcode 0xfc 0x%x at %d", opcode, m->pc);

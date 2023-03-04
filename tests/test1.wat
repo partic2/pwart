@@ -7,6 +7,7 @@
   (type $longtype (func (param f64 f64 i32 i32 f32 f32 i64 i64) (result i64)))
   
   (table 16 funcref )
+  (table 16 funcref )
   (elem 0 (i32.const 0) $addTwo )
   (global $one i32 (i32.const 1))
   (global $two i32 (i32.const 2))
@@ -102,8 +103,14 @@
     i32.const 0
     i64.load
     local.get 1
+
+    i32.const 2
     i32.const 1
-    call_indirect (type $typeAddTwo)
+    table.get 0
+    table.set 1
+
+    i32.const 2
+    call_indirect 1 (type $typeAddTwo)
     i64.const 140
     call $addTwo
   )
