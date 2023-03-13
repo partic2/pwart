@@ -5,7 +5,7 @@
 #include "extfunc.c"
 #include "opgen_utils.c"
 
-static void opgen_GenCompareOp(Module *m,int opcode){
+static void opgen_GenCompareOp(ModuleCompiler *m,int opcode){
   StackValue *sv,*sv2;
   int32_t a,b;
   struct sljit_jump *jump;
@@ -310,7 +310,7 @@ static void opgen_GenCompareOp(Module *m,int opcode){
   }
 }
 
-static void opgen_GenArithmeticOp(Module *m,int opcode){
+static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
   StackValue *sv, *sv2;
   int32_t a, b;
   sljit_s32 op1, op2;
@@ -976,7 +976,7 @@ static void opgen_GenArithmeticOp(Module *m,int opcode){
   }
 }
 
-static void opgen_GenConvertOp(Module *m,int opcode){
+static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
   StackValue *sv, *sv2;
   int32_t a, b;
   sljit_s32 op1, op2;
@@ -1297,7 +1297,7 @@ static void opgen_GenConvertOp(Module *m,int opcode){
   }
 }
 
-static void opgen_GenNumOp(Module *m, int opcode) {
+static char *opgen_GenNumOp(ModuleCompiler *m, int opcode) {
   if(opcode>=0x45 && opcode <=0x66){
     opgen_GenCompareOp(m,opcode);
   }else if(opcode>=0x67 && opcode <=0xa6){
@@ -1306,8 +1306,9 @@ static void opgen_GenNumOp(Module *m, int opcode) {
     opgen_GenConvertOp(m,opcode);
   }else{
     wa_debug("unrecognized opcode 0x%x at %d", opcode, m->pc);
-    exit(1);
+    return "unrecognized opcode";
   }
+  return NULL;
 }
 
 #endif

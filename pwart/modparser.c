@@ -22,7 +22,7 @@ static uint32_t read_string(uint8_t *bytes, uint32_t *pos, uint32_t maxlen,char 
 }
 
 
-static void parse_table_type(Module *m, uint32_t *pos,Table *table) {
+static void parse_table_type(ModuleCompiler *m, uint32_t *pos,Table *table) {
   uint32_t flags,tsize;
   table->elem_type = read_LEB(m->bytes, pos, 7);
   flags = read_LEB(m->bytes, pos, 32);
@@ -40,7 +40,7 @@ static void parse_table_type(Module *m, uint32_t *pos,Table *table) {
 
 }
 
-static void parse_memory_type(Module *m, uint32_t *pos) {
+static void parse_memory_type(ModuleCompiler *m, uint32_t *pos) {
   uint32_t flags = read_LEB(m->bytes, pos, 32);
   uint32_t pages = read_LEB(m->bytes, pos, 32); // Initial size
   m->context->memory.initial = pages;
@@ -54,13 +54,15 @@ static void parse_memory_type(Module *m, uint32_t *pos) {
   }
 }
 
-static Export *get_export(Module *m, char *name, uint32_t kind) {
+static Export *get_export(RuntimeContext *rc, char *name, uint32_t *kind) {
     // Find export index by name and return the value
-    for (uint32_t e=0; e<m->exports->len; e++) {
-        Export *exp=dynarr_get(m->exports,Export,e);
+    for (uint32_t e=0; e<rc->exports->len; e++) {
+        Export *exp=dynarr_get(rc->exports,Export,e);
+        if(*kind!=exp->external_kind)continue;
         char *ename = exp->export_name;
         if (!ename) { continue; }
-        if (strncmp(name, ename, 1024) == 0) {
+        if (strncmp(name, ename, 256) == 0) {
+            *kind=exp->external_kind;
             return exp;
         }
     }
@@ -68,17 +70,11 @@ static Export *get_export(Module *m, char *name, uint32_t kind) {
 }
 
 
-static Memory *get_export_memory(Module *m, char *name) {
-  if (strncmp(name, m->context->memory.export_name, 1024) == 0) {
-    return &m->context->memory;
-  }
-  return NULL;
-}
-
-
-static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
+static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) {
     uint8_t   vt;
+    char err;
     uint32_t  pos = 0, word;
+    m->compile_succeeded=0;
     struct pwart_builtin_functable *builtinfunc=pwart_get_builtin_functable();
 
     // Allocate the module
@@ -88,18 +84,17 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
     }else{
         m->target_ptr_size=64;
     }
-    
 
     dynarr_init(&m->types,sizeof(Type));
     pool_init(&m->types_pool,256);
-    pool_init(&m->string_pool,512);
     dynarr_init(&m->globals,sizeof(StackValue));
-    dynarr_init(&m->exports,sizeof(Export));
 
     m->bytes = bytes;
     m->byte_count = byte_count;
     m->context=wa_calloc(sizeof(RuntimeContext));
     m->context->memory_model=m->cfg.memory_model;
+    pool_init(&m->context->strings_pool,260);
+    dynarr_init(&m->context->exports,sizeof(Export));
     
     dynarr_init(&m->context->globals,sizeof(uint8_t));
     dynarr_init(&m->context->tables,sizeof(Table));
@@ -191,13 +186,13 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 uint8_t content_type = 0, mutability;
 
                 switch (external_kind) {
-                case KIND_FUNCTION:
+                case PWART_KIND_FUNCTION:
                     type_index = read_LEB(bytes, &pos, 32); break;
-                case KIND_TABLE:
+                case PWART_KIND_TABLE:
                   parse_table_type(m, &pos,dynarr_push_type(&m->context->tables,Table)); break;
-                case KIND_MEMORY:
+                case PWART_KIND_MEMORY:
                     parse_memory_type(m, &pos); break;
-                case KIND_GLOBAL:
+                case PWART_KIND_GLOBAL:
                     content_type = read_LEB(bytes, &pos, 7);
                     // TODO: use mutability
                     mutability = read_LEB(bytes, &pos, 1);
@@ -207,10 +202,10 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                 
                 val=NULL;
                 if(m->cfg.import_resolver!=NULL){
-                    m->cfg.import_resolver(import_module,import_field,&val);
+                    m->cfg.import_resolver(import_module,import_field,external_kind,&val);
                 }
 
-                if(external_kind == KIND_FUNCTION && val == NULL && !strcmp("pwart_builtin",import_module)){
+                if(external_kind == PWART_KIND_FUNCTION && val == NULL && !strcmp("pwart_builtin",import_module)){
                     if(!strcmp("version",import_field)){
                         val=builtinfunc->version;
                     }else if(!strcmp("malloc32",import_field)){
@@ -231,14 +226,14 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
 
                 // Store in the right place
                 switch (external_kind) {
-                case KIND_FUNCTION:
+                case PWART_KIND_FUNCTION:
                     fidx = m->functions->len;
                     m->import_count += 1;
                     WasmFunction *func = dynarr_push_type(&m->functions,WasmFunction);
                     func->tidx = type_index;
                     func->func_ptr = val;
                     break;
-                case KIND_TABLE:
+                case PWART_KIND_TABLE:
                 {
                     Table *tval = val;
                     Table *dtab=dynarr_get(m->context->tables,Table,m->context->tables->len);
@@ -251,7 +246,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                     dtab->is_import=1;
                 }
                     break;
-                case KIND_MEMORY:
+                case PWART_KIND_MEMORY:
                     wa_assert(!m->context->memory.bytes,
                            "More than 1 memory not supported\n");
                     Memory *mval = val;
@@ -263,7 +258,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                     m->context->memory.maximum = mval->maximum;
                     m->context->memory.bytes = mval->bytes;
                     break;
-                case KIND_GLOBAL:
+                case PWART_KIND_GLOBAL:
                 {
                     StackValue *sv;
                     sv=dynarr_push_type(&m->globals,StackValue);
@@ -367,29 +362,29 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
             for (uint32_t e=0; e<export_count; e++) {
                 uint32_t strlen=read_string(bytes, &pos, 0,NULL);
                 char *name;
-                if(strlen>500){return "export name too long, should less than 500 byte.";}
-                name=pool_alloc(&m->string_pool,strlen);
-                read_string(bytes, &pos, 512,name);
+                if(strlen>256){return "export name too long, should less than 256 byte.";}
+                name=pool_alloc(&m->context->strings_pool,strlen);
+                read_string(bytes, &pos, 257,name);
 
                 uint32_t external_kind = bytes[pos++];
                 uint32_t index = read_LEB(bytes, &pos, 32);
-                uint32_t eidx = m->exports->len;
+                uint32_t eidx = m->context->exports->len;
                 {
-                    Export *exp=dynarr_push_type(&m->exports,Export);
+                    Export *exp=dynarr_push_type(&m->context->exports,Export);
                     exp->external_kind=external_kind;
                     exp->export_name=name;
                     switch (external_kind) {
-                    case KIND_FUNCTION:
+                    case PWART_KIND_FUNCTION:
                         exp->value = dynarr_get(m->functions,WasmFunction,index);
                         break;
-                    case KIND_TABLE:
+                    case PWART_KIND_TABLE:
                         exp->value = dynarr_get(m->context->tables,Table,index);
                         break;
-                    case KIND_MEMORY:
+                    case PWART_KIND_MEMORY:
                         wa_assert(index == 0, "Only 1 memory in MVP");
                         exp->value = &m->context->memory;
                         break;
-                    case KIND_GLOBAL:
+                    case PWART_KIND_GLOBAL:
                         exp->value = &m->context->globals->data+dynarr_get(m->globals,StackValue,index)->val.opw;
                         break;
                     }
@@ -517,7 +512,7 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
                     }
                 }
                 m->pc=pos;
-                pwart_EmitFunction(m,function);
+                ReturnIfErr(pwart_EmitFunction(m,function));
                 pos=m->pc;
                 wa_assert(bytes[pos-1] == 0x0b,
                        "Code section did not end with 0x0b\n");
@@ -551,6 +546,14 @@ static char *load_module(Module *m,uint8_t *bytes, uint32_t byte_count) {
         }
     }
 
+    //also exports.
+    for(int i1=0;i1<m->context->exports->len;i1++){
+        Export *exp=dynarr_get(m->context->exports,Export,i1);
+        if(exp->external_kind==PWART_KIND_FUNCTION){
+            exp->value=((WasmFunction *)exp->value)->func_ptr;
+        }
+    }
+    m->compile_succeeded=1;
     return NULL;
 }
 
@@ -559,11 +562,11 @@ static int free_runtimectx(RuntimeContext *rc){
     if(rc->globals!=NULL){
         dynarr_free(&rc->globals);
     }
+    pool_free(&rc->strings_pool);
+    if(rc->exports!=NULL){
+        dynarr_free(&rc->exports);
+    }
     if(rc->memory.bytes!=NULL){
-        if(rc->memory.export_name!=NULL){
-            wa_free(rc->memory.export_name);
-            rc->memory.export_name=NULL;
-        }
         wa_free(rc->memory.bytes);
         rc->memory.bytes=NULL;
     }
@@ -593,17 +596,16 @@ static int free_runtimectx(RuntimeContext *rc){
     return 0;
 }
 
-static int free_module(Module *m){
+static int free_module(ModuleCompiler *m){
+    if(!m->compile_succeeded){
+        free_runtimectx(m->context);
+    }
     if(m->types!=NULL){
         dynarr_free(&m->types);
     }
     if(m->globals!=NULL){
         dynarr_free(&m->globals);
     }
-    if(m->exports!=NULL){
-        dynarr_free(&m->exports);
-    }
-    pool_free(&m->string_pool);
     if(m->functions!=NULL){
         dynarr_free(&m->functions);
     }

@@ -7,13 +7,13 @@
 #include "opgen_mem.c"
 #include "opgen_utils.c"
 
-static void opgen_GenRefNull(Module *m, int32_t tidx) {
+static void opgen_GenRefNull(ModuleCompiler *m, int32_t tidx) {
   StackValue *sv = stackvalue_Push(m, tidx);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
   sv->val.opw = 0;
 }
-static void opgen_GenIsNull(Module *m) {
+static void opgen_GenIsNull(ModuleCompiler *m) {
   StackValue *sv = &m->stack[m->sp];
   if (sv->wasm_type == WVT_REF || sv->wasm_type == WVT_FUNC) {
     sljit_emit_op2u(m->jitc, SLJIT_SUB | SLJIT_SET_Z, sv->val.op, sv->val.opw,
@@ -31,7 +31,7 @@ static void opgen_GenIsNull(Module *m) {
   }
 }
 
-static void opgen_GenRefFunc(Module *m, int32_t fidx) {
+static void opgen_GenRefFunc(ModuleCompiler *m, int32_t fidx) {
   int32_t a;
   StackValue *sv;
   a = pwart_GetFreeReg(m, RT_INTEGER, 0);
@@ -44,7 +44,7 @@ static void opgen_GenRefFunc(Module *m, int32_t fidx) {
   sv->val.opw = 0;
 }
 
-static void opgen_GenTableSize(Module *m,int tabidx){
+static void opgen_GenTableSize(ModuleCompiler *m,int tabidx){
   int32_t r;
   StackValue *sv;
   r = pwart_GetFreeReg(m, RT_INTEGER, 0);
@@ -58,7 +58,7 @@ static void opgen_GenTableSize(Module *m,int tabidx){
   sv->val.opw = 0;
 }
 
-static void opgen_GenMiscOp_FC(Module *m,int opcode){
+static char *opgen_GenMiscOp_FC(ModuleCompiler *m,int opcode){
   StackValue *sv;
   #if DEBUG_BUILD
   switch(opcode){
@@ -138,11 +138,11 @@ static void opgen_GenMiscOp_FC(Module *m,int opcode){
     break;
     default:
     wa_debug("unrecognized misc opcode 0xfc 0x%x at %d", opcode, m->pc);
-    exit(1);
+    return "unrecognized opcode";
   }
 }
 
-static void opgen_GenMiscOp(Module *m, int opcode) {
+static char *opgen_GenMiscOp(ModuleCompiler *m, int opcode) {
   int32_t tidx,fidx,opcode2;
   uint8_t *bytes = m->bytes;
   switch (opcode) {
@@ -159,13 +159,13 @@ static void opgen_GenMiscOp(Module *m, int opcode) {
     break;
   case 0xfc: // misc prefix
     opcode2=m->bytes[m->pc];
-    opgen_GenMiscOp_FC(m,opcode2);
+    ReturnIfErr(opgen_GenMiscOp_FC(m,opcode2));
     m->pc++;
     break;
   default:
     wa_debug("unrecognized opcode 0x%x at %d", opcode, m->pc);
-    exit(1);
-    break;
+    return "unrecognized opcode";
   }
+  return NULL;
 }
 #endif

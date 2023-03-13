@@ -29,11 +29,6 @@
 #define WVT_REF       0x6f
 
 
-#define KIND_FUNCTION 0
-#define KIND_TABLE    1
-#define KIND_MEMORY   2
-#define KIND_GLOBAL   3
-
 
 
 //register type
@@ -133,7 +128,8 @@ typedef struct pwart_wasm_table Table;
 typedef struct pwart_wasm_memory Memory;
 
 typedef struct Export {
-    uint32_t    external_kind;
+    uint8_t     external_kind;
+    uint8_t     is_import;
     char       *export_name;
     void       *value;
 } Export;
@@ -141,18 +137,20 @@ typedef struct Export {
 typedef struct RuntimeContext{
     uint8_t      memory_model;   // PWART_MEMORY_MODEL_xxxx
     uint8_t      stack_flags;    //PWART_STACK_FLAGS_xxx
+    struct pool strings_pool;   //string pools, type char
     WasmFunctionEntry *funcentries;  // imported and locally defined functions, type WasmFunctionEntry
     int funcentries_count;
     int import_funcentries_count;
     //XXX: maybe use fixed size array is better
     struct dynarr *globals; // globals variable buffer, type uint8_t
     struct dynarr *tables; // tables, type Table
+    struct dynarr *exports;// exorts, type Export
     Memory      memory;         // memory 0 infomation
     void *userdata;  //user data, pwart don't use it.
 }RuntimeContext;
 
-
-typedef struct Module {
+//compile module info
+typedef struct ModuleCompiler {
 
     //runtime variable, must initialized before execute.
     RuntimeContext *context;
@@ -164,7 +162,6 @@ typedef struct Module {
 
     struct dynarr  *types;          // function types, type Type
     struct pool  types_pool;     // types pool
-    struct pool  string_pool;    // chars pool
 
 
     uint32_t    import_count;   // number of leading imports in functions
@@ -177,9 +174,9 @@ typedef struct Module {
 
     struct dynarr *functions;      //functions, type WasmFunction
 
-    struct dynarr *exports;  //type Export
+    struct pwart_compile_config cfg;
 
-    struct pwart_load_config cfg;
+    uint8_t compile_succeeded;
 
     //jit state, used in compile time.
     struct sljit_compiler *jitc;
@@ -210,7 +207,7 @@ typedef struct Module {
         char import_name_buffer[512];
     };
     
-} Module;
+} ModuleCompiler;
 
 
 #if DEBUG_BUILD
@@ -479,8 +476,8 @@ static struct pwart_global_compile_config pwart_gcfg={
     .stack_flags=0
 };
 
-static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype,int upstack);
+static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype,int upstack);
 static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv,uint32_t *align);
-static void pwart_EmitStackValueLoadReg(Module *m, StackValue *sv);
+static void pwart_EmitStackValueLoadReg(ModuleCompiler *m, StackValue *sv);
 
 #endif

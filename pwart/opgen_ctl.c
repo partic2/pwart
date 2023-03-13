@@ -6,13 +6,13 @@
 #include "def.h"
 #include "opgen_utils.c"
 
-static void opgen_GenUnreachable(Module *m) {
+static void opgen_GenUnreachable(ModuleCompiler *m) {
   sprintf(exception, "%s", "unreachable");
   sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R0, 0, SLJIT_IMM, (sljit_sw)&m);
   sljit_emit_call(m->jitc, SLJIT_CALL, SLJIT_ARGS1(VOID, P));
 }
 
-static void opgen_GenBlock(Module *m) {
+static void opgen_GenBlock(ModuleCompiler *m) {
   Block *block;
   uint8_t *bytes = m->bytes;
   pwart_EmitSaveStackAll(m);
@@ -22,7 +22,7 @@ static void opgen_GenBlock(Module *m) {
   block->else_jump = NULL;
 }
 
-static void opgen_GenLoop(Module *m) {
+static void opgen_GenLoop(ModuleCompiler *m) {
   Block *block;
   uint8_t *bytes = m->bytes;
   pwart_EmitSaveStackAll(m);
@@ -31,7 +31,7 @@ static void opgen_GenLoop(Module *m) {
   block->br_label = sljit_emit_label(m->jitc);
 }
 
-static void opgen_GenIf(Module *m) {
+static void opgen_GenIf(ModuleCompiler *m) {
   Block *block;
   StackValue *sv;
   struct sljit_jump *jump;
@@ -58,7 +58,7 @@ static void opgen_GenIf(Module *m) {
   m->sp--;
 }
 
-static void opgen_GenElse(Module *m) {
+static void opgen_GenElse(ModuleCompiler *m) {
   Block *block;
   pwart_EmitSaveStackAll(m);
   block = dynarr_get(m->blocks, Block, m->blocks->len - 1);
@@ -68,7 +68,7 @@ static void opgen_GenElse(Module *m) {
   block->else_jump = NULL;
 }
 
-static void opgen_GenEnd(Module *m) {
+static void opgen_GenEnd(ModuleCompiler *m) {
   struct sljit_jump *sj;
   Block *block = dynarr_pop_type(&m->blocks, Block);
   int a;
@@ -100,7 +100,7 @@ static void opgen_GenEnd(Module *m) {
   }
 }
 
-static void opgen_GenBr(Module *m, int32_t depth) {
+static void opgen_GenBr(ModuleCompiler *m, int32_t depth) {
   Block *block;
   pwart_EmitSaveStackAll(m);
   block = dynarr_get(m->blocks, Block, m->blocks->len - 1 - depth);
@@ -112,7 +112,7 @@ static void opgen_GenBr(Module *m, int32_t depth) {
   }
 }
 
-static void opgen_GenBrIf(Module *m, int32_t depth) {
+static void opgen_GenBrIf(ModuleCompiler *m, int32_t depth) {
   StackValue *sv;
   Block *block;
   StackValue *stack = m->stack;
@@ -147,7 +147,7 @@ static void opgen_GenBrIf(Module *m, int32_t depth) {
   m->sp--;
 }
 
-static void opgen_GenBrTable(Module *m) {
+static void opgen_GenBrTable(ModuleCompiler *m) {
   int32_t depth;
   int a, count;
   Block *block;
@@ -188,13 +188,13 @@ static void opgen_GenBrTable(Module *m) {
   m->sp--;
 }
 
-static void opgen_GenReturn(Module *m) {
+static void opgen_GenReturn(ModuleCompiler *m) {
   pwart_EmitFuncReturn(m);
   // pop all value in stack, to avoid unnecessary value saved.
   m->sp = -1;
 }
 
-static void opgen_GenCall(Module *m, int32_t fidx) {
+static void opgen_GenCall(ModuleCompiler *m, int32_t fidx) {
   WasmFunction *fn;
   int a;
   StackValue *sv;
@@ -210,7 +210,7 @@ static void opgen_GenCall(Module *m, int32_t fidx) {
   }
 }
 
-static void opgen_GenCallIndirect(Module *m, int32_t typeidx,
+static void opgen_GenCallIndirect(ModuleCompiler *m, int32_t typeidx,
                                   int32_t tableidx) {
   Type *type;
   StackValue *sv,*sv2;
@@ -235,9 +235,9 @@ static void opgen_GenCallIndirect(Module *m, int32_t typeidx,
   pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
 }
 
-static void opgen_GenDrop(Module *m) { m->sp--; }
+static void opgen_GenDrop(ModuleCompiler *m) { m->sp--; }
 
-static void opgen_GenSelect(Module *m) {
+static void opgen_GenSelect(ModuleCompiler *m) {
   // must save to stack.
   StackValue *sv, *sv2;
   StackValue *stack = m->stack;
@@ -261,7 +261,7 @@ static void opgen_GenSelect(Module *m) {
   sljit_set_label(jump, sljit_emit_label(m->jitc));
 }
 
-static void opgen_GenCtlOp(Module *m, int opcode) {
+static char *opgen_GenCtlOp(ModuleCompiler *m, int opcode) {
   uint8_t *bytes = m->bytes;
   int32_t blktype, depth, count, *i32p, fidx, tidx,tabidx;
 
@@ -332,9 +332,9 @@ static void opgen_GenCtlOp(Module *m, int opcode) {
     break;
   default:
     wa_debug("unrecognized opcode 0x%x at %d", opcode, m->pc);
-    exit(1);
-    break;
+    return "unrecognized opcode";
   }
+  return NULL;
 }
 
 #endif

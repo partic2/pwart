@@ -13,54 +13,45 @@ extern int pwart_get_version(){
     return PWART_VERSION_1;
 }
 
-extern pwart_module pwart_new_module(){
-    Module *m=wa_calloc(sizeof(Module));
+extern pwart_module_compiler pwart_new_module_compiler(){
+    ModuleCompiler *m=wa_calloc(sizeof(ModuleCompiler));
     m->cfg.import_resolver=NULL;
     m->cfg.memory_model=pwart_gcfg.memory_model;
     return m;
 }
 
-extern char *pwart_delete_module(pwart_module mod){
-    Module *m=mod;
-    RuntimeContext *rc=m->context;
-    free_module(m);
-    if(rc!=NULL){
-        free_runtimectx(rc);
-    }
-    return NULL;
-}
-
-extern char *pwart_free_module(pwart_module mod){
-    Module *m=mod;
+extern char *pwart_free_module_compiler(pwart_module_compiler mod){
+    ModuleCompiler *m=mod;
     free_module(m);
     return NULL;
 }
 
-extern char *pwart_free_runtime(pwart_runtime_context rc2){
+extern char *pwart_free_module_state(pwart_module_state rc2){
     RuntimeContext *rc=rc2;
     free_runtimectx(rc);
     return NULL;
 }
 
 
-extern char *pwart_load(pwart_module m,char *data,int len){
+extern char *pwart_compile(pwart_module_compiler m,char *data,int len){
     return load_module(m,data,len);
 
 }
 
-extern pwart_wasm_function pwart_get_export_function(pwart_module module,char *name){
-    Module *m=module;
-    Export *exp=get_export(m,name,KIND_FUNCTION);
+extern pwart_wasm_function pwart_get_export_function(pwart_module_state rc,char *name){
+    RuntimeContext *m=rc;
+    uint32_t kind=PWART_KIND_FUNCTION;
+    Export *exp=get_export(rc,name,&kind);
     if(exp!=NULL){
-        return ((WasmFunction *)exp->value)->func_ptr;
+        return exp->value;
     }else{
         return NULL;
     }
     
 }
 
-extern char *pwart_set_symbol_resolver(pwart_module m2,void (*resolver)(char *import_module,char *import_field,void *result)){
-    Module *m=m2;
+extern char *pwart_set_symbol_resolver(pwart_module_compiler m2,void (*resolver)(char *import_module,char *import_field,uint32_t kind,void *result)){
+    ModuleCompiler *m=m2;
     m->cfg.import_resolver=resolver;
     return NULL;
 }
@@ -71,25 +62,25 @@ extern char *pwart_set_global_compile_config(struct pwart_global_compile_config 
 extern char *pwart_get_global_compile_config(struct pwart_global_compile_config *cfg){
     memcpy(cfg,&pwart_gcfg,sizeof(struct pwart_global_compile_config));
 }
-extern char *pwart_set_load_config(pwart_module m2,struct pwart_load_config *config){
-    Module *m=m2;
+extern char *pwart_set_load_config(pwart_module_compiler m2,struct pwart_compile_config *config){
+    ModuleCompiler *m=m2;
     m->cfg.import_resolver=config->import_resolver;
     m->cfg.memory_model=config->memory_model;
     return NULL;
 }
-extern char *pwart_get_load_config(pwart_module m2,struct pwart_load_config *config){
-    Module *m=m2;
+extern char *pwart_get_load_config(pwart_module_compiler m2,struct pwart_compile_config *config){
+    ModuleCompiler *m=m2;
     config->import_resolver=m->cfg.import_resolver;
     config->memory_model=m->cfg.memory_model;
     return NULL;
 }
 
-extern pwart_runtime_context pwart_get_runtime_context(pwart_module mod){
-    Module *m=mod;
+extern pwart_module_state pwart_get_module_state(pwart_module_compiler mod){
+    ModuleCompiler *m=mod;
     return m->context;
 }
 
-extern char *pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_inspect_result1 *result){
+extern char *pwart_inspect_module_state(pwart_module_state c,struct pwart_inspect_result1 *result){
     RuntimeContext *rc=c;
     Table *tab=dynarr_get(rc->tables,Table,0);
     result->memory_size=rc->memory.pages*PAGE_SIZE;
@@ -102,12 +93,12 @@ extern char *pwart_inspect_runtime_context(pwart_runtime_context c,struct pwart_
 }
 
 
-extern void pwart_set_runtime_user_data(pwart_runtime_context c,void *ud){
+extern void pwart_module_state_set_user_data(pwart_module_state c,void *ud){
     RuntimeContext *rc=c;
     rc->userdata=ud;
 }
 
-extern void *pwart_get_runtime_user_data(pwart_runtime_context c){
+extern void *pwart_module_state_get_user_data(pwart_module_state c){
     RuntimeContext *rc=c;
     return rc->userdata;
 }
@@ -221,6 +212,20 @@ extern void pwart_free_wrapped_function(pwart_wasm_function wrapped){
 extern void pwart_call_wasm_function(pwart_wasm_function fn,void *stack_pointer){
     WasmFunctionEntry fn2=fn;
     (*fn2)(stack_pointer);
+}
+
+extern pwart_module_state *pwart_load_module(char *data,int len,char **err_msg){
+    char *err=NULL;
+    pwart_module_state state=NULL;
+    pwart_module_compiler m=pwart_new_module_compiler();
+    err=pwart_compile(m,data,len);
+    if(err==NULL){
+        state=pwart_get_module_state(m);
+    }else{
+        if(err_msg!=NULL)*err_msg=err;
+    }
+    pwart_free_module_compiler(m);
+    return state;
 }
 
 static struct pwart_builtin_functable default_builtin_functable={NULL};

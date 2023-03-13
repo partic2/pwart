@@ -82,7 +82,7 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
   }
 }
 
-static int pwart_PrepareFunc(Module *m) {
+static int pwart_PrepareFunc(ModuleCompiler *m) {
   uint8_t *bytes = m->bytes;
   StackValue *stack = m->stack;
   StackValue *sv;
@@ -210,7 +210,7 @@ static int pwart_PrepareFunc(Module *m) {
 r0,r1,r2 is scratch registers(at least three registers are required.).
 s0(arg0) contains stack frame pointer.
 */
-static int pwart_GenCode(Module *m) {
+static char *pwart_GenCode(ModuleCompiler *m) {
   Block *block;
   int opcode,cur_pc;
 
@@ -247,22 +247,22 @@ static int pwart_GenCode(Module *m) {
     }
 
     if (opcode >= 0 && opcode <= 0x1b) {
-      opgen_GenCtlOp(m, opcode);
+      ReturnIfErr(opgen_GenCtlOp(m, opcode));
     } else if (opcode <= 0x44) {
-      opgen_GenMemOp(m, opcode);
+      ReturnIfErr(opgen_GenMemOp(m, opcode));
     } else if (opcode <= 0xc4) {
-      opgen_GenNumOp(m, opcode);
+      ReturnIfErr(opgen_GenNumOp(m, opcode));
     } else {
-      opgen_GenMiscOp(m, opcode);
+      ReturnIfErr(opgen_GenMiscOp(m, opcode));
     }
   }
 
   dynarr_free(&m->br_table);
   dynarr_free(&m->blocks);
-  return 0;
+  return NULL;
 }
 
-static WasmFunctionEntry pwart_EmitFunction(Module *m, WasmFunction *func) {
+static char *pwart_EmitFunction(ModuleCompiler *m, WasmFunction *func) {
   WasmFunctionEntry code;
   uint32_t savepos = m->pc;
 
@@ -277,13 +277,14 @@ static WasmFunctionEntry pwart_EmitFunction(Module *m, WasmFunction *func) {
 
   pwart_PrepareFunc(m);
   m->pc = savepos;
-  pwart_GenCode(m);
+  ReturnIfErr(pwart_GenCode(m));
   code = (WasmFunctionEntry)sljit_generate_code(m->jitc);
   sljit_free_compiler(m->jitc);
   dynarr_free(&m->locals);
   func->func_ptr = code;
-  return code;
+  return NULL;
 }
+
 static void pwart_FreeFunction(WasmFunctionEntry code) {
   sljit_free_code(code, NULL);
 }

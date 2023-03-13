@@ -32,11 +32,11 @@ your_target:build_pwart
 4. In your source, include "pwart.h". A simple demo show below.
 
 ```C
-void *sp=pwart_allocate_stack(64*1024);
-pwart_module m = pwart_new_module();
-pwart_load(m, wasm_data, len);
-pwart_wasmfunction test1 = pwart_get_export_function(m, "test1");
-pwart_call_wasm_function(test1,sp);
+void *stackbase = pwart_allocate_stack(64 * 1024);
+pwart_module_state ctx=pwart_load_module(data,len,&err);
+if(ctx==NULL){printf("load module failed:%s\n",err);return 0;};
+pwart_wasmfunction test1 = pwart_get_export_function(ctx, "test1");
+pwart_call_wasm_function(test1,stackbase);
 ...
 ```
 See [include/pwart.h](include/pwart.h) , [tests/testmain.c](tests/testmain.c) and [tests/Makefile](tests/Makefile) for detail usage.

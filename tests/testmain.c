@@ -17,6 +17,7 @@
 #define getf64 pwart_rstack_get_f64
 #define getref pwart_rstack_get_ref
 
+
 static void test_wasmfn(void *fp) {
   void *sp = fp;
   uint64_t r = geti64(&sp) + geti64(&sp) + 2;
@@ -36,7 +37,7 @@ static void test_printi64(void *fp) {
   printf("testaid:%lld\n", geti64(&sp));
 }
 
-static void symbol_resolver(char *mod, char *name, void **val) {
+static void symbol_resolver(char *mod, char *name, uint32_t kind,void **val) {
   if (!strcmp("testaid", mod)) {
     if (!strcmp("printi64", name)) {
       *val = pwart_wrap_host_function_c(test_printi64);
@@ -48,7 +49,7 @@ static void symbol_resolver(char *mod, char *name, void **val) {
 
 // base test
 int test1() {
-  struct pwart_load_config cfg;
+  struct pwart_compile_config cfg;
   struct pwart_global_compile_config gcfg;
   void *stackbase = pwart_allocate_stack(64 * 1024);
 
@@ -60,7 +61,7 @@ int test1() {
 
   pwart_get_global_compile_config(&gcfg);
   for (int i1 = 0; i1 < 3; i1++) {
-    pwart_module m = pwart_new_module();
+    pwart_module_compiler m = pwart_new_module_compiler();
     pwart_set_symbol_resolver(m, (void *)symbol_resolver);
     // different config
     switch (i1) {
@@ -84,26 +85,26 @@ int test1() {
     }
 
     struct pwart_inspect_result1 ctxinfo;
-    char *loadresult = pwart_load(m, data, len);
+    char *loadresult = pwart_compile(m, data, len);
     if (loadresult != NULL) {
       printf("error:%s\n", loadresult);
       return 0;
     }
-    pwart_runtime_context ctx = pwart_get_runtime_context(m);
-    pwart_inspect_runtime_context(ctx, &ctxinfo);
+    pwart_module_state ctx = pwart_get_module_state(m);
+    pwart_inspect_module_state(ctx, &ctxinfo);
 
     printf("runtime stack at %p\n", stackbase);
     printf("context at %p\n", ctx);
 
-    pwart_wasm_function addTwo = pwart_get_export_function(m, "addTwo");
-    pwart_wasm_function test1 = pwart_get_export_function(m, "test1");
-    pwart_wasm_function test2 = pwart_get_export_function(m, "test2");
-    pwart_wasm_function test3 = pwart_get_export_function(m, "test3");
-    pwart_wasm_function fib_main = pwart_get_export_function(m, "fib_main");
+    pwart_wasm_function addTwo = pwart_get_export_function(ctx, "addTwo");
+    pwart_wasm_function test1 = pwart_get_export_function(ctx, "test1");
+    pwart_wasm_function test2 = pwart_get_export_function(ctx, "test2");
+    pwart_wasm_function test3 = pwart_get_export_function(ctx, "test3");
+    pwart_wasm_function fib_main = pwart_get_export_function(ctx, "fib_main");
     pwart_wasm_function builtinFuncTest =
-        pwart_get_export_function(m, "builtinFuncTest");
+        pwart_get_export_function(ctx, "builtinFuncTest");
 
-    pwart_free_module(m);
+    pwart_free_module_compiler(m);
 
     void *sp;
 
@@ -232,7 +233,7 @@ int test1() {
       return 0;
     }
 
-    pwart_free_runtime(ctx);
+    pwart_free_module_state(ctx);
   }
   free(data);
   pwart_free_stack(stackbase);
@@ -246,18 +247,18 @@ int unary_test() {
   int len = fread(data, 1, 1024 * 1024 * 8, f);
   void *stackbase = pwart_allocate_stack(64 * 1024);
   fclose(f);
-  pwart_module m = pwart_new_module();
   struct pwart_inspect_result1 ctxinfo;
-  pwart_load(m, data, len);
-  pwart_runtime_context ctx = pwart_get_runtime_context(m);
-  pwart_inspect_runtime_context(ctx, &ctxinfo);
+  char *err=NULL;
+  pwart_module_state ctx=pwart_load_module(data,len,&err);
+  if(err!=NULL){printf("load module failed:%s\n",err);return 0;};
+  pwart_inspect_module_state(ctx, &ctxinfo);
 
   printf("runtime stack at %p\n", stackbase);
 
   pwart_wasm_function fn;
   void *sp;
 
-  fn = pwart_get_export_function(m, "i32_eqz_100");
+  fn = pwart_get_export_function(ctx, "i32_eqz_100");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_eqz_100 check...");
@@ -267,7 +268,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_eqz_0");
+  fn = pwart_get_export_function(ctx, "i32_eqz_0");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_eqz_0 check...");
@@ -277,7 +278,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_clz");
+  fn = pwart_get_export_function(ctx, "i32_clz");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_clz check...");
@@ -287,7 +288,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_ctz");
+  fn = pwart_get_export_function(ctx, "i32_ctz");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ctz check...");
@@ -297,7 +298,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_popcnt");
+  fn = pwart_get_export_function(ctx, "i32_popcnt");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_popcnt check...");
@@ -307,7 +308,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_eqz_100");
+  fn = pwart_get_export_function(ctx, "i64_eqz_100");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_eqz_100 check...");
@@ -317,7 +318,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_eqz_0");
+  fn = pwart_get_export_function(ctx, "i64_eqz_0");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_eqz_0 check...");
@@ -327,7 +328,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_clz");
+  fn = pwart_get_export_function(ctx, "i64_clz");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_clz check...");
@@ -337,7 +338,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_ctz");
+  fn = pwart_get_export_function(ctx, "i64_ctz");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ctz check...");
@@ -347,7 +348,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_popcnt");
+  fn = pwart_get_export_function(ctx, "i64_popcnt");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_popcnt check...");
@@ -357,7 +358,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_neg");
+  fn = pwart_get_export_function(ctx, "f32_neg");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_neg check...");
@@ -367,7 +368,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_abs");
+  fn = pwart_get_export_function(ctx, "f32_abs");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_abs check...");
@@ -377,7 +378,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_sqrt_neg_is_nan");
+  fn = pwart_get_export_function(ctx, "f32_sqrt_neg_is_nan");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_sqrt_neg_is_nan check...");
@@ -387,7 +388,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_sqrt_100");
+  fn = pwart_get_export_function(ctx, "f32_sqrt_100");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_sqrt_100 check...");
@@ -397,7 +398,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_ceil");
+  fn = pwart_get_export_function(ctx, "f32_ceil");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_ceil check...");
@@ -407,7 +408,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_floor");
+  fn = pwart_get_export_function(ctx, "f32_floor");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_floor check...");
@@ -417,7 +418,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_trunc");
+  fn = pwart_get_export_function(ctx, "f32_trunc");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_trunc check...");
@@ -427,7 +428,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_nearest_lo");
+  fn = pwart_get_export_function(ctx, "f32_nearest_lo");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_nearest_lo check...");
@@ -437,7 +438,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_nearest_hi");
+  fn = pwart_get_export_function(ctx, "f32_nearest_hi");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_nearest_hi check...");
@@ -447,7 +448,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_neg");
+  fn = pwart_get_export_function(ctx, "f64_neg");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_neg check...");
@@ -457,7 +458,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_abs");
+  fn = pwart_get_export_function(ctx, "f64_abs");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_abs check...");
@@ -467,7 +468,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_sqrt_neg_is_nan");
+  fn = pwart_get_export_function(ctx, "f64_sqrt_neg_is_nan");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_sqrt_neg_is_nan check...");
@@ -477,7 +478,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_sqrt_100");
+  fn = pwart_get_export_function(ctx, "f64_sqrt_100");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_sqrt_100 check...");
@@ -487,7 +488,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_ceil");
+  fn = pwart_get_export_function(ctx, "f64_ceil");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_ceil check...");
@@ -497,7 +498,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_floor");
+  fn = pwart_get_export_function(ctx, "f64_floor");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_floor check...");
@@ -507,7 +508,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_trunc");
+  fn = pwart_get_export_function(ctx, "f64_trunc");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_trunc check...");
@@ -517,7 +518,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_nearest_lo");
+  fn = pwart_get_export_function(ctx, "f64_nearest_lo");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_nearest_lo check...");
@@ -527,7 +528,7 @@ int unary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_nearest_hi");
+  fn = pwart_get_export_function(ctx, "f64_nearest_hi");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_nearest_hi check...");
@@ -536,7 +537,7 @@ int unary_test() {
     return 0;
   }
   printf("pass\n");
-  pwart_delete_module(m);
+  pwart_free_module_state(ctx);
   pwart_free_stack(stackbase);
   return 1;
 }
@@ -548,17 +549,16 @@ int binary_test() {
   int len = fread(data, 1, 1024 * 1024 * 8, f);
   void *stackbase = pwart_allocate_stack(64 * 1024);
   fclose(f);
-  pwart_module m = pwart_new_module();
   struct pwart_inspect_result1 ctxinfo;
-  pwart_load(m, data, len);
-  pwart_runtime_context ctx = pwart_get_runtime_context(m);
-  pwart_inspect_runtime_context(ctx, &ctxinfo);
+  char *err=NULL;
+  pwart_module_state ctx=pwart_load_module(data,len,&err);
+  pwart_inspect_module_state(ctx, &ctxinfo);
 
   printf("runtime stack at %p\n", stackbase);
 
   pwart_wasm_function fn;
   void *sp;
-  fn = pwart_get_export_function(m, "i32_add");
+  fn = pwart_get_export_function(ctx, "i32_add");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_add check...");
@@ -568,7 +568,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_sub");
+  fn = pwart_get_export_function(ctx, "i32_sub");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_sub check...");
@@ -578,7 +578,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_mul");
+  fn = pwart_get_export_function(ctx, "i32_mul");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_mul check...");
@@ -588,7 +588,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_div_s");
+  fn = pwart_get_export_function(ctx, "i32_div_s");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_div_s check...");
@@ -599,7 +599,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_div_u");
+  fn = pwart_get_export_function(ctx, "i32_div_u");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_div_u check...");
@@ -609,7 +609,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_rem_s");
+  fn = pwart_get_export_function(ctx, "i32_rem_s");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_rem_s check...");
@@ -620,7 +620,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_rem_u");
+  fn = pwart_get_export_function(ctx, "i32_rem_u");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_rem_u check...");
@@ -630,7 +630,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_and");
+  fn = pwart_get_export_function(ctx, "i32_and");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_and check...");
@@ -640,7 +640,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_or");
+  fn = pwart_get_export_function(ctx, "i32_or");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_or check...");
@@ -650,7 +650,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_xor");
+  fn = pwart_get_export_function(ctx, "i32_xor");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_xor check...");
@@ -660,7 +660,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_shl");
+  fn = pwart_get_export_function(ctx, "i32_shl");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_shl check...");
@@ -671,7 +671,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_shr_u");
+  fn = pwart_get_export_function(ctx, "i32_shr_u");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_shr_u check...");
@@ -681,7 +681,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_shr_s");
+  fn = pwart_get_export_function(ctx, "i32_shr_s");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_shr_s check...");
@@ -692,7 +692,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_rotl");
+  fn = pwart_get_export_function(ctx, "i32_rotl");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_rotl check...");
@@ -703,7 +703,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_rotr");
+  fn = pwart_get_export_function(ctx, "i32_rotr");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_rotr check...");
@@ -714,7 +714,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_add");
+  fn = pwart_get_export_function(ctx, "i64_add");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_add check...");
@@ -724,7 +724,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_sub");
+  fn = pwart_get_export_function(ctx, "i64_sub");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_sub check...");
@@ -734,7 +734,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_mul");
+  fn = pwart_get_export_function(ctx, "i64_mul");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_mul check...");
@@ -744,7 +744,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_div_s");
+  fn = pwart_get_export_function(ctx, "i64_div_s");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_div_s check...");
@@ -755,7 +755,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_div_u");
+  fn = pwart_get_export_function(ctx, "i64_div_u");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_div_u check...");
@@ -766,7 +766,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_rem_s");
+  fn = pwart_get_export_function(ctx, "i64_rem_s");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_rem_s check...");
@@ -777,7 +777,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_rem_u");
+  fn = pwart_get_export_function(ctx, "i64_rem_u");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_rem_u check...");
@@ -787,7 +787,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_and");
+  fn = pwart_get_export_function(ctx, "i64_and");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_and check...");
@@ -797,7 +797,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_or");
+  fn = pwart_get_export_function(ctx, "i64_or");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_or check...");
@@ -807,7 +807,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_xor");
+  fn = pwart_get_export_function(ctx, "i64_xor");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_xor check...");
@@ -817,7 +817,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_shl");
+  fn = pwart_get_export_function(ctx, "i64_shl");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_shl check...");
@@ -828,7 +828,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_shr_u");
+  fn = pwart_get_export_function(ctx, "i64_shr_u");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_shr_u check...");
@@ -839,7 +839,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_shr_s");
+  fn = pwart_get_export_function(ctx, "i64_shr_s");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_shr_s check...");
@@ -850,7 +850,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_rotl");
+  fn = pwart_get_export_function(ctx, "i64_rotl");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_rotl check...");
@@ -861,7 +861,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_rotr");
+  fn = pwart_get_export_function(ctx, "i64_rotr");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_rotr check...");
@@ -872,7 +872,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_add");
+  fn = pwart_get_export_function(ctx, "f32_add");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_add check...");
@@ -882,7 +882,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_sub");
+  fn = pwart_get_export_function(ctx, "f32_sub");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_sub check...");
@@ -892,7 +892,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_mul");
+  fn = pwart_get_export_function(ctx, "f32_mul");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_mul check...");
@@ -902,7 +902,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_div");
+  fn = pwart_get_export_function(ctx, "f32_div");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_div check...");
@@ -912,7 +912,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_min");
+  fn = pwart_get_export_function(ctx, "f32_min");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_min check...");
@@ -922,7 +922,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_max");
+  fn = pwart_get_export_function(ctx, "f32_max");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_max check...");
@@ -932,7 +932,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_copysign");
+  fn = pwart_get_export_function(ctx, "f32_copysign");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_copysign check...");
@@ -942,7 +942,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_add");
+  fn = pwart_get_export_function(ctx, "f64_add");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_add check...");
@@ -952,7 +952,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_sub");
+  fn = pwart_get_export_function(ctx, "f64_sub");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_sub check...");
@@ -965,7 +965,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_mul");
+  fn = pwart_get_export_function(ctx, "f64_mul");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_mul check...");
@@ -976,7 +976,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_div");
+  fn = pwart_get_export_function(ctx, "f64_div");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_div check...");
@@ -990,7 +990,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_min");
+  fn = pwart_get_export_function(ctx, "f64_min");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_min check...");
@@ -1000,7 +1000,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_max");
+  fn = pwart_get_export_function(ctx, "f64_max");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_max check...");
@@ -1010,7 +1010,7 @@ int binary_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_copysign");
+  fn = pwart_get_export_function(ctx, "f64_copysign");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_copysign check...");
@@ -1019,7 +1019,7 @@ int binary_test() {
     return 0;
   }
   printf("pass\n");
-  pwart_delete_module(m);
+  pwart_free_module_state(ctx);
   pwart_free_stack(stackbase);
   return 1;
 }
@@ -1031,18 +1031,17 @@ int control_test() {
   int len = fread(data, 1, 1024 * 1024 * 8, f);
   void *stackbase = pwart_allocate_stack(64 * 1024);
   fclose(f);
-  pwart_module m = pwart_new_module();
   struct pwart_inspect_result1 ctxinfo;
-  pwart_load(m, data, len);
-  pwart_runtime_context ctx = pwart_get_runtime_context(m);
-  pwart_inspect_runtime_context(ctx, &ctxinfo);
+  char *err=NULL;
+  pwart_module_state ctx=pwart_load_module(data,len,&err);
+  pwart_inspect_module_state(ctx, &ctxinfo);
 
   printf("runtime stack at %p\n", stackbase);
 
   pwart_wasm_function fn;
   void *sp;
 
-  fn = pwart_get_export_function(m, "brif1");
+  fn = pwart_get_export_function(ctx, "brif1");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("brif1 check...");
@@ -1051,7 +1050,7 @@ int control_test() {
     return 0;
   }
   printf("pass\n");
-  fn = pwart_get_export_function(m, "brif2");
+  fn = pwart_get_export_function(ctx, "brif2");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("brif2 check...");
@@ -1061,7 +1060,7 @@ int control_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "loop1");
+  fn = pwart_get_export_function(ctx, "loop1");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("loop1 check...");
@@ -1070,7 +1069,7 @@ int control_test() {
     return 0;
   }
   printf("pass\n");
-  fn = pwart_get_export_function(m, "loop2");
+  fn = pwart_get_export_function(ctx, "loop2");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("loop2 check...");
@@ -1080,7 +1079,7 @@ int control_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "if1");
+  fn = pwart_get_export_function(ctx, "if1");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("if1 check...");
@@ -1089,7 +1088,7 @@ int control_test() {
     return 0;
   }
   printf("pass\n");
-  fn = pwart_get_export_function(m, "if2");
+  fn = pwart_get_export_function(ctx, "if2");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("if2 check...");
@@ -1099,7 +1098,7 @@ int control_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "brtable1");
+  fn = pwart_get_export_function(ctx, "brtable1");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("brtable1 check...");
@@ -1108,7 +1107,7 @@ int control_test() {
     return 0;
   }
   printf("pass\n");
-  fn = pwart_get_export_function(m, "brtable2");
+  fn = pwart_get_export_function(ctx, "brtable2");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("brtable2 check...");
@@ -1117,7 +1116,7 @@ int control_test() {
     return 0;
   }
   printf("pass\n");
-  fn = pwart_get_export_function(m, "brtable3");
+  fn = pwart_get_export_function(ctx, "brtable3");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("brtable3 check...");
@@ -1126,7 +1125,7 @@ int control_test() {
     return 0;
   }
   printf("pass\n");
-  fn = pwart_get_export_function(m, "expr_block");
+  fn = pwart_get_export_function(ctx, "expr_block");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("expr_block check...");
@@ -1136,7 +1135,7 @@ int control_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "expr_brif");
+  fn = pwart_get_export_function(ctx, "expr_brif");
   sp = stackbase;
   puti32(&sp,0);
   sp = stackbase;
@@ -1148,7 +1147,7 @@ int control_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "expr_brif");
+  fn = pwart_get_export_function(ctx, "expr_brif");
   sp = stackbase;
   puti32(&sp,1);
   sp = stackbase;
@@ -1160,7 +1159,7 @@ int control_test() {
   }
   printf("pass\n");
 
-  pwart_delete_module(m);
+  pwart_free_module_state(ctx);
   pwart_free_stack(stackbase);
   return 1;
 }
@@ -1172,18 +1171,17 @@ int convert_test() {
   int len = fread(data, 1, 1024 * 1024 * 8, f);
   void *stackbase = pwart_allocate_stack(64 * 1024);
   fclose(f);
-  pwart_module m = pwart_new_module();
   struct pwart_inspect_result1 ctxinfo;
-  pwart_load(m, data, len);
-  pwart_runtime_context ctx = pwart_get_runtime_context(m);
-  pwart_inspect_runtime_context(ctx, &ctxinfo);
+  char *err=NULL;
+  pwart_module_state ctx=pwart_load_module(data,len,&err);
+  pwart_inspect_module_state(ctx, &ctxinfo);
 
   printf("runtime stack at %p\n", stackbase);
 
   pwart_wasm_function fn;
   void *sp;
 
-  fn = pwart_get_export_function(m, "i32_wrap_i64");
+  fn = pwart_get_export_function(ctx, "i32_wrap_i64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_wrap_i64 check...");
@@ -1194,7 +1192,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_trunc_s_f32");
+  fn = pwart_get_export_function(ctx, "i32_trunc_s_f32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_trunc_s_f32 check...");
@@ -1205,7 +1203,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_trunc_u_f32");
+  fn = pwart_get_export_function(ctx, "i32_trunc_u_f32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_trunc_u_f32 check...");
@@ -1216,7 +1214,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_trunc_s_f64");
+  fn = pwart_get_export_function(ctx, "i32_trunc_s_f64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_trunc_s_f64 check...");
@@ -1227,7 +1225,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i32_trunc_u_f64");
+  fn = pwart_get_export_function(ctx, "i32_trunc_u_f64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_trunc_u_f64 check...");
@@ -1238,7 +1236,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_extend_u_i32");
+  fn = pwart_get_export_function(ctx, "i64_extend_u_i32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_extend_u_i32 check...");
@@ -1248,7 +1246,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_extend_s_i32");
+  fn = pwart_get_export_function(ctx, "i64_extend_s_i32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_extend_s_i32 check...");
@@ -1259,7 +1257,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_trunc_s_f32");
+  fn = pwart_get_export_function(ctx, "i64_trunc_s_f32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_trunc_s_f32 check...");
@@ -1269,7 +1267,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_trunc_u_f32");
+  fn = pwart_get_export_function(ctx, "i64_trunc_u_f32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_trunc_u_f32 check...");
@@ -1279,7 +1277,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_trunc_s_f64");
+  fn = pwart_get_export_function(ctx, "i64_trunc_s_f64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_trunc_s_f64 check...");
@@ -1289,7 +1287,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "i64_trunc_u_f64");
+  fn = pwart_get_export_function(ctx, "i64_trunc_u_f64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_trunc_u_f64 check...");
@@ -1299,7 +1297,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_convert_s_i32");
+  fn = pwart_get_export_function(ctx, "f32_convert_s_i32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_convert_s_i32 check...");
@@ -1309,7 +1307,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_convert_u_i32");
+  fn = pwart_get_export_function(ctx, "f32_convert_u_i32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_convert_u_i32 check...");
@@ -1319,7 +1317,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_demote_f64");
+  fn = pwart_get_export_function(ctx, "f32_demote_f64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_demote_f64 check...");
@@ -1329,7 +1327,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_convert_s_i64");
+  fn = pwart_get_export_function(ctx, "f32_convert_s_i64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_convert_s_i64 check...");
@@ -1339,7 +1337,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f32_convert_u_i64");
+  fn = pwart_get_export_function(ctx, "f32_convert_u_i64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_convert_u_i64 check...");
@@ -1349,7 +1347,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_convert_s_i32");
+  fn = pwart_get_export_function(ctx, "f64_convert_s_i32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_convert_s_i32 check...");
@@ -1359,7 +1357,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_convert_u_i32");
+  fn = pwart_get_export_function(ctx, "f64_convert_u_i32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_convert_u_i32 check...");
@@ -1369,7 +1367,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_demote_f32");
+  fn = pwart_get_export_function(ctx, "f64_demote_f32");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_demote_f32 check...");
@@ -1379,7 +1377,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_convert_s_i64");
+  fn = pwart_get_export_function(ctx, "f64_convert_s_i64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_convert_s_i64 check...");
@@ -1389,7 +1387,7 @@ int convert_test() {
   }
   printf("pass\n");
 
-  fn = pwart_get_export_function(m, "f64_convert_u_i64");
+  fn = pwart_get_export_function(ctx, "f64_convert_u_i64");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_convert_u_i64 check...");
@@ -1398,7 +1396,7 @@ int convert_test() {
     return 0;
   }
   printf("pass\n");
-  pwart_delete_module(m);
+  pwart_free_module_state(ctx);
   pwart_free_stack(stackbase);
   return 1;
 }
@@ -1410,18 +1408,17 @@ int compare_test() {
   int len = fread(data, 1, 1024 * 1024 * 8, f);
   void *stackbase = pwart_allocate_stack(64 * 1024);
   fclose(f);
-  pwart_module m = pwart_new_module();
   struct pwart_inspect_result1 ctxinfo;
-  pwart_load(m, data, len);
-  pwart_runtime_context ctx = pwart_get_runtime_context(m);
-  pwart_inspect_runtime_context(ctx, &ctxinfo);
+  char *err=NULL;
+  pwart_module_state ctx=pwart_load_module(data,len,&err);
+  pwart_inspect_module_state(ctx, &ctxinfo);
 
   printf("runtime stack at %p\n", stackbase);
 
   pwart_wasm_function fn;
   void *sp;
 
-  fn = pwart_get_export_function(m, "i32_eq_true");
+  fn = pwart_get_export_function(ctx, "i32_eq_true");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_eq_true check...");
@@ -1432,7 +1429,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_eq_false");
+  fn = pwart_get_export_function(ctx, "i32_eq_false");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_eq_false check...");
@@ -1443,7 +1440,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_ne_true");
+  fn = pwart_get_export_function(ctx, "i32_ne_true");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ne_true check...");
@@ -1454,7 +1451,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_ne_false");
+  fn = pwart_get_export_function(ctx, "i32_ne_false");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ne_false check...");
@@ -1465,7 +1462,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_lt_s_less");
+  fn = pwart_get_export_function(ctx, "i32_lt_s_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_lt_s_less check...");
@@ -1476,7 +1473,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_lt_s_equal");
+  fn = pwart_get_export_function(ctx, "i32_lt_s_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_lt_s_equal check...");
@@ -1487,7 +1484,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_lt_s_greater");
+  fn = pwart_get_export_function(ctx, "i32_lt_s_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_lt_s_greater check...");
@@ -1498,7 +1495,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_lt_u_less");
+  fn = pwart_get_export_function(ctx, "i32_lt_u_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_lt_u_less check...");
@@ -1509,7 +1506,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_lt_u_equal");
+  fn = pwart_get_export_function(ctx, "i32_lt_u_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_lt_u_equal check...");
@@ -1520,7 +1517,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_lt_u_greater");
+  fn = pwart_get_export_function(ctx, "i32_lt_u_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_lt_u_greater check...");
@@ -1531,7 +1528,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_le_s_less");
+  fn = pwart_get_export_function(ctx, "i32_le_s_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_le_s_less check...");
@@ -1542,7 +1539,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_le_s_equal");
+  fn = pwart_get_export_function(ctx, "i32_le_s_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_le_s_equal check...");
@@ -1553,7 +1550,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_le_s_greater");
+  fn = pwart_get_export_function(ctx, "i32_le_s_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_le_s_greater check...");
@@ -1564,7 +1561,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_le_u_less");
+  fn = pwart_get_export_function(ctx, "i32_le_u_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_le_u_less check...");
@@ -1575,7 +1572,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_le_u_equal");
+  fn = pwart_get_export_function(ctx, "i32_le_u_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_le_u_equal check...");
@@ -1586,7 +1583,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_le_u_greater");
+  fn = pwart_get_export_function(ctx, "i32_le_u_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_le_u_greater check...");
@@ -1597,7 +1594,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_gt_s_less");
+  fn = pwart_get_export_function(ctx, "i32_gt_s_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_gt_s_less check...");
@@ -1608,7 +1605,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_gt_s_equal");
+  fn = pwart_get_export_function(ctx, "i32_gt_s_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_gt_s_equal check...");
@@ -1619,7 +1616,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_gt_s_greater");
+  fn = pwart_get_export_function(ctx, "i32_gt_s_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_gt_s_greater check...");
@@ -1630,7 +1627,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_gt_u_less");
+  fn = pwart_get_export_function(ctx, "i32_gt_u_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_gt_u_less check...");
@@ -1641,7 +1638,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_gt_u_equal");
+  fn = pwart_get_export_function(ctx, "i32_gt_u_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_gt_u_equal check...");
@@ -1652,7 +1649,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_gt_u_greater");
+  fn = pwart_get_export_function(ctx, "i32_gt_u_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_gt_u_greater check...");
@@ -1663,7 +1660,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_ge_s_less");
+  fn = pwart_get_export_function(ctx, "i32_ge_s_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ge_s_less check...");
@@ -1674,7 +1671,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_ge_s_equal");
+  fn = pwart_get_export_function(ctx, "i32_ge_s_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ge_s_equal check...");
@@ -1685,7 +1682,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_ge_s_greater");
+  fn = pwart_get_export_function(ctx, "i32_ge_s_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ge_s_greater check...");
@@ -1696,7 +1693,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_ge_u_less");
+  fn = pwart_get_export_function(ctx, "i32_ge_u_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ge_u_less check...");
@@ -1707,7 +1704,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_ge_u_equal");
+  fn = pwart_get_export_function(ctx, "i32_ge_u_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ge_u_equal check...");
@@ -1718,7 +1715,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i32_ge_u_greater");
+  fn = pwart_get_export_function(ctx, "i32_ge_u_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i32_ge_u_greater check...");
@@ -1729,7 +1726,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_eq_true");
+  fn = pwart_get_export_function(ctx, "i64_eq_true");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_eq_true check...");
@@ -1740,7 +1737,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_eq_false");
+  fn = pwart_get_export_function(ctx, "i64_eq_false");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_eq_false check...");
@@ -1751,7 +1748,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_ne_true");
+  fn = pwart_get_export_function(ctx, "i64_ne_true");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ne_true check...");
@@ -1762,7 +1759,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_ne_false");
+  fn = pwart_get_export_function(ctx, "i64_ne_false");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ne_false check...");
@@ -1773,7 +1770,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_lt_s_less");
+  fn = pwart_get_export_function(ctx, "i64_lt_s_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_lt_s_less check...");
@@ -1784,7 +1781,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_lt_s_equal");
+  fn = pwart_get_export_function(ctx, "i64_lt_s_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_lt_s_equal check...");
@@ -1795,7 +1792,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_lt_s_greater");
+  fn = pwart_get_export_function(ctx, "i64_lt_s_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_lt_s_greater check...");
@@ -1806,7 +1803,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_lt_u_less");
+  fn = pwart_get_export_function(ctx, "i64_lt_u_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_lt_u_less check...");
@@ -1817,7 +1814,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_lt_u_equal");
+  fn = pwart_get_export_function(ctx, "i64_lt_u_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_lt_u_equal check...");
@@ -1828,7 +1825,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_lt_u_greater");
+  fn = pwart_get_export_function(ctx, "i64_lt_u_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_lt_u_greater check...");
@@ -1839,7 +1836,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_le_s_less");
+  fn = pwart_get_export_function(ctx, "i64_le_s_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_le_s_less check...");
@@ -1850,7 +1847,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_le_s_equal");
+  fn = pwart_get_export_function(ctx, "i64_le_s_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_le_s_equal check...");
@@ -1861,7 +1858,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_le_s_greater");
+  fn = pwart_get_export_function(ctx, "i64_le_s_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_le_s_greater check...");
@@ -1872,7 +1869,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_le_u_less");
+  fn = pwart_get_export_function(ctx, "i64_le_u_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_le_u_less check...");
@@ -1883,7 +1880,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_le_u_equal");
+  fn = pwart_get_export_function(ctx, "i64_le_u_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_le_u_equal check...");
@@ -1894,7 +1891,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_le_u_greater");
+  fn = pwart_get_export_function(ctx, "i64_le_u_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_le_u_greater check...");
@@ -1905,7 +1902,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_gt_s_less");
+  fn = pwart_get_export_function(ctx, "i64_gt_s_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_gt_s_less check...");
@@ -1916,7 +1913,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_gt_s_equal");
+  fn = pwart_get_export_function(ctx, "i64_gt_s_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_gt_s_equal check...");
@@ -1927,7 +1924,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_gt_s_greater");
+  fn = pwart_get_export_function(ctx, "i64_gt_s_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_gt_s_greater check...");
@@ -1938,7 +1935,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_gt_u_less");
+  fn = pwart_get_export_function(ctx, "i64_gt_u_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_gt_u_less check...");
@@ -1949,7 +1946,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_gt_u_equal");
+  fn = pwart_get_export_function(ctx, "i64_gt_u_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_gt_u_equal check...");
@@ -1960,7 +1957,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_gt_u_greater");
+  fn = pwart_get_export_function(ctx, "i64_gt_u_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_gt_u_greater check...");
@@ -1971,7 +1968,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_ge_s_less");
+  fn = pwart_get_export_function(ctx, "i64_ge_s_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ge_s_less check...");
@@ -1982,7 +1979,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_ge_s_equal");
+  fn = pwart_get_export_function(ctx, "i64_ge_s_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ge_s_equal check...");
@@ -1993,7 +1990,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_ge_s_greater");
+  fn = pwart_get_export_function(ctx, "i64_ge_s_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ge_s_greater check...");
@@ -2004,7 +2001,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_ge_u_less");
+  fn = pwart_get_export_function(ctx, "i64_ge_u_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ge_u_less check...");
@@ -2015,7 +2012,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_ge_u_equal");
+  fn = pwart_get_export_function(ctx, "i64_ge_u_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ge_u_equal check...");
@@ -2026,7 +2023,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "i64_ge_u_greater");
+  fn = pwart_get_export_function(ctx, "i64_ge_u_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_ge_u_greater check...");
@@ -2037,7 +2034,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_eq_true");
+  fn = pwart_get_export_function(ctx, "f32_eq_true");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_eq_true check...");
@@ -2048,7 +2045,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_eq_false");
+  fn = pwart_get_export_function(ctx, "f32_eq_false");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_eq_false check...");
@@ -2059,7 +2056,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_ne_true");
+  fn = pwart_get_export_function(ctx, "f32_ne_true");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_ne_true check...");
@@ -2070,7 +2067,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_ne_false");
+  fn = pwart_get_export_function(ctx, "f32_ne_false");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_ne_false check...");
@@ -2081,7 +2078,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_lt_less");
+  fn = pwart_get_export_function(ctx, "f32_lt_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_lt_less check...");
@@ -2092,7 +2089,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_lt_equal");
+  fn = pwart_get_export_function(ctx, "f32_lt_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_lt_equal check...");
@@ -2103,7 +2100,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_lt_greater");
+  fn = pwart_get_export_function(ctx, "f32_lt_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_lt_greater check...");
@@ -2114,7 +2111,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_le_less");
+  fn = pwart_get_export_function(ctx, "f32_le_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_le_less check...");
@@ -2125,7 +2122,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_le_equal");
+  fn = pwart_get_export_function(ctx, "f32_le_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_le_equal check...");
@@ -2136,7 +2133,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_le_greater");
+  fn = pwart_get_export_function(ctx, "f32_le_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_le_greater check...");
@@ -2147,7 +2144,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_gt_less");
+  fn = pwart_get_export_function(ctx, "f32_gt_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_gt_less check...");
@@ -2158,7 +2155,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_gt_equal");
+  fn = pwart_get_export_function(ctx, "f32_gt_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_gt_equal check...");
@@ -2169,7 +2166,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_gt_greater");
+  fn = pwart_get_export_function(ctx, "f32_gt_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_gt_greater check...");
@@ -2180,7 +2177,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_ge_less");
+  fn = pwart_get_export_function(ctx, "f32_ge_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_ge_less check...");
@@ -2191,7 +2188,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_ge_equal");
+  fn = pwart_get_export_function(ctx, "f32_ge_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_ge_equal check...");
@@ -2202,7 +2199,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f32_ge_greater");
+  fn = pwart_get_export_function(ctx, "f32_ge_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f32_ge_greater check...");
@@ -2213,7 +2210,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_eq_true");
+  fn = pwart_get_export_function(ctx, "f64_eq_true");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_eq_true check...");
@@ -2224,7 +2221,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_eq_false");
+  fn = pwart_get_export_function(ctx, "f64_eq_false");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_eq_false check...");
@@ -2235,7 +2232,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_ne_true");
+  fn = pwart_get_export_function(ctx, "f64_ne_true");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_ne_true check...");
@@ -2246,7 +2243,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_ne_false");
+  fn = pwart_get_export_function(ctx, "f64_ne_false");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_ne_false check...");
@@ -2257,7 +2254,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_lt_less");
+  fn = pwart_get_export_function(ctx, "f64_lt_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_lt_less check...");
@@ -2268,7 +2265,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_lt_equal");
+  fn = pwart_get_export_function(ctx, "f64_lt_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_lt_equal check...");
@@ -2279,7 +2276,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_lt_greater");
+  fn = pwart_get_export_function(ctx, "f64_lt_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_lt_greater check...");
@@ -2290,7 +2287,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_le_less");
+  fn = pwart_get_export_function(ctx, "f64_le_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_le_less check...");
@@ -2301,7 +2298,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_le_equal");
+  fn = pwart_get_export_function(ctx, "f64_le_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_le_equal check...");
@@ -2312,7 +2309,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_le_greater");
+  fn = pwart_get_export_function(ctx, "f64_le_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_le_greater check...");
@@ -2323,7 +2320,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_gt_less");
+  fn = pwart_get_export_function(ctx, "f64_gt_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_gt_less check...");
@@ -2334,7 +2331,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_gt_equal");
+  fn = pwart_get_export_function(ctx, "f64_gt_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_gt_equal check...");
@@ -2345,7 +2342,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_gt_greater");
+  fn = pwart_get_export_function(ctx, "f64_gt_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_gt_greater check...");
@@ -2356,7 +2353,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_ge_less");
+  fn = pwart_get_export_function(ctx, "f64_ge_less");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_ge_less check...");
@@ -2367,7 +2364,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_ge_equal");
+  fn = pwart_get_export_function(ctx, "f64_ge_equal");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_ge_equal check...");
@@ -2378,7 +2375,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  fn = pwart_get_export_function(m, "f64_ge_greater");
+  fn = pwart_get_export_function(ctx, "f64_ge_greater");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("f64_ge_greater check...");
@@ -2389,7 +2386,7 @@ int compare_test() {
   printf("pass\n");
   sp = stackbase;
 
-  pwart_delete_module(m);
+  pwart_free_module_state(ctx);
   pwart_free_stack(stackbase);
   return 1;
 

@@ -18,6 +18,8 @@
 #include "../sljit/sljit_src/sljitLir.h"
 
 
+#define ReturnIfErr(expr) {char *err=expr;if(err!=NULL){wa_debug("error occure:%s\n",err);return err;}}
+
 
 
 static void *wa_malloc(size_t size) {

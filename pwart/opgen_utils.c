@@ -45,7 +45,7 @@ static uint32_t stackvalue_GetAlignedOffset(StackValue *sv,uint32_t offset,uint3
   return offset;
 }
 // 32bit arch only, get most significant word in 64bit stackvalue
-static void stackvalue_HighWord(Module *m, StackValue *sv, sljit_s32 *op,
+static void stackvalue_HighWord(ModuleCompiler *m, StackValue *sv, sljit_s32 *op,
                                 sljit_sw *opw) {
   if (sv->jit_type == SVT_I64CONST) {
     *opw = (uint32_t)(sv->val.const64 >> 32);
@@ -60,7 +60,7 @@ static void stackvalue_HighWord(Module *m, StackValue *sv, sljit_s32 *op,
     SLJIT_UNREACHABLE();
   }
 }
-static void stackvalue_LowWord(Module *m, StackValue *sv, sljit_s32 *op,
+static void stackvalue_LowWord(ModuleCompiler *m, StackValue *sv, sljit_s32 *op,
                                sljit_sw *opw) {
   if (sv->jit_type == SVT_I64CONST) {
     *opw = (uint32_t)(sv->val.const64);
@@ -76,7 +76,7 @@ static void stackvalue_LowWord(Module *m, StackValue *sv, sljit_s32 *op,
   }
 }
 // find stackvalue is using register r, check for 0 to m->sp-upstack
-static StackValue *stackvalue_FindSvalueUseReg(Module *m, sljit_s32 r,
+static StackValue *stackvalue_FindSvalueUseReg(ModuleCompiler *m, sljit_s32 r,
                                                sljit_s32 regtype, int upstack) {
   StackValue *sv;
   int i, used = 0;
@@ -104,7 +104,7 @@ static StackValue *stackvalue_FindSvalueUseReg(Module *m, sljit_s32 r,
   }
 }
 
-static int pwart_EmitStoreStackValue(Module *m, StackValue *sv, int memreg,
+static int pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int memreg,
                                      int offset) {
   if (sv->jit_type == SVT_GENERAL) {
     if (m->target_ptr_size == 64) {
@@ -197,7 +197,7 @@ static int pwart_EmitStoreStackValue(Module *m, StackValue *sv, int memreg,
   }
 }
 // store value into [S0+IMM]
-static int pwart_EmitSaveStack(Module *m, StackValue *sv) {
+static int pwart_EmitSaveStack(ModuleCompiler *m, StackValue *sv) {
   if (sv->val.op == SLJIT_MEM1(SLJIT_S0) && sv->val.opw == sv->frame_offset) {
     return 1;
   }
@@ -208,14 +208,14 @@ static int pwart_EmitSaveStack(Module *m, StackValue *sv) {
   return 1;
 }
 
-static int pwart_EmitSaveStackAll(Module *m) {
+static int pwart_EmitSaveStackAll(ModuleCompiler *m) {
   int i;
   for (i = 0; i <= m->sp; i++) {
     pwart_EmitSaveStack(m, &m->stack[i]);
   }
 }
 
-static int pwart_EmitLoadReg(Module *m, StackValue *sv, int reg) {
+static int pwart_EmitLoadReg(ModuleCompiler *m, StackValue *sv, int reg) {
 
   if (sv->jit_type == SVT_GENERAL) {
     if (m->target_ptr_size != 32) {
@@ -268,17 +268,17 @@ static int pwart_EmitLoadReg(Module *m, StackValue *sv, int reg) {
   }
 }
 
-static inline size_t get_memorybytes_offset(Module *m) {
+static inline size_t get_memorybytes_offset(ModuleCompiler *m) {
   return offsetof(RuntimeContext, memory.bytes);
 }
-static inline size_t get_funcarr_offset(Module *m) {
+static inline size_t get_funcarr_offset(ModuleCompiler *m) {
   return offsetof(RuntimeContext, funcentries);
 }
 
 // Don't emit any code here.
 // Don't write other stackvalue (due to stackvalue_EmitSwapTopTwoValue
 // function).
-static StackValue *stackvalue_Push(Module *m, int32_t wasm_type) {
+static StackValue *stackvalue_Push(ModuleCompiler *m, int32_t wasm_type) {
   StackValue *sv2,*sv;
   uint32_t align,a;
   sv2 = &m->stack[++m->sp];
@@ -297,7 +297,7 @@ static StackValue *stackvalue_Push(Module *m, int32_t wasm_type) {
   return sv2;
 }
 
-static StackValue *stackvalue_PushStackValueLike(Module *m,StackValue *refsv){
+static StackValue *stackvalue_PushStackValueLike(ModuleCompiler *m,StackValue *refsv){
   StackValue *sv;
   sv=stackvalue_Push(m,refsv->wasm_type);
   sv->jit_type=refsv->jit_type;
@@ -305,7 +305,7 @@ static StackValue *stackvalue_PushStackValueLike(Module *m,StackValue *refsv){
   return sv;
 }
 
-static void stackvalue_EmitSwapTopTwoValue(Module *m) {
+static void stackvalue_EmitSwapTopTwoValue(ModuleCompiler *m) {
   StackValue *sv;
   // copy stack[sp-1]
   sv = stackvalue_PushStackValueLike(m, &m->stack[m->sp - 1]);
@@ -329,7 +329,7 @@ static void stackvalue_EmitSwapTopTwoValue(Module *m) {
     pwart_EmitSaveStack(m, sv);
   }
 }
-static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
+static int pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
                               sljit_sw offset) {
   StackValue *sv,sv2;
   uint32_t a, b, len,func_frame_offset;
@@ -405,7 +405,7 @@ static int pwart_EmitCallFunc(Module *m, Type *type, sljit_s32 memreg,
   }
 }
 
-static int pwart_EmitFuncReturn(Module *m) {
+static int pwart_EmitFuncReturn(ModuleCompiler *m) {
   int idx, len, off;
   StackValue *sv;
   off = 0;
@@ -424,7 +424,7 @@ static int pwart_EmitFuncReturn(Module *m) {
 }
 
 // get free register. check up to upstack.
-static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype, int upstack) {
+static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype, int upstack) {
   int i, used;
   sljit_s32 fr;
   StackValue *sv;
@@ -487,7 +487,7 @@ static sljit_s32 pwart_GetFreeReg(Module *m, sljit_s32 regtype, int upstack) {
   }
 }
 
-static sljit_s32 pwart_GetFreeRegExcept(Module *m, sljit_s32 regtype,
+static sljit_s32 pwart_GetFreeRegExcept(ModuleCompiler *m, sljit_s32 regtype,
                                         sljit_s32 except, int upstack) {
   sljit_s32 r1;
   if (regtype == RT_FLOAT) {
@@ -512,7 +512,7 @@ static sljit_s32 pwart_GetFreeRegExcept(Module *m, sljit_s32 regtype,
 }
 
 // load stack value into reg
-static void pwart_EmitStackValueLoadReg(Module *m, StackValue *sv) {
+static void pwart_EmitStackValueLoadReg(ModuleCompiler *m, StackValue *sv) {
   sljit_s32 r1, r2;
   if (m->target_ptr_size == 32 && sv->wasm_type == WVT_I64) {
     if (sv->jit_type == SVT_TWO_REG) {
@@ -548,7 +548,7 @@ static void pwart_EmitStackValueLoadReg(Module *m, StackValue *sv) {
   }
 }
 
-static int pwart_EmitFuncEnter(Module *m) {
+static int pwart_EmitFuncEnter(ModuleCompiler *m) {
   int nextSr = SLJIT_S1;
   int nextSfr = SLJIT_FS0;
   int i, len;
@@ -658,13 +658,13 @@ static int pwart_EmitFuncEnter(Module *m) {
 }
 
 
-static void opgen_GenI32Const(Module *m, uint32_t c) {
+static void opgen_GenI32Const(ModuleCompiler *m, uint32_t c) {
   StackValue *sv = stackvalue_Push(m, WVT_I32);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
   sv->val.opw = c;
 }
-static void opgen_GenI64Const(Module *m, uint64_t c) {
+static void opgen_GenI64Const(ModuleCompiler *m, uint64_t c) {
   StackValue *sv = stackvalue_Push(m, WVT_I64);
   if (m->target_ptr_size == 32) {
     sv->jit_type = SVT_I64CONST;
@@ -675,7 +675,7 @@ static void opgen_GenI64Const(Module *m, uint64_t c) {
     sv->val.opw = c;
   }
 }
-static void opgen_GenF32Const(Module *m, uint8_t *c) {
+static void opgen_GenF32Const(ModuleCompiler *m, uint8_t *c) {
   StackValue *sv = stackvalue_Push(m, WVT_F32);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
@@ -686,7 +686,7 @@ static void opgen_GenF32Const(Module *m, uint8_t *c) {
   pwart_EmitSaveStack(m, sv);
 }
 
-static void opgen_GenF64Const(Module *m, uint8_t *c) {
+static void opgen_GenF64Const(ModuleCompiler *m, uint8_t *c) {
   StackValue *sv = stackvalue_Push(m, WVT_F64);
   if (m->target_ptr_size == 32) {
     sv->jit_type = SVT_I64CONST;
@@ -699,7 +699,7 @@ static void opgen_GenF64Const(Module *m, uint8_t *c) {
   // sljit only allow load float from memory
   pwart_EmitSaveStack(m, sv);
 }
-static void opgen_GenRefConst(Module *m,void *c) {
+static void opgen_GenRefConst(ModuleCompiler *m,void *c) {
   StackValue *sv=stackvalue_Push(m,WVT_REF);
   sv->jit_type=SVT_GENERAL;
   sv->val.op=SLJIT_IMM;
@@ -707,7 +707,7 @@ static void opgen_GenRefConst(Module *m,void *c) {
 }
 
 //if fn is stub/inline function, generate native code and return 1, else return 0.
-static int pwart_CheckAndGenStubFunction(Module *m,WasmFunctionEntry fn){
+static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn){
   struct pwart_builtin_functable *functbl=pwart_get_builtin_functable();
   if(fn==functbl->get_self_runtime_context){
     opgen_GenRefConst(m,m->context);
@@ -717,7 +717,7 @@ static int pwart_CheckAndGenStubFunction(Module *m,WasmFunctionEntry fn){
 }
 
 //get the table entries base and store into register r
-static int opgen_GenTableEntriesBase(Module *m,int index,int r){
+static int opgen_GenTableEntriesBase(ModuleCompiler *m,int index,int r){
   StackValue *sv;
   sv=dynarr_get(m->locals,StackValue,m->runtime_ptr_local);
   sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,sv->val.op,sv->val.opw,SLJIT_IMM,offsetof(RuntimeContext,tables));

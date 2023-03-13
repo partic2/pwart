@@ -425,7 +425,7 @@ static Type func_type_i64_ret_f64 = {.params = types_i64, .results = types_f64};
 static Type func_type_i32_i32_ref_ret_i32 = {.params = types_i32_i32_ref, .results = types_i32};
 static Type func_type_i32x5_ref_ret_void={.params=types_i32x5_ref,.results=types_void};
 
-static void waexpr_run_const(Module *m, void *result) {
+static void waexpr_run_const(ModuleCompiler *m, void *result) {
   int opcode=m->bytes[m->pc];
   m->pc++;
   switch (opcode) {

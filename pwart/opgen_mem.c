@@ -9,11 +9,11 @@
 
 
 
-static void opgen_GenLocalGet(Module *m, uint32_t idx) {
+static void opgen_GenLocalGet(ModuleCompiler *m, uint32_t idx) {
   stackvalue_PushStackValueLike(m, dynarr_get(m->locals, StackValue, idx));
 }
 
-static void opgen_GenLocalSet(Module *m, uint32_t idx) {
+static void opgen_GenLocalSet(ModuleCompiler *m, uint32_t idx) {
   StackValue *sv, *sv2;
   StackValue *stack = m->stack;
   sv = dynarr_get(m->locals, StackValue, idx);
@@ -28,7 +28,7 @@ static void opgen_GenLocalSet(Module *m, uint32_t idx) {
   m->sp--;
 }
 
-static void opgen_GenLocalTee(Module *m, uint32_t idx) {
+static void opgen_GenLocalTee(ModuleCompiler *m, uint32_t idx) {
   StackValue *sv, *sv2;
   StackValue *stack = m->stack;
   sv = dynarr_get(m->locals, StackValue, idx);
@@ -36,7 +36,7 @@ static void opgen_GenLocalTee(Module *m, uint32_t idx) {
   pwart_EmitStoreStackValue(m, sv2, sv->val.op, sv->val.opw);
 }
 
-static void opgen_GenGlobalGet(Module *m, uint32_t idx) {
+static void opgen_GenGlobalGet(ModuleCompiler *m, uint32_t idx) {
   int32_t a;
   StackValue *sv;
   a = pwart_GetFreeReg(m, RT_BASE, 0);
@@ -48,7 +48,7 @@ static void opgen_GenGlobalGet(Module *m, uint32_t idx) {
   pwart_EmitStackValueLoadReg(m, sv);
 }
 
-static void opgen_GenGlobalSet(Module *m, uint32_t idx) {
+static void opgen_GenGlobalSet(ModuleCompiler *m, uint32_t idx) {
   int32_t a;
   StackValue *sv, *sv2;
   a = pwart_GetFreeReg(m, RT_BASE, 0);
@@ -60,7 +60,7 @@ static void opgen_GenGlobalSet(Module *m, uint32_t idx) {
   m->sp--;
 }
 
-static void opgen_GenTableGet(Module *m, uint32_t idx) {
+static void opgen_GenTableGet(ModuleCompiler *m, uint32_t idx) {
   int32_t a,b;
   StackValue *sv, *sv2;
   sv = &m->stack[m->sp];
@@ -83,7 +83,7 @@ static void opgen_GenTableGet(Module *m, uint32_t idx) {
   sv->val.opw = 0;
 }
 
-static void opgen_GenTableSet(Module *m, uint32_t idx) {
+static void opgen_GenTableSet(ModuleCompiler *m, uint32_t idx) {
   int32_t a,b;
   StackValue *sv, *sv2;
   stackvalue_EmitSwapTopTwoValue(m);
@@ -105,7 +105,7 @@ static void opgen_GenTableSet(Module *m, uint32_t idx) {
   m->sp--;
 }
 
-static void opgen_GenCurrentMemory(Module *m) {
+static void opgen_GenCurrentMemory(ModuleCompiler *m) {
   int32_t a;
   StackValue *sv;
   a = pwart_GetFreeReg(m, RT_INTEGER, 0);
@@ -118,7 +118,7 @@ static void opgen_GenCurrentMemory(Module *m) {
   sv->val.op = a;
   sv->val.opw = 0;
 }
-static void opgen_GenMemoryGrow(Module *m) {
+static void opgen_GenMemoryGrow(ModuleCompiler *m) {
   opgen_GenI32Const(m,0);
   opgen_GenRefConst(m,m->context);
   pwart_EmitCallFunc(m, &func_type_i32_i32_ref_ret_i32, SLJIT_IMM,
@@ -126,7 +126,7 @@ static void opgen_GenMemoryGrow(Module *m) {
 }
 // a:memory access base register, can be result register. result StackValue will
 // be pushed to stack.
-static void opgen_GenI32Load(Module *m, int32_t opcode, int32_t a,
+static void opgen_GenI32Load(ModuleCompiler *m, int32_t opcode, int32_t a,
                              sljit_sw offset) {
   StackValue *sv = stackvalue_Push(m, WVT_I32);
   switch (opcode) {
@@ -150,7 +150,7 @@ static void opgen_GenI32Load(Module *m, int32_t opcode, int32_t a,
   sv->val.op = a;
   sv->val.opw = 0;
 }
-static void opgen_GenI64Load(Module *m, int32_t opcode, int32_t a,
+static void opgen_GenI64Load(ModuleCompiler *m, int32_t opcode, int32_t a,
                              sljit_sw offset) {
   int32_t b;
   b = pwart_GetFreeRegExcept(m, RT_INTEGER, a, 0);
@@ -200,7 +200,7 @@ static void opgen_GenI64Load(Module *m, int32_t opcode, int32_t a,
   
 }
 
-static void opgen_GenFloatLoad(Module *m, int32_t opcode, int32_t a,
+static void opgen_GenFloatLoad(ModuleCompiler *m, int32_t opcode, int32_t a,
                                uint32_t offset) {
   StackValue *sv;
   switch (opcode) {
@@ -221,7 +221,7 @@ static void opgen_GenFloatLoad(Module *m, int32_t opcode, int32_t a,
   }
 }
 //pop stack top, and convert to base address stored in register, return the register.
-static int opgen_GenBaseAddressReg(Module *m){
+static int opgen_GenBaseAddressReg(ModuleCompiler *m){
   StackValue *sv,*sv2;
   int a;
   sljit_s32 op;
@@ -248,7 +248,7 @@ static int opgen_GenBaseAddressReg(Module *m){
 }
 
 // size: result size. size2: memory size.
-static void opgen_GenLoad(Module *m, int32_t opcode, sljit_sw offset,
+static void opgen_GenLoad(ModuleCompiler *m, int32_t opcode, sljit_sw offset,
                           sljit_sw align) {
   int32_t a;
   a=opgen_GenBaseAddressReg(m);
@@ -278,7 +278,7 @@ static void opgen_GenLoad(Module *m, int32_t opcode, sljit_sw offset,
   }
 }
 
-static void opgen_GenStore(Module *m, int32_t opcode, sljit_sw offset,
+static void opgen_GenStore(ModuleCompiler *m, int32_t opcode, sljit_sw offset,
                            sljit_sw align) {
   int32_t a;
   StackValue *sv, *sv2;
@@ -319,14 +319,14 @@ static void opgen_GenStore(Module *m, int32_t opcode, sljit_sw offset,
   m->sp--;
 }
 
-static void opgen_GenMemoryCopy(Module *m){
+static void opgen_GenMemoryCopy(ModuleCompiler *m){
   opgen_GenI32Const(m,0);
   opgen_GenI32Const(m,0);
   opgen_GenRefConst(m,m->context);
   pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memorycopy32);
 }
 
-static void opgen_GenTableCopy(Module *m,int32_t dtab,int32_t stab){
+static void opgen_GenTableCopy(ModuleCompiler *m,int32_t dtab,int32_t stab){
   opgen_GenI32Const(m,dtab);
   opgen_GenI32Const(m,stab);
   opgen_GenRefConst(m,m->context);
@@ -334,21 +334,21 @@ static void opgen_GenTableCopy(Module *m,int32_t dtab,int32_t stab){
 }
 
 
-static void opgen_GenMemoryFill(Module *m){
+static void opgen_GenMemoryFill(ModuleCompiler *m){
   opgen_GenI32Const(m,0);
   opgen_GenI32Const(m,0);
   opgen_GenRefConst(m,m->context);
   pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
 }
 
-static void opgen_GenTableFill(Module *m,int32_t tabidx){
+static void opgen_GenTableFill(ModuleCompiler *m,int32_t tabidx){
   opgen_GenI32Const(m,0);
   opgen_GenI32Const(m,0);
   opgen_GenRefConst(m,m->context);
   pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
 }
 
-static void opgen_GenMemOp(Module *m, int opcode) {
+static char *opgen_GenMemOp(ModuleCompiler *m, int opcode) {
   int32_t arg, tidx;
   uint64_t arg64;
   sljit_sw align, offset;
@@ -427,9 +427,9 @@ static void opgen_GenMemOp(Module *m, int opcode) {
     break;
   default:
     wa_debug("unrecognized opcode 0x%x at %d", opcode, m->pc);
-    exit(1);
-    break;
+    return "unrecognized opcode";
   }
+  return NULL;
 }
 
 #endif
