@@ -52,9 +52,12 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     break;
   // memory_immediate
   case 0x28 ... 0x3e: // *.load*, *.store*
-    read_LEB(bytes, pos, 32);
+  {
+    uint32_t align=read_LEB(bytes, pos, 32);
+    if(align&0x40){read_LEB(bytes,pos,32);}//memory index
     read_LEB(bytes, pos, 32);
     break;
+  }
   // br_table
   case 0x0e:                          // br_table
     count = read_LEB(bytes, pos, 32); // target count
@@ -280,6 +283,7 @@ static char *pwart_EmitFunction(ModuleCompiler *m, WasmFunction *func) {
   ReturnIfErr(pwart_GenCode(m));
   code = (WasmFunctionEntry)sljit_generate_code(m->jitc);
   sljit_free_compiler(m->jitc);
+  m->jitc=NULL;
   dynarr_free(&m->locals);
   func->func_ptr = code;
   return NULL;

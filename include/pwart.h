@@ -31,37 +31,43 @@ typedef void (*pwart_host_function_c)(void *stack_frame);
 struct pwart_global_compile_config{
     // PWART_STACK_FLAGS_xxx flags, indicate how operand stored in stack.
     char stack_flags;
-    // PWART_MEMORY_MODEL_xxx flags, indicate how code access memory, this flag can be overwrite by pwart_compile_config.memory_model.
-    char memory_model;
 };
 
 //If set, elements on stack will align to it's size, and function frame base will align to 8. 
 //Some arch require this flag to avoid align error.
 #define PWART_STACK_FLAGS_AUTO_ALIGN 1
 
-struct pwart_compile_config{
-    void (*import_resolver)(char *import_module,char *import_field,uint32_t kind,void *result);
-    // PWART_MEMORY_MODEL_xxx flags
-    char memory_model;
-};
-
-
-//Default memory model, memory is initialize to the max size, memory.grow will always return -1
-#define PWART_MEMORY_MODEL_FIXED_SIZE 0
-
-//memory.grow will try realloc memory. 
-//NOTICE: This option will slow the generated code due to memory base reloading.
-#define PWART_MEMORY_MODEL_GROW_ENABLED 1
-
-//EXPERIMENTAL
-//This option make PWART to use direct memory access instead of offset + base, which can make generated code faster.
-//But If set this flag, you can only use i32 to access memory on 32bit arch, and i64 on 64bit arch.
-//Memory must be allocated by calling external function "pwart_builtin.malloc32(type:[i32]->[i32])" or "pwart_builtin.malloc64(type:[i64]->[i64])" (for memory64)
-#define PWART_MEMORY_MODEL_RAW 2
-
 
 
 extern int pwart_get_version();
+
+
+
+struct pwart_wasm_table {
+    uint8_t     elem_type;   // type of entries (only FUNC in MVP)
+    uint32_t    initial;     // initial table size
+    uint32_t    maximum;     // maximum table size
+    uint32_t    size;        // current table size
+    void        **entries;
+};
+struct pwart_wasm_memory {
+    uint32_t    initial;     // initial size (64K pages)
+    uint32_t    maximum;     // maximum size (64K pages)
+    uint32_t    pages;       // current size (64K pages)
+
+    /*  memory area, if 0, indicate this memory is mapped to native host memory directly, and the pwart will generated faster code to access this memory. 
+        In this case, memory can only be allocated by call malloc32/malloc64, and index type should match the machine word size.
+        wasm module can use this memory by import memory pwart_builtin.native_memory, see pwart_builtin_symbols for detail.
+    */
+    uint8_t    *bytes;
+
+    /*  fixed memory, if set, memory base will never change, and memory.grow to this memory always return -1. 
+        set this flags make generated code faster, by avoid memory base reloading. 
+        by default, pwart set fixed to true if wasm memory maximum size is set.(allocate to maximum),
+        and false if no maximum provided */
+    uint8_t     fixed;
+};
+
 
 /*  
     pwart_load_module load a module from data, if succeeded, return compiled module, if failed, return NULL and set err_msg, if err_msg is not NULL.
@@ -76,7 +82,6 @@ extern pwart_module_compiler pwart_new_module_compiler();
 extern char *pwart_free_module_compiler(pwart_module_compiler mod);
 
 
-
 //compile module and generate code. if cfg is NULL, use default compile config.
 //return error message if any, or NULL if succeded.
 extern char *pwart_compile(pwart_module_compiler m,char *data,int len);
@@ -86,26 +91,12 @@ extern char *pwart_compile(pwart_module_compiler m,char *data,int len);
 //Though it's may not necessary for PWART.
 extern pwart_wasm_function pwart_get_start_function(pwart_module_compiler m);
 
-
-
-
-//wrap host function to wasm function, must be free by pwart_free_wrapped_function.
-extern pwart_wasm_function pwart_wrap_host_function_c(pwart_host_function_c host_func);
-
-extern void pwart_free_wrapped_function(pwart_wasm_function wrapped);
-
-extern void pwart_call_wasm_function(pwart_wasm_function fn,void *stack_pointer);
-
-
 // return error message if any, or NULL if succeded.
 extern char *pwart_set_global_compile_config(struct pwart_global_compile_config *config);
 extern char *pwart_get_global_compile_config(struct pwart_global_compile_config *config);
-extern char *pwart_set_load_config(pwart_module_compiler m,struct pwart_compile_config *config);
-extern char *pwart_get_load_config(pwart_module_compiler m,struct pwart_compile_config *config);
 
 //return error message if any, or NULL if succeded.
 extern char *pwart_set_symbol_resolver(pwart_module_compiler m,void (*resolver)(char *import_module,char *import_field,uint32_t kind,void *result));
-
 
 extern pwart_module_state pwart_get_module_state(pwart_module_compiler m);
 
@@ -116,6 +107,12 @@ extern char *pwart_free_module_state(pwart_module_state rc);
 
 //get wasm function exported by wasm module runtime.
 extern pwart_wasm_function pwart_get_export_function(pwart_module_state rc,char *name);
+
+//get wasm memory exported by wasm module runtime.
+extern struct pwart_wasm_memory *pwart_get_export_memory(pwart_module_state rc,char *name);
+
+//get wasm table exported by wasm module runtime.
+extern struct pwart_wasm_table *pwart_get_export_table(pwart_module_state rc,char *name);
 
 //pwart_module_state inspect result
 struct pwart_inspect_result1{
@@ -138,12 +135,19 @@ extern void *pwart_module_state_get_user_data(pwart_module_state c);
 // return error message if any, or NULL if succeded.
 extern char *pwart_free_module_compiler(pwart_module_compiler mod);
 
-
 //pwart invoke and runtime stack helper
 
 //allocate a stack buffer, with align 16. can only be free by pwart_free_stack.
 extern void *pwart_allocate_stack(int size);
 extern void pwart_free_stack(void *stack);
+
+//wrap host function to wasm function, must be free by pwart_free_wrapped_function.
+extern pwart_wasm_function pwart_wrap_host_function_c(pwart_host_function_c host_func);
+
+extern void pwart_free_wrapped_function(pwart_wasm_function wrapped);
+
+extern void pwart_call_wasm_function(pwart_wasm_function fn,void *stack_pointer);
+
 
 //For version 1.0, arguments and results are all stored on stack.
 //stack_flags has effect on these function.
@@ -163,18 +167,22 @@ extern void *pwart_rstack_get_ref(void **sp);
 
 
 
-//pwart builtin WasmFunction, can be call by import pwart_builtin module in wasm.
+//pwart builtin symbol, can be use by import "pwart_builtin" module in wasm.
 //Unless explicitly mark as Overwriteable,  Modifing the value may take no effect and should be avoided.
-struct pwart_builtin_functable{
+struct pwart_builtin_symbols{
     //get pwart version, []->[i32]
     pwart_wasm_function version;
 
-    //allocate memory, see also PWART_MEMORY_MODEL_RAW flag.
+    //allocate memory, see pwart_wasm_memory.bytes
 
     //function type [i32]->[i32]
     pwart_wasm_function malloc32;
-    //function  type [i64]->[i64]
+    //function type [i64]->[i64]
     pwart_wasm_function malloc64;
+    
+    //get the index size to access native memory, 32 or 64.
+    //function type []->[i32]
+    pwart_wasm_function native_index_size;
 
     //Stub function, can only be called DIRECTLY by wasm.
     //PWART will compile these 'call' instruction into native code, instead of function call.
@@ -183,49 +191,14 @@ struct pwart_builtin_functable{
     //function type []->[ref]
     pwart_wasm_function get_self_runtime_context;
 
+    //special pwart_wasm_memory that map to the native host memory directly, memory->bytes is 0; 
+    struct pwart_wasm_memory native_memory;
+
 };
 
-extern struct pwart_builtin_functable *pwart_get_builtin_functable();
+extern struct pwart_builtin_symbols *pwart_get_builtin_symbols();
 
 
 
-//WIP: namespace(linker)
-struct pwart_import_request{
-    char kind;
-    char *module_name;
-    char *field_name;
-    void **result;
-};
-struct pwart_export_request{
-    char kind;
-    char *module_name;
-    char *field_name;
-    void *to_export;
-};
-struct pwart_create_request{
-    char kind;
-    void **result;
-};
-struct pwart_symbol_resolver{
-    char *(*create)(struct pwart_symbol_resolver *_this,struct pwart_create_request *req);
-    char *(*import)(struct pwart_symbol_resolver *_this,struct pwart_import_request *req);
-    char *(*export)(struct pwart_symbol_resolver *_this,struct pwart_export_request *req);
-};
-
-struct pwart_wasm_table {
-    uint8_t     elem_type;   // type of entries (only FUNC in MVP)
-    uint8_t     is_import;   // is this table imported, if it is, pwart_free_module_state will not free the entries
-    uint32_t    initial;     // initial table size
-    uint32_t    maximum;     // maximum table size
-    uint32_t    size;        // current table size
-    void        **entries;
-};
-struct pwart_wasm_memory {
-    uint32_t    initial;     // initial size (64K pages)
-    uint32_t    maximum;     // maximum size (64K pages)
-    uint32_t    pages;       // current size (64K pages)
-    uint8_t    *bytes;       // memory area, if NULL, indicate this is memory is mapped to native host memory directly.
-    uint8_t     fixed;       // fixed memory, memory base will never change, and memory.grow to this memory always return -1. 
-};
 
 #endif

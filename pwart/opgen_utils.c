@@ -268,9 +268,6 @@ static int pwart_EmitLoadReg(ModuleCompiler *m, StackValue *sv, int reg) {
   }
 }
 
-static inline size_t get_memorybytes_offset(ModuleCompiler *m) {
-  return offsetof(RuntimeContext, memory.bytes);
-}
 static inline size_t get_funcarr_offset(ModuleCompiler *m) {
   return offsetof(RuntimeContext, funcentries);
 }
@@ -390,18 +387,15 @@ static int pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
     }
     sv->val.opw = sv->frame_offset;
   }
-  if(m->cfg.memory_model==PWART_MEMORY_MODEL_GROW_ENABLED){
+  Memory *mem0=*dynarr_get(m->context->memories,Memory *,0);
+  if((m->mem_base_local >= 0) && (!mem0->fixed)){
     //reload memory base
-    if (m->mem_base_local >= 0) {
-      uint32_t tr;
-      StackValue *sv2;
-      tr=pwart_GetFreeReg(m,RT_BASE,0);
-      sv = dynarr_get(m->locals, StackValue, m->mem_base_local);
-      sv2= dynarr_get(m->locals, StackValue, m->runtime_ptr_local);
-      sljit_emit_op1(m->jitc, SLJIT_MOV, tr, 0, sv2->val.op, sv2->val.opw);
-      sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw, SLJIT_MEM1(tr),
-                    get_memorybytes_offset(m));
-    }
+    uint32_t tr;
+    StackValue *sv;
+    tr=pwart_GetFreeReg(m,RT_BASE,0);
+    sljit_emit_op1(m->jitc, SLJIT_MOV, tr, 0, SLJIT_IMM,(sljit_uw)&mem0->bytes);
+    sv=dynarr_get(m->locals,StackValue,m->mem_base_local);
+    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw, SLJIT_MEM1(tr),0);
   }
 }
 
@@ -622,21 +616,33 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
                    nextLoc);
   
 
-  if(m->mem_base_local>=0 || m->table_entries_local>=0 || m->functions_base_local >= 0 
-      || m->globals_base_local >= 0){
-    sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,(sljit_sw)m->context);
-  }
+  
   if (m->mem_base_local >= 0) {
+    Memory *mem=*dynarr_get(m->context->memories,Memory *,0);
     sv = dynarr_get(m->locals, StackValue, m->mem_base_local);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
-                   SLJIT_MEM1(SLJIT_R0), get_memorybytes_offset(m));
+    if(mem->bytes==NULL){
+      //raw memory, so we don't need save memory base.
+    }else if(mem->fixed){
+      sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
+                   SLJIT_IMM, (sljit_uw)mem->bytes);
+    }else{
+      sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R0, 0,
+                   SLJIT_IMM, (sljit_uw)&mem->bytes);
+      sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
+                   SLJIT_MEM1(SLJIT_R0), 0);
+    }
   }
   if (m->table_entries_local >= 0) {
+    Table *tab=*dynarr_get(m->context->tables,Table *,0);
     sv = dynarr_get(m->locals, StackValue, m->table_entries_local);
-    sljit_emit_op2(m->jitc, SLJIT_ADD, SLJIT_R1, 0, SLJIT_MEM1(SLJIT_R0), offsetof(RuntimeContext,tables),
-                   SLJIT_IMM, offsetof(struct dynarr, data)+offsetof(Table,entries));
-    sljit_emit_op1(m->jitc,SLJIT_MOV,sv->val.op,sv->val.opw,SLJIT_MEM1(SLJIT_R1),0);
+    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
+                   SLJIT_IMM, (sljit_uw)tab->entries);
   }
+
+  if(m->functions_base_local >= 0 || m->globals_base_local >= 0){
+    sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,(sljit_uw)m->context);
+  }
+
   if (m->functions_base_local >= 0) {
     sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
     sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
@@ -654,7 +660,7 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
   sv = dynarr_push_type(&m->locals, StackValue);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
-  sv->val.opw = (sljit_sw)m->context;
+  sv->val.opw = (sljit_uw)m->context;
 }
 
 
@@ -703,12 +709,12 @@ static void opgen_GenRefConst(ModuleCompiler *m,void *c) {
   StackValue *sv=stackvalue_Push(m,WVT_REF);
   sv->jit_type=SVT_GENERAL;
   sv->val.op=SLJIT_IMM;
-  sv->val.opw=(sljit_sw)c;
+  sv->val.opw=(sljit_uw)c;
 }
 
 //if fn is stub/inline function, generate native code and return 1, else return 0.
 static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn){
-  struct pwart_builtin_functable *functbl=pwart_get_builtin_functable();
+  struct pwart_builtin_symbols *functbl=pwart_get_builtin_symbols();
   if(fn==functbl->get_self_runtime_context){
     opgen_GenRefConst(m,m->context);
     return 1;
@@ -718,10 +724,8 @@ static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn)
 
 //get the table entries base and store into register r
 static int opgen_GenTableEntriesBase(ModuleCompiler *m,int index,int r){
-  StackValue *sv;
-  sv=dynarr_get(m->locals,StackValue,m->runtime_ptr_local);
-  sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,sv->val.op,sv->val.opw,SLJIT_IMM,offsetof(RuntimeContext,tables));
-  sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,SLJIT_MEM1(r),0,SLJIT_IMM,offsetof(struct dynarr,data)+sizeof(Table)*index+offsetof(Table,entries));
+  Table *tab=*dynarr_get(m->context->tables,Table *,index);
+  sljit_emit_op1(m->jitc,SLJIT_MOV,r,0,SLJIT_IMM,(sljit_uw)&tab->entries);
   sljit_emit_op1(m->jitc,SLJIT_MOV,r,0,SLJIT_MEM1(r),0);
 }
 

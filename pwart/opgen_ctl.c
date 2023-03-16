@@ -7,9 +7,7 @@
 #include "opgen_utils.c"
 
 static void opgen_GenUnreachable(ModuleCompiler *m) {
-  sprintf(exception, "%s", "unreachable");
-  sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R0, 0, SLJIT_IMM, (sljit_sw)&m);
-  sljit_emit_call(m->jitc, SLJIT_CALL, SLJIT_ARGS1(VOID, P));
+  //just do nothing now.
 }
 
 static void opgen_GenBlock(ModuleCompiler *m) {

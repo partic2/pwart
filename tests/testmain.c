@@ -49,7 +49,6 @@ static void symbol_resolver(char *mod, char *name, uint32_t kind,void **val) {
 
 // base test
 int test1() {
-  struct pwart_compile_config cfg;
   struct pwart_global_compile_config gcfg;
   void *stackbase = pwart_allocate_stack(64 * 1024);
 
@@ -60,27 +59,18 @@ int test1() {
   fclose(f);
 
   pwart_get_global_compile_config(&gcfg);
-  for (int i1 = 0; i1 < 3; i1++) {
+  for (int i1 = 0; i1 < 2; i1++) {
     pwart_module_compiler m = pwart_new_module_compiler();
     pwart_set_symbol_resolver(m, (void *)symbol_resolver);
     // different config
     switch (i1) {
     case 0:
-      pwart_get_load_config(m, &cfg);
       printf("test config:default\n");
       break;
     case 1:
-      printf("test config:memory_model=PWART_MEMORY_MODEL_GROW_ENABLED\n");
-      pwart_get_load_config(m, &cfg);
-      cfg.memory_model = PWART_MEMORY_MODEL_GROW_ENABLED;
-      pwart_set_load_config(m, &cfg);
-      break;
-    case 2:
       printf("test config:stack_flags=PWART_STACK_FLAGS_AUTO_ALIGN\n");
-      pwart_get_load_config(m, &cfg);
       gcfg.stack_flags&=PWART_STACK_FLAGS_AUTO_ALIGN;
       pwart_set_global_compile_config(&gcfg);
-      pwart_set_load_config(m, &cfg);
       break;
     }
 
@@ -109,6 +99,7 @@ int test1() {
     void *sp;
 
     int32_t ri32;
+    int32_t ri32_2;
     uint64_t ri64;
     void *rref;
 
@@ -225,11 +216,11 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(builtinFuncTest, sp);
     ri32 = geti32(&sp);
-    geti32(&sp);
+    ri32_2=geti32(&sp);
     rref = getref(&sp);
-    printf("builtinFuncTest test, get pwart version, expect %d,%p, got %d,%p\n",
-           pwart_get_version(), ctx, ri32, rref);
-    if (pwart_get_version() != ri32 || ctx != rref) {
+    printf("builtinFuncTest test, expect %d,%d,%p, got %d,%d,%p\n",
+           pwart_get_version(),sizeof(void *)*8 ,ctx, ri32, ri32_2,rref);
+    if (pwart_get_version() != ri32 || sizeof(void *)*8!=ri32_2 || ctx != rref) {
       return 0;
     }
 
@@ -2393,7 +2384,7 @@ int compare_test() {
 }
 
 int main(int argc, char *argv[]) {
-
+  
   if (unary_test()) {
     printf("unary_test pass\n");
   } else {
@@ -2424,7 +2415,7 @@ int main(int argc, char *argv[]) {
     printf("convert_test failed\n");
     return 1;
   }
-
+  
   if (test1()) {
     printf("test1 pass\n");
   } else {

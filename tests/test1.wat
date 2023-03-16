@@ -1,5 +1,6 @@
 (module
 (import "pwart_builtin" "version" (func $getPwartVersion (result i32) ))
+(import "pwart_builtin" "native_index_size" (func $native_index_size (result i32) ))
 (import "pwart_builtin" "get_self_runtime_context" (func $get_self_runtime_context (result externref) ))
 (import "testaid" "printi64" (func $printi64 (param i64) (result i64) ))
 (memory 4)
@@ -77,6 +78,11 @@
     i32.const 15
     i32.const 0
     i32.store8
+
+    i64.const 600
+    call $printi64
+    drop
+
     block $exit (result i32)
 	i32.const 1
       local.get 0
@@ -213,7 +219,7 @@
   ;; function 9
   (func $builtinFuncTest (result i32 i32 externref)
   call $getPwartVersion
-  i32.const 0 ;; padding
+  call $native_index_size
   call $get_self_runtime_context
   )
 

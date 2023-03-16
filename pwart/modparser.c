@@ -40,17 +40,17 @@ static void parse_table_type(ModuleCompiler *m, uint32_t *pos,Table *table) {
 
 }
 
-static void parse_memory_type(ModuleCompiler *m, uint32_t *pos) {
+static void parse_memory_type(ModuleCompiler *m, uint32_t *pos,Memory *mem) {
   uint32_t flags = read_LEB(m->bytes, pos, 32);
   uint32_t pages = read_LEB(m->bytes, pos, 32); // Initial size
-  m->context->memory.initial = pages;
-  m->context->memory.pages = pages;
+  mem->initial = pages;
+  mem->pages = pages;
   // Limit the maximum to 2GB
   if (flags & 0x1) {
     pages = read_LEB(m->bytes, pos, 32); // Max size
-    m->context->memory.maximum = pages;
+    mem->maximum = pages;
   } else {
-    m->context->memory.maximum = pages;
+    mem->maximum = 0;
   }
 }
 
@@ -75,7 +75,6 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
     char err;
     uint32_t  pos = 0, word;
     m->compile_succeeded=0;
-    struct pwart_builtin_functable *builtinfunc=pwart_get_builtin_functable();
 
     // Allocate the module
 
@@ -92,12 +91,11 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
     m->bytes = bytes;
     m->byte_count = byte_count;
     m->context=wa_calloc(sizeof(RuntimeContext));
-    m->context->memory_model=m->cfg.memory_model;
     pool_init(&m->context->strings_pool,260);
     dynarr_init(&m->context->exports,sizeof(Export));
-    
+    dynarr_init(&m->context->memories,sizeof(Memory *));
+    dynarr_init(&m->context->tables,sizeof(Table *));
     dynarr_init(&m->context->globals,sizeof(uint8_t));
-    dynarr_init(&m->context->tables,sizeof(Table));
     dynarr_init(&m->functions,sizeof(WasmFunction));
     m->start_function = -1;
 
@@ -164,10 +162,12 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
             }
         }break;
         case 2:
+        {
             wa_debug("Parsing Import(2) section (length: 0x%x)\n", slen);
             uint32_t import_count = read_LEB(bytes, &pos, 32);
             for (uint32_t gidx=0; gidx<import_count; gidx++) {
                 void *val;
+                union{Table tab;Memory mem;} info;
                 uint32_t module_len, field_len;
                 char *import_module,*import_field;
                 import_module=m->import_name_buffer;
@@ -189,9 +189,9 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 case PWART_KIND_FUNCTION:
                     type_index = read_LEB(bytes, &pos, 32); break;
                 case PWART_KIND_TABLE:
-                  parse_table_type(m, &pos,dynarr_push_type(&m->context->tables,Table)); break;
+                  parse_table_type(m, &pos,&info.tab); break;
                 case PWART_KIND_MEMORY:
-                    parse_memory_type(m, &pos); break;
+                    parse_memory_type(m, &pos,&info.mem); break;
                 case PWART_KIND_GLOBAL:
                     content_type = read_LEB(bytes, &pos, 7);
                     // TODO: use mutability
@@ -201,19 +201,24 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
 
                 
                 val=NULL;
-                if(m->cfg.import_resolver!=NULL){
-                    m->cfg.import_resolver(import_module,import_field,external_kind,&val);
+                if(m->import_resolver!=NULL){
+                    m->import_resolver(import_module,import_field,external_kind,&val);
                 }
 
-                if(external_kind == PWART_KIND_FUNCTION && val == NULL && !strcmp("pwart_builtin",import_module)){
+                if(val == NULL && !strcmp("pwart_builtin",import_module)){
+                    struct pwart_builtin_symbols *builtin=pwart_get_builtin_symbols();
                     if(!strcmp("version",import_field)){
-                        val=builtinfunc->version;
+                        val=builtin->version;
                     }else if(!strcmp("malloc32",import_field)){
-                        val=builtinfunc->malloc32;
+                        val=builtin->malloc32;
                     }else if(!strcmp("malloc64",import_field)){
-                        val=builtinfunc->malloc64;
+                        val=builtin->malloc64;
                     }else if(!strcmp("get_self_runtime_context",import_field)){
-                        val=builtinfunc->get_self_runtime_context;
+                        val=builtin->get_self_runtime_context;
+                    }else if(!strcmp("native_index_size",import_field)){
+                        val=builtin->native_index_size;
+                    }else if(!strcmp("native_memory",import_field)){
+                        val=&builtin->native_memory;
                     }
                 }
                 
@@ -236,27 +241,20 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 case PWART_KIND_TABLE:
                 {
                     Table *tval = val;
-                    Table *dtab=dynarr_get(m->context->tables,Table,m->context->tables->len);
-                    wa_assert(dtab->initial <= tval->maximum,
-                        "Imported table is not large enough\n");
-                    dtab->entries = val;
-                    dtab->size = tval->size;
-                    dtab->maximum = tval->maximum;
-                    dtab->entries = tval->entries;
-                    dtab->is_import=1;
+                    if(info.tab.initial>tval->maximum){
+                        return "Imported table is not large enough";
+                    }
+                    *dynarr_push_type(&m->context->tables,Table *)=tval;
                 }
                     break;
                 case PWART_KIND_MEMORY:
-                    wa_assert(!m->context->memory.bytes,
-                           "More than 1 memory not supported\n");
+                {
                     Memory *mval = val;
-                    wa_assert(m->context->memory.initial <= mval->maximum,
-                        "Imported memory is not large enough\n");
-                    wa_debug("  setting memory pages: %d, max: %d, bytes: %p\n",
-                         mval->pages, mval->maximum, mval->bytes);
-                    m->context->memory.pages = mval->pages;
-                    m->context->memory.maximum = mval->maximum;
-                    m->context->memory.bytes = mval->bytes;
+                    if(info.mem.initial>mval->maximum){
+                        return "Imported memory is not large enough";
+                    }
+                    *dynarr_push_type(&m->context->memories,Memory *)=mval;
+                }
                     break;
                 case PWART_KIND_GLOBAL:
                 {
@@ -283,6 +281,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                     break;
                 }
             }
+        }
             break;
         case 3:{
             WasmFunction *wasmfunc;
@@ -299,25 +298,44 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
             }
         }break;
         case 4:
+        {
             wa_debug("Parsing Table(4) section\n");
             uint32_t table_count = read_LEB(bytes, &pos, 32);
+            m->context->own_tables_count=table_count;
+            m->context->own_tables=wa_calloc(sizeof(Table)*table_count);
             wa_debug("  table count: 0x%x\n", table_count);
             for(int i=0;i<table_count;i++){
-                Table *table=dynarr_push_type(&m->context->tables,Table);
+                Table *table=m->context->own_tables+i;
+                wa_debug("create new table at %p\n",table);
                 parse_table_type(m, &pos,table);
                 table->entries = wa_calloc(table->size*sizeof(void *));
-                table->is_import=0;
+                *dynarr_push_type(&m->context->tables,Table *)=table;
             }
+        }
+        
             break;
         case 5:
+        {
             wa_debug("Parsing Memory(5) section\n");
             uint32_t memory_count = read_LEB(bytes, &pos, 32);
+            m->context->own_memories_count=memory_count;
+            m->context->own_memories=wa_calloc(sizeof(Memory)*memory_count);
             wa_debug("  memory count: 0x%x\n", memory_count);
-            wa_assert(memory_count == 1, "More than 1 memory not supported\n");
-
-            parse_memory_type(m, &pos);
-            //we allocate memory only once, due to jit not allow to change the memory base. For performance reason.
-            m->context->memory.bytes = wa_calloc(m->context->memory.maximum*PAGE_SIZE);
+            for(int i=0;i<memory_count;i++){
+                Memory *memory=m->context->own_memories+i;
+                parse_memory_type(m, &pos,memory);
+                //XXX: custom memory creator?
+                if(memory->maximum==0){
+                    memory->bytes = wa_malloc(memory->initial*PAGE_SIZE);
+                    memory->fixed=0;
+                }else{
+                    memory->bytes = wa_malloc(memory->maximum*PAGE_SIZE);
+                    memory->fixed=1;
+                }
+                *dynarr_push_type(&m->context->memories,Memory *)=memory;
+            }
+        }
+        
             break;
         case 6:
             wa_debug("Parsing Global(6) section\n");
@@ -334,7 +352,6 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 sv=dynarr_push_type(&m->globals,StackValue);
                 sv->wasm_type=type;
                 sv->val.opw=m->context->globals->len;
-
                 // Run the init_expr to get global value
                 m->pc=pos;
                 waexpr_run_const(m,&result);
@@ -378,11 +395,10 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                         exp->value = dynarr_get(m->functions,WasmFunction,index);
                         break;
                     case PWART_KIND_TABLE:
-                        exp->value = dynarr_get(m->context->tables,Table,index);
+                        exp->value = *dynarr_get(m->context->tables,Table *,index);
                         break;
                     case PWART_KIND_MEMORY:
-                        wa_assert(index == 0, "Only 1 memory in MVP");
-                        exp->value = &m->context->memory;
+                        exp->value = *dynarr_get(m->context->memories,Memory *,index);
                         break;
                     case PWART_KIND_GLOBAL:
                         exp->value = &m->context->globals->data+dynarr_get(m->globals,StackValue,index)->val.opw;
@@ -399,7 +415,6 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
         case 9:
             wa_debug("Parsing Element(9) section (length: 0x%x)\n", slen);
             uint32_t element_count = read_LEB(bytes, &pos, 32);
-
             for(uint32_t c=0; c<element_count; c++) {
                 uint32_t flags = read_LEB(bytes, &pos, 32);
                 uint32_t index=0;
@@ -428,9 +443,8 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 }
                 
                 uint32_t num_elem = read_LEB(bytes, &pos, 32);
-                Table *dtab=dynarr_get(m->context->tables,Table,index);
+                Table *dtab=*dynarr_get(m->context->tables,Table *,index);
                 wa_debug("  table.entries: %p, offset: 0x%x\n", dtab->entries, offset);
-
                 for (uint32_t n=0; n<num_elem; n++) {
                     wa_debug("  write table entries %p, offset: 0x%x, n: 0x%x, addr: %p\n",
                             dtab->entries, offset, n, &dtab->entries[offset+n]);
@@ -460,7 +474,6 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                     default:
                     return "Illegal segment flags.";
                 }
-                wa_assert(midx==0,"multimemory not support yet.");
                 // Run the init_expr to get the offset
                 m->pc=pos;
                 waexpr_run_const(m,&offset);
@@ -468,10 +481,10 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
 
                 // Copy the data to the memory offset
                 uint32_t size = read_LEB(bytes, &pos, 32);
-                
+                Memory *memory=*dynarr_get(m->context->memories,Memory *,midx);
                 wa_debug("  setting %d bytes of memory at %p + offset %d\n",
-                    size, m->context->memory.bytes, offset);
-                memcpy(m->context->memory.bytes+offset, bytes+pos, size);
+                    size, memory->bytes, offset);
+                memcpy(memory->bytes+offset, bytes+pos, size);
                 pos += size;
                 
             }
@@ -533,13 +546,15 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
     for(int i=0;i<m->functions->len;i++){
         m->context->funcentries[i]=dynarr_get(m->functions,WasmFunction,i)->func_ptr;
     }
-    
+    wa_debug("table count %x\n",m->context->own_tables_count);
     //update table entries to real function entries.
-    for(int i1=0;i1<m->context->tables->len;i1++){
-        Table *tab=dynarr_get(m->context->tables,Table,i1);
-        if(tab->elem_type==WVT_FUNC && tab->is_import==0){
+    for(int i1=0;i1<m->context->own_tables_count;i1++){
+        Table *tab=m->context->own_tables+i1;
+        wa_debug("table type %x\n",tab->elem_type);
+        if(tab->elem_type==WVT_FUNC){
             for(int i=0;i<tab->size;i++){
                 if(tab->entries[i]!=NULL){
+                    wa_debug("function entry update:%p->%p\n",tab->entries[i],((WasmFunction *)tab->entries[i])->func_ptr);
                     tab->entries[i]=((WasmFunction *)tab->entries[i])->func_ptr;
                 }
             }
@@ -566,27 +581,39 @@ static int free_runtimectx(RuntimeContext *rc){
     if(rc->exports!=NULL){
         dynarr_free(&rc->exports);
     }
-    if(rc->memory.bytes!=NULL){
-        wa_free(rc->memory.bytes);
-        rc->memory.bytes=NULL;
+    if(rc->own_memories!=NULL){
+        for(i=0;i<rc->own_memories_count;i++){
+            Memory *mem=rc->own_memories+i;
+            if(mem->bytes!=NULL){
+                wa_free(mem->bytes);
+                mem->bytes=NULL;
+            }
+        }
+        wa_free(rc->own_memories);
     }
-    if(rc->tables!=NULL){
-        for(i=0;i<rc->tables->len;i++){
-            Table *tab=dynarr_get(rc->tables,Table,i);
-            if(tab->is_import==0 && tab->entries!=NULL){
+    if(rc->memories!=NULL){
+        dynarr_free(&rc->memories);
+    }
+    if(rc->own_tables!=NULL){
+        for(i=0;i<rc->own_tables_count;i++){
+            Table *tab=rc->own_tables+i;
+            if(tab->entries!=NULL){
                 wa_free(tab->entries);
                 tab->entries=NULL;
             }
         }
+        wa_free(rc->own_tables);
+    }
+    if(rc->tables!=NULL){
         dynarr_free(&rc->tables);
     }
     
-    
-    //only free code generate by module self.
-    for(i=rc->import_funcentries_count;i<rc->funcentries_count;i++){
-        pwart_FreeFunction(rc->funcentries[i]);
-    }
     if(rc->funcentries!=NULL){
+        //only free code generate by module self.
+        for(i=rc->import_funcentries_count;i<rc->funcentries_count;i++){
+            if(rc->funcentries!=NULL)
+                pwart_FreeFunction(rc->funcentries[i]);
+        }
         wa_free(rc->funcentries);
         rc->funcentries=NULL;
     }
@@ -611,6 +638,16 @@ static int free_module(ModuleCompiler *m){
     }
     if(m->types_pool.chunks!=NULL){
         pool_free(&m->types_pool);
+    }
+    if(m->blocks!=NULL){
+        dynarr_free(&m->blocks);
+    }
+    if(m->br_table!=NULL){
+        dynarr_free(&m->br_table);
+    }
+    if(m->jitc!=NULL){
+        sljit_free_compiler(m->jitc);
+        m->jitc=NULL;
     }
     wa_free(m);
     return 0;

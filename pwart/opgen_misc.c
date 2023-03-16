@@ -140,6 +140,7 @@ static char *opgen_GenMiscOp_FC(ModuleCompiler *m,int opcode){
     wa_debug("unrecognized misc opcode 0xfc 0x%x at %d", opcode, m->pc);
     return "unrecognized opcode";
   }
+  return NULL;
 }
 
 static char *opgen_GenMiscOp(ModuleCompiler *m, int opcode) {

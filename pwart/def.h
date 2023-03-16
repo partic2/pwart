@@ -129,23 +129,29 @@ typedef struct pwart_wasm_memory Memory;
 
 typedef struct Export {
     uint8_t     external_kind;
-    uint8_t     is_import;
     char       *export_name;
     void       *value;
 } Export;
 
+
 typedef struct RuntimeContext{
-    uint8_t      memory_model;   // PWART_MEMORY_MODEL_xxxx
-    uint8_t      stack_flags;    //PWART_STACK_FLAGS_xxx
+    uint8_t memory_model;   // PWART_MEMORY_MODEL_xxxx
+    uint8_t stack_flags;    //PWART_STACK_FLAGS_xxx
     struct pool strings_pool;   //string pools, type char
     WasmFunctionEntry *funcentries;  // imported and locally defined functions, type WasmFunctionEntry
-    int funcentries_count;
-    int import_funcentries_count;
+    uint32_t funcentries_count;
+    uint32_t import_funcentries_count;
+    uint16_t import_tables_count;
+    uint16_t own_tables_count;
+    uint16_t own_memories_count;
+    Table *own_tables; //tables owned by module self, not imported. (can't move)
+    Memory *own_memories; //memories owned by module self, not imported. (can't move)
     //XXX: maybe use fixed size array is better
     struct dynarr *globals; // globals variable buffer, type uint8_t
-    struct dynarr *tables; // tables, type Table
+    struct dynarr *tables; // tables, type Table *
+    struct dynarr *memories; // memories, type Memory *
     struct dynarr *exports;// exorts, type Export
-    Memory      memory;         // memory 0 infomation
+    void (*import_resolver)(char *import_module,char *import_field,uint32_t kind,void *result);
     void *userdata;  //user data, pwart don't use it.
 }RuntimeContext;
 
@@ -174,7 +180,7 @@ typedef struct ModuleCompiler {
 
     struct dynarr *functions;      //functions, type WasmFunction
 
-    struct pwart_compile_config cfg;
+    void (*import_resolver)(char *import_module,char *import_field,uint32_t kind,void *result);
 
     uint8_t compile_succeeded;
 
@@ -468,11 +474,9 @@ static uint32_t LOAD_SIZE[] = {
     4, 8, 4, 8, 1, 2, 1, 2, 4};               // stores
 
 
-// global exception message
-char  exception[4096];
+
 
 static struct pwart_global_compile_config pwart_gcfg={
-    .memory_model=PWART_MEMORY_MODEL_FIXED_SIZE,
     .stack_flags=0
 };
 

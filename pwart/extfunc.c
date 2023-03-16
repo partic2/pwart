@@ -288,18 +288,19 @@ static void insn_f64converti64u(double *fp){
 static void insn_memorygrow(void *fp){
   void *sp=fp;
   uint32_t delta = pwart_rstack_get_i32(&sp);
-  pwart_rstack_get_i32(&sp); // memory index
-  RuntimeContext *m=(RuntimeContext *)((uint8_t **)fp+8);
-  uint32_t prev_pages = m->memory.pages;
+  uint32_t index=pwart_rstack_get_i32(&sp); // memory index
+  RuntimeContext *m=pwart_rstack_get_ref(&sp);
+  Memory *mem=*dynarr_get(m->memories,Memory *,index);
+  uint32_t prev_pages = mem->pages;
   if (delta == 0) {
     return; // No change
-  } else if (delta + prev_pages > m->memory.maximum) {
+  } else if (delta + prev_pages > mem->maximum) {
     prev_pages = 0xffffffff;
     return;
   }
-  m->memory.pages += delta;
-  if(m->memory_model==PWART_MEMORY_MODEL_GROW_ENABLED){
-    m->memory.bytes = wa_realloc(m->memory.bytes, m->memory.pages * PAGE_SIZE);
+  mem->pages += delta;
+  if(mem->fixed!=0){
+    mem->bytes = wa_realloc(mem->bytes, mem->pages * PAGE_SIZE);
   }
   sp=fp;
   pwart_rstack_put_i32(&sp,prev_pages);
@@ -317,22 +318,24 @@ static void insn_malloc64(uint64_t *fp){
   *fp=(uint64_t)(size_t)malloc(*fp);
 }
 
-static void insn_call_cdecl(void *fp){
 
-}
 //(i32 destination,i32 source,i32 count,i32 memory_indexA,i32 memory_indexB,ref runtime_context)
 static void insn_memorycopy32(void *fp){
   void *sp=fp;
   uint32_t d=pwart_rstack_get_i32(&sp);
   uint32_t s=pwart_rstack_get_i32(&sp);
   uint32_t n=pwart_rstack_get_i32(&sp);
-  pwart_rstack_get_i32(&sp);pwart_rstack_get_i32(&sp);
+  uint32_t dmi=pwart_rstack_get_i32(&sp);
+  uint32_t smi=pwart_rstack_get_i32(&sp);
+
   RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
   
+  Memory *dmem=*dynarr_get(m->memories,Memory *,dmi);
+  Memory *smem=*dynarr_get(m->memories,Memory *,smi);
   #ifdef DEBUG_BUILD
   printf("test_aid:insn_memorycopy32(%d,%d,%d,%p)\n",d,s,n,m);
   #endif
-  memmove(m->memory.bytes+d,m->memory.bytes+s,n);
+  memmove(dmem->bytes+d,smem->bytes+s,n);
 }
 
 //(i32 destination,i32 source,i32 count,i32 table_indexA,i32 table_indexB,ref runtime_context)
@@ -353,9 +356,14 @@ static void insn_memoryfill32(void *fp){
   uint32_t d=pwart_rstack_get_i32(&sp);
   uint32_t val=pwart_rstack_get_i32(&sp);
   uint32_t n=pwart_rstack_get_i32(&sp);
-  pwart_rstack_get_i32(&sp);pwart_rstack_get_i32(&sp);
+  uint32_t dmi=pwart_rstack_get_i32(&sp);
+  pwart_rstack_get_i32(&sp);
   RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
-  memset(m->memory.bytes+d,val,n);
+  Memory *dmem=*dynarr_get(m->memories,Memory *,dmi);
+  #ifdef DEBUG_BUILD
+  printf("test_aid:insn_insn_memoryfill32(%d,%d,%d,%p)\n",d,val,n);
+  #endif
+  memset(dmem->bytes+d,val,n);
 }
 //(i32 destination,ref value,i32 count,i32 table_index,i32 reserve,ref runtime_context)
 static void insn_tablefill32(void *fp){
@@ -375,6 +383,9 @@ static void insn_get_self_runtime_context(void *fp){
   wa_assert(0,"This is stub function. can only call directly.");
 }
 
+static void insn_native_index_size(void *fp){
+  pwart_rstack_put_i32(&fp,sizeof(void *)*8);
+}
 
 static uint8_t types_void[] = {0};
 

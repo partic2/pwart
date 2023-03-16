@@ -105,21 +105,18 @@ static void opgen_GenTableSet(ModuleCompiler *m, uint32_t idx) {
   m->sp--;
 }
 
-static void opgen_GenCurrentMemory(ModuleCompiler *m) {
+static void opgen_GenCurrentMemory(ModuleCompiler *m,uint32_t index) {
   int32_t a;
   StackValue *sv;
   a = pwart_GetFreeReg(m, RT_INTEGER, 0);
-  sv = dynarr_get(m->locals, StackValue, m->runtime_ptr_local);
-  sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.op, sv->val.opw);
-  sljit_emit_op1(m->jitc, SLJIT_MOV32, a, 0, SLJIT_MEM1(a),
-                 offsetof(RuntimeContext, memory.pages));
+  sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,SLJIT_IMM,(sljit_uw)(&(*dynarr_get(m->context->memories,Memory *,index))->pages));
   sv = stackvalue_Push(m, WVT_I32);
   sv->jit_type = SVT_GENERAL;
-  sv->val.op = a;
+  sv->val.op = SLJIT_MEM1(a);
   sv->val.opw = 0;
 }
-static void opgen_GenMemoryGrow(ModuleCompiler *m) {
-  opgen_GenI32Const(m,0);
+static void opgen_GenMemoryGrow(ModuleCompiler *m,uint32_t index) {
+  opgen_GenI32Const(m,index);
   opgen_GenRefConst(m,m->context);
   pwart_EmitCallFunc(m, &func_type_i32_i32_ref_ret_i32, SLJIT_IMM,
                      (sljit_sw)&insn_memorygrow);
@@ -221,27 +218,48 @@ static void opgen_GenFloatLoad(ModuleCompiler *m, int32_t opcode, int32_t a,
   }
 }
 //pop stack top, and convert to base address stored in register, return the register.
-static int opgen_GenBaseAddressReg(ModuleCompiler *m){
+static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t index){
   StackValue *sv,*sv2;
   int a;
   sljit_s32 op;
   sljit_sw opw;
   sv2 = &m->stack[m->sp];                                    // addr
-  sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
-  a = pwart_GetFreeReg(m, RT_BASE, 1);
+  if((*dynarr_get(m->context->memories,Memory *,index))->bytes==NULL){
+    //raw memory
+    pwart_EmitStackValueLoadReg(m,sv2);
+    m->sp--;
+    return sv2->val.op;
+  }
+  if(index==0){
+    sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
+    //here we don't need reserve top stack value
+    a = pwart_GetFreeReg(m, RT_BASE, 1);
+  }else{
+    Memory *mem=*dynarr_get(m->context->memories,Memory *,index);
+    a = pwart_GetFreeReg(m, RT_BASE, 0);
+    sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,SLJIT_IMM,(sljit_uw)&mem->bytes);
+    sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,SLJIT_MEM1(a),0);
+    sv=stackvalue_Push(m,WVT_REF);
+    sv->jit_type=SVT_GENERAL;
+    sv->val.op=a;
+    sv->val.opw=0;
+  }
   if (sv2->wasm_type == WVT_I32) {
     sljit_emit_op2(m->jitc, SLJIT_ADD32, a, 0, sv->val.op, sv->val.opw,
-                   sv2->val.op, sv2->val.opw);
+                  sv2->val.op, sv2->val.opw);
   } else {
     if (m->target_ptr_size == 64) {
       sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
-                     sv2->val.op, sv2->val.opw);
+                    sv2->val.op, sv2->val.opw);
     } else {
       // For 32bit arch, memory64 only use the least significant word. 
       stackvalue_LowWord(m,sv2,&op,&opw);
       sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
-                     op, opw);
+                    op, opw);
     }
+  }
+  if(index!=0){
+    m->sp--;
   }
   m->sp--;
   return a;
@@ -249,9 +267,9 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m){
 
 // size: result size. size2: memory size.
 static void opgen_GenLoad(ModuleCompiler *m, int32_t opcode, sljit_sw offset,
-                          sljit_sw align) {
+                          sljit_sw align,sljit_uw memindex) {
   int32_t a;
-  a=opgen_GenBaseAddressReg(m);
+  a=opgen_GenBaseAddressReg(m,memindex);
   switch (opcode) {
   case 0x28: // i32.loadxx
   case 0x2c:
@@ -279,11 +297,11 @@ static void opgen_GenLoad(ModuleCompiler *m, int32_t opcode, sljit_sw offset,
 }
 
 static void opgen_GenStore(ModuleCompiler *m, int32_t opcode, sljit_sw offset,
-                           sljit_sw align) {
+                           sljit_sw align,sljit_uw memindex) {
   int32_t a;
   StackValue *sv, *sv2;
   stackvalue_EmitSwapTopTwoValue(m);
-  a=opgen_GenBaseAddressReg(m);
+  a=opgen_GenBaseAddressReg(m,memindex);
   sv = &m->stack[m->sp];
   switch (opcode) {
   case 0x36: // i32.store
@@ -349,7 +367,7 @@ static void opgen_GenTableFill(ModuleCompiler *m,int32_t tabidx){
 }
 
 static char *opgen_GenMemOp(ModuleCompiler *m, int opcode) {
-  int32_t arg, tidx;
+  int32_t arg, tidx,midx;
   uint64_t arg64;
   sljit_sw align, offset;
   switch (opcode) {
@@ -388,23 +406,27 @@ static char *opgen_GenMemOp(ModuleCompiler *m, int opcode) {
   // Memory-related operators
   //
   case 0x3f:                        // current_memory
-    read_LEB(m->bytes, &m->pc, 32); // ignore reserved
-    opgen_GenCurrentMemory(m);
+    midx=read_LEB(m->bytes, &m->pc, 32); // memory index
+    opgen_GenCurrentMemory(m,midx);
     break;
   case 0x40:                        // memory.grow
-    read_LEB(m->bytes, &m->pc, 32); // ignore reserved
-    opgen_GenMemoryGrow(m);
+    midx=read_LEB(m->bytes, &m->pc, 32); // memory index
+    opgen_GenMemoryGrow(m,midx);
     break;
   // Memory load operators
   case 0x28 ... 0x35:
+    midx=0;
     align = read_LEB(m->bytes, &m->pc, 32);
+    if(align&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
     offset = read_LEB(m->bytes, &m->pc, 32);
-    opgen_GenLoad(m, opcode, offset, align);
+    opgen_GenLoad(m, opcode, offset, align,midx);
     break;
   case 0x36 ... 0x3e:
+    midx=0;
     align = read_LEB(m->bytes, &m->pc, 32);
+    if(align&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
     offset = read_LEB(m->bytes, &m->pc, 32);
-    opgen_GenStore(m, opcode, offset, align);
+    opgen_GenStore(m, opcode, offset, align,midx);
     break;
   //
   // Constants
