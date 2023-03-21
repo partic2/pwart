@@ -993,7 +993,7 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
     a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     if (m->target_ptr_size == 32 && sv->wasm_type == WVT_I64) {
       if (sv->jit_type == SVT_TWO_REG) {
-        sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.op, sv->val.opw);
+        sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.tworeg.opr1, 0);
       } else if (sv->jit_type == SVT_I64CONST) {
         sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM,
                        (sljit_sw)sv->val.const64 & 0xffffffff);

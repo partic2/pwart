@@ -107,6 +107,7 @@ static StackValue *stackvalue_FindSvalueUseReg(ModuleCompiler *m, sljit_s32 r,
 static int pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int memreg,
                                      int offset) {
   if (sv->jit_type == SVT_GENERAL) {
+    if(memreg==sv->val.op && offset==sv->val.opw)return 0;
     if (m->target_ptr_size == 64) {
       switch (sv->wasm_type) {
       case WVT_I32:
@@ -195,6 +196,7 @@ static int pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int memr
       SLJIT_UNREACHABLE();
     }
   }
+  return 0;
 }
 // store value into [S0+IMM]
 static int pwart_EmitSaveStack(ModuleCompiler *m, StackValue *sv) {
@@ -713,14 +715,7 @@ static void opgen_GenRefConst(ModuleCompiler *m,void *c) {
 }
 
 //if fn is stub/inline function, generate native code and return 1, else return 0.
-static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn){
-  struct pwart_builtin_symbols *functbl=pwart_get_builtin_symbols();
-  if(fn==functbl->get_self_runtime_context){
-    opgen_GenRefConst(m,m->context);
-    return 1;
-  }
-  return 0;
-}
+static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn);
 
 //get the table entries base and store into register r
 static int opgen_GenTableEntriesBase(ModuleCompiler *m,int index,int r){

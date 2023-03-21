@@ -56,7 +56,7 @@ struct pwart_wasm_memory {
     uint32_t    pages;       // current size (64K pages)
 
     /*  memory area, if 0, indicate this memory is mapped to native host memory directly, and the pwart will generated faster code to access this memory. 
-        In this case, memory can only be allocated by call malloc32/malloc64, and index type should match the machine word size.
+        In this case, memory can only be allocated by call pwart_builtin.memory_alloc, and index type should match the machine word size.
         wasm module can use this memory by import memory pwart_builtin.native_memory, see pwart_builtin_symbols for detail.
     */
     uint8_t    *bytes;
@@ -96,7 +96,16 @@ extern char *pwart_set_global_compile_config(struct pwart_global_compile_config 
 extern char *pwart_get_global_compile_config(struct pwart_global_compile_config *config);
 
 //return error message if any, or NULL if succeded.
-extern char *pwart_set_symbol_resolver(pwart_module_compiler m,void (*resolver)(char *import_module,char *import_field,uint32_t kind,void *result));
+struct pwart_symbol_resolve_request{
+    char *import_module;
+    char *import_field;
+    uint32_t kind;
+    void *result;
+};
+struct pwart_symbol_resolver{
+    void (*resolve)(struct pwart_symbol_resolver*_this,struct pwart_symbol_resolve_request *req);
+};
+extern char *pwart_set_symbol_resolver(pwart_module_compiler m,struct pwart_symbol_resolver *resolver);
 
 extern pwart_module_state pwart_get_module_state(pwart_module_compiler m);
 
@@ -173,23 +182,44 @@ struct pwart_builtin_symbols{
     //get pwart version, []->[i32]
     pwart_wasm_function version;
 
-    //allocate memory, see pwart_wasm_memory.bytes
+    //allocate memory, see also pwart_wasm_memory.bytes
+    //allocate memory with 'size', in byte, return index on native_memory, for 32bit native_memory, the most significant 32bit word are 0.
+    //function type [i32 size]->[i64]
+    pwart_wasm_function memory_alloc;
+    //function type [i64]->[]
+    pwart_wasm_function memory_free;
 
-    //function type [i32]->[i32]
-    pwart_wasm_function malloc32;
-    //function type [i64]->[i64]
-    pwart_wasm_function malloc64;
-    
-    //get the index size to access native memory, 32 or 64.
+
+    //get the index size to access native memory, in byte (sizeof(void *)).
     //function type []->[i32]
     pwart_wasm_function native_index_size;
 
     //Stub function, can only be called DIRECTLY by wasm.
     //PWART will compile these 'call' instruction into native code, instead of function call.
 
-    //get pwart_runtime_context attached to current function.
+    //get pwart_module_state attached to current function.
     //function type []->[ref]
     pwart_wasm_function get_self_runtime_context;
+
+    //get "pointer" reference that represent the address specified by the index at memory 0, should only be called directly.
+    //function type [i32|i64 index]->[ref]
+    pwart_wasm_function ref_from_index;
+
+    //copy bytes from 'src' to 'dst' for 'n' bytes, use "pointer" reference. 
+    //function type [ref dst,ref src,i32 n]->[]
+    pwart_wasm_function ref_copy_bytes;
+
+    //get the length of a string, specified by "pointer" reference.
+    //function type [ref str]->[i32 n]
+    pwart_wasm_function ref_string_length;
+
+    //cast i64 to "pointer" reference.
+    //function type [i64]->[ref] 
+    pwart_wasm_function ref_from_i64;
+
+    //cast "pointer" reference to i64.
+    //function type [ref]->[i64] 
+    pwart_wasm_function i64_from_ref;
 
     //special pwart_wasm_memory that map to the native host memory directly, memory->bytes is 0; 
     struct pwart_wasm_memory native_memory;

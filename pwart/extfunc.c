@@ -311,11 +311,16 @@ static void insn_version(uint32_t *fp){
   *fp=pwart_get_version();
 }
 //allocate memory
-static void insn_malloc32(uint32_t *fp){
-  *fp=(uint32_t)(size_t)malloc(*fp);
+static void insn_memory_alloc(void *fp){
+  void *sp=fp;
+  uint32_t size=pwart_rstack_get_i32(sp);
+  sp=fp;
+  pwart_rstack_put_i64(sp,(uint64_t)(size_t)malloc(size));
 }
-static void insn_malloc64(uint64_t *fp){
-  *fp=(uint64_t)(size_t)malloc(*fp);
+static void insn_memory_free(void *fp){
+  void *sp=fp;
+  void *p=(void *)(size_t)pwart_rstack_get_i64(sp);
+  free(p);
 }
 
 
@@ -379,12 +384,45 @@ static void insn_tablefill32(void *fp){
     ent[i1]=val;
   }
 }
+
+static void insn_native_index_size(void *fp){
+  pwart_rstack_put_i32(&fp,sizeof(void *));
+}
+
+static void insn_ref_from_i64(void *fp){
+  void *sp=fp;
+  void *ref=(void *)(size_t)pwart_rstack_get_i64(&sp);
+  sp=fp;
+  pwart_rstack_put_ref(&sp,ref);
+
+}
+static void insn_i64_from_ref(void *fp){
+  void *sp=fp;
+  uint64_t i64=(uint64_t)(size_t)pwart_rstack_get_ref(&sp);
+  sp=fp;
+  pwart_rstack_put_i64(&sp,i64);
+}
+
 static void insn_get_self_runtime_context(void *fp){
   wa_assert(0,"This is stub function. can only call directly.");
 }
+static void insn_ref_from_index(void *fp){
+  wa_assert(0,"This is stub function. can only call directly.");
+}
+static void insn_ref_copy_bytes(void *fp){
+  void *sp=fp;
+  void *d=pwart_rstack_get_ref(&sp);
+  void *s=pwart_rstack_get_ref(&sp);
+  uint32_t n=pwart_rstack_get_i32(&sp);
+  memmove(d,s,n);
+}
 
-static void insn_native_index_size(void *fp){
-  pwart_rstack_put_i32(&fp,sizeof(void *)*8);
+static void insn_ref_string_length(void *fp){
+  void *sp=fp;
+  char *s=pwart_rstack_get_ref(&sp);
+  uint32_t n=strlen(s);
+  sp=fp;
+  pwart_rstack_put_i32(&sp,n);
 }
 
 static uint8_t types_void[] = {0};

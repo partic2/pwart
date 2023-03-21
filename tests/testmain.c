@@ -37,7 +37,10 @@ static void test_printi64(void *fp) {
   printf("testaid:%lld\n", geti64(&sp));
 }
 
-static void symbol_resolver(char *mod, char *name, uint32_t kind,void **val) {
+static void do_resolve(struct pwart_symbol_resolver *_this,struct pwart_symbol_resolve_request *req) {
+  char *mod=req->import_module;
+  char *name=req->import_field;
+  void **val=&req->result;
   if (!strcmp("testaid", mod)) {
     if (!strcmp("printi64", name)) {
       *val = pwart_wrap_host_function_c(test_printi64);
@@ -46,6 +49,7 @@ static void symbol_resolver(char *mod, char *name, uint32_t kind,void **val) {
     }
   }
 }
+struct pwart_symbol_resolver symbol_resolver={.resolve=do_resolve};
 
 // base test
 int test1() {
@@ -61,7 +65,7 @@ int test1() {
   pwart_get_global_compile_config(&gcfg);
   for (int i1 = 0; i1 < 2; i1++) {
     pwart_module_compiler m = pwart_new_module_compiler();
-    pwart_set_symbol_resolver(m, (void *)symbol_resolver);
+    pwart_set_symbol_resolver(m, &symbol_resolver);
     // different config
     switch (i1) {
     case 0:
@@ -100,6 +104,7 @@ int test1() {
 
     int32_t ri32;
     int32_t ri32_2;
+    int32_t ri32_3;
     uint64_t ri64;
     void *rref;
 
@@ -141,7 +146,7 @@ int test1() {
     }
 
     char *memstr = (uint8_t *)ctxinfo.memory;
-    *(memstr + 100) = 0;
+    *(memstr + 50) = 0;
     printf("expect HelloHello!!!!, got %s\n", memstr + 1);
     if (strcmp(memstr + 1, "HelloHello!!!!") != 0) {
       return 0;
@@ -199,10 +204,10 @@ int test1() {
     // fibnacci sequence
     sp = stackbase;
     puti32(&sp, 2);
-    puti32(&sp, 8);
-    *(int *)((char *)ctxinfo.memory + 8) = 0;
-    *(int *)((char *)ctxinfo.memory + 12) = 16;
-    memcpy((char *)ctxinfo.memory + 16, "30", 3);
+    puti32(&sp, 100);
+    *(int *)((char *)ctxinfo.memory + 100) = 0;
+    *(int *)((char *)ctxinfo.memory + 104) = 116;
+    memcpy((char *)ctxinfo.memory + 116, "30", 3);
     sp = stackbase;
     pwart_call_wasm_function(fib_main, sp);
     ri32 = geti32(&sp);
@@ -218,9 +223,10 @@ int test1() {
     ri32 = geti32(&sp);
     ri32_2=geti32(&sp);
     rref = getref(&sp);
-    printf("builtinFuncTest test, expect %d,%d,%p, got %d,%d,%p\n",
-           pwart_get_version(),sizeof(void *)*8 ,ctx, ri32, ri32_2,rref);
-    if (pwart_get_version() != ri32 || sizeof(void *)*8!=ri32_2 || ctx != rref) {
+    ri32_3=geti32(&sp);
+    printf("builtinFuncTest test, expect %x,%x,%p,%x, got %x,%x,%p,%x\n",
+           pwart_get_version(),sizeof(void *) ,ctx,strlen(memstr+1), ri32, ri32_2,rref,ri32_3);
+    if (pwart_get_version() != ri32 || sizeof(void *)!=ri32_2 || ctx != rref || strlen(memstr+1)!=ri32_3) {
       return 0;
     }
 

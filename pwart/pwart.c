@@ -71,7 +71,7 @@ extern struct pwart_wasm_table *pwart_get_export_table(pwart_module_state rc,cha
 }
 
 
-extern char *pwart_set_symbol_resolver(pwart_module_compiler m2,void (*resolver)(char *import_module,char *import_field,uint32_t kind,void *result)){
+extern char *pwart_set_symbol_resolver(pwart_module_compiler m2,struct pwart_symbol_resolver *resolver){
     ModuleCompiler *m=m2;
     m->import_resolver=resolver;
     return NULL;
@@ -247,10 +247,15 @@ static struct pwart_builtin_symbols builtin_symbols={NULL};
 extern struct pwart_builtin_symbols *pwart_get_builtin_symbols(){
     if(builtin_symbols.version==NULL){
         builtin_symbols.version=pwart_wrap_host_function_c((void *)insn_version);
-        builtin_symbols.malloc32=pwart_wrap_host_function_c((void *)insn_malloc32);
-        builtin_symbols.malloc64=pwart_wrap_host_function_c((void *)insn_malloc64);
+        builtin_symbols.memory_alloc=pwart_wrap_host_function_c((void *)insn_memory_alloc);
+        builtin_symbols.memory_free=pwart_wrap_host_function_c((void *)insn_memory_free);
         builtin_symbols.get_self_runtime_context=pwart_wrap_host_function_c((void *)insn_get_self_runtime_context);
         builtin_symbols.native_index_size=pwart_wrap_host_function_c((void *)insn_native_index_size);
+        builtin_symbols.ref_from_index=pwart_wrap_host_function_c((void *)insn_ref_from_index);
+        builtin_symbols.ref_copy_bytes=pwart_wrap_host_function_c((void *)insn_ref_copy_bytes);
+        builtin_symbols.ref_string_length=pwart_wrap_host_function_c((void *)insn_ref_string_length);
+        builtin_symbols.ref_from_i64=pwart_wrap_host_function_c((void *)insn_ref_from_i64);
+        builtin_symbols.i64_from_ref=pwart_wrap_host_function_c((void *)insn_i64_from_ref);
         builtin_symbols.native_memory.bytes=0;
         builtin_symbols.native_memory.fixed=1;
     }

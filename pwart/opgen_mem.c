@@ -224,13 +224,15 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t index){
   sljit_s32 op;
   sljit_sw opw;
   sv2 = &m->stack[m->sp];                                    // addr
+  int8_t spAdd=-1;
+
   if((*dynarr_get(m->context->memories,Memory *,index))->bytes==NULL){
     //raw memory
     pwart_EmitStackValueLoadReg(m,sv2);
     m->sp--;
     return sv2->val.op;
   }
-  if(index==0){
+  if(index==0 && m->mem_base_local>=0){
     sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
     //here we don't need reserve top stack value
     a = pwart_GetFreeReg(m, RT_BASE, 1);
@@ -240,6 +242,7 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t index){
     sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,SLJIT_IMM,(sljit_uw)&mem->bytes);
     sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,SLJIT_MEM1(a),0);
     sv=stackvalue_Push(m,WVT_REF);
+    spAdd--;
     sv->jit_type=SVT_GENERAL;
     sv->val.op=a;
     sv->val.opw=0;
@@ -258,10 +261,7 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t index){
                     op, opw);
     }
   }
-  if(index!=0){
-    m->sp--;
-  }
-  m->sp--;
+  m->sp+=spAdd;
   return a;
 }
 

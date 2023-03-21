@@ -180,12 +180,13 @@ typedef struct ModuleCompiler {
 
     struct dynarr *functions;      //functions, type WasmFunction
 
-    void (*import_resolver)(char *import_module,char *import_field,uint32_t kind,void *result);
+    struct pwart_symbol_resolver *import_resolver;
 
     uint8_t compile_succeeded;
 
     //jit state, used in compile time.
     struct sljit_compiler *jitc;
+    //in bits, 32 or 64
     int32_t target_ptr_size;
     int         pc;        // current parser pos
     int         sp;         // operand stack pointer, stack[sp] is valid stack value.

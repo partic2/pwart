@@ -50,10 +50,15 @@ static void wa_debug(char *fmt,...){
     #endif
 }
 
+static void wa_abort(){
+    printf("aborted...\n");
+    exit(1);
+}
+
 static void wa_assert(int cond,char *failInfo){
     if(!cond){
         wa_debug("assert fail due to %s\n",failInfo);
-        exit(1);
+        wa_abort();
     }
 }
 
@@ -140,7 +145,7 @@ static void *dynarr_push_sizecheck(struct dynarr **buf,int count,int size){
     struct dynarr *arr=*buf;
     if(arr->elemSize!=size){
         wa_debug("size check failed.");
-        exit(1);
+        wa_abort(1);
     }
     return dynarr_push(buf,count);
 }
@@ -161,7 +166,7 @@ static void *dynarr_pop(struct dynarr **buf,int count){
 static void *dynarr_get_boundcheck(struct dynarr *dynarr,int index){
     if(index>dynarr->len || index<0){
         wa_debug("bound check failed.");
-        exit(1);
+        wa_abort(1);
     }
     return dynarr->data+index*dynarr->elemSize;
 }

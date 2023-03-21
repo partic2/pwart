@@ -2,6 +2,10 @@
 (import "pwart_builtin" "version" (func $getPwartVersion (result i32) ))
 (import "pwart_builtin" "native_index_size" (func $native_index_size (result i32) ))
 (import "pwart_builtin" "get_self_runtime_context" (func $get_self_runtime_context (result externref) ))
+(import "pwart_builtin" "ref_from_index" (func $ref_from_index (param i32) (result externref) ))
+(import "pwart_builtin" "ref_from_i64" (func $ref_from_i64 (param i64) (result externref) ))
+(import "pwart_builtin" "i64_from_ref" (func $i64_from_ref (param externref) (result i64) ))
+(import "pwart_builtin" "ref_string_length" (func $ref_string_length (param externref) (result i32) ))
 (import "testaid" "printi64" (func $printi64 (param i64) (result i64) ))
 (memory 4)
   (type $typeAddTwo (func (param i64 i64) (result i64)))
@@ -19,8 +23,8 @@
 
   ;; function 1
   (func $addTwo (param i64 i64) (result i64) 
-      (i64.store (i32.const 0) (local.get 0))
-      (i64.load (i32.const 0))
+      (i64.store (i32.const 200) (local.get 0))
+      (i64.load (i32.const 200))
       local.get 1
       i64.add
   )
@@ -103,10 +107,10 @@
 
   ;; function 4
   (func $test2 (param i64 i64) (result i64) 
-    i32.const 0
+    i32.const 100
     local.get 0
     i64.store
-    i32.const 0
+    i32.const 100
     i64.load
     local.get 1
 
@@ -125,10 +129,10 @@
   (func $test3 (param i32 f64 f64) (result i32 i64) (local i32)
     i32.const 1
     local.get 0
-    i32.const 0
+    i32.const 150
     local.get 1
     f64.store
-    i32.const 0
+    i32.const 150
     f64.load
     local.get 2
     call $addTwoF
@@ -217,10 +221,15 @@
   )
 
   ;; function 9
-  (func $builtinFuncTest (result i32 i32 externref)
+  (func $builtinFuncTest (result i32 i32 externref i32)
   call $getPwartVersion
   call $native_index_size
   call $get_self_runtime_context
+  i32.const 1
+  call $ref_from_index
+  call $i64_from_ref
+  call $ref_from_i64
+  call $ref_string_length
   )
 
   (export "addTwo" (func $addTwo))

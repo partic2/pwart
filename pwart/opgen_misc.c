@@ -169,4 +169,34 @@ static char *opgen_GenMiscOp(ModuleCompiler *m, int opcode) {
   }
   return NULL;
 }
+
+//if fn is stub/inline function, generate native code and return 1, else return 0.
+static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn){
+  struct pwart_builtin_symbols *functbl=pwart_get_builtin_symbols();
+  if(fn==functbl->get_self_runtime_context){
+    opgen_GenRefConst(m,m->context);
+    return 1;
+  }else if(fn==functbl->ref_from_i64){
+    if(m->target_ptr_size==32){
+      opgen_GenConvertOp(m,0xa7);
+    }
+    m->stack[m->sp].wasm_type=WVT_REF;
+    return 1;
+  }else if(fn==functbl->i64_from_ref){
+    if(m->target_ptr_size==32){
+      m->stack[m->sp].wasm_type=WVT_I32;
+      opgen_GenConvertOp(m,0xad);
+    }
+    m->stack[m->sp].wasm_type=WVT_I64;
+    return 1;
+  }else if(fn==functbl->ref_from_index){
+    int r=opgen_GenBaseAddressReg(m,0);
+    StackValue *sv=stackvalue_Push(m,WVT_REF);
+    sv->val.op=r;
+    sv->val.opw=0;
+    sv->jit_type=SVT_GENERAL;
+    return 1;
+  }
+  return 0;
+}
 #endif

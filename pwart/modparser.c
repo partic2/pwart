@@ -202,21 +202,37 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 
                 val=NULL;
                 if(m->import_resolver!=NULL){
-                    m->import_resolver(import_module,import_field,external_kind,&val);
+                    struct pwart_symbol_resolve_request req;
+                    req.import_module=import_module;
+                    req.import_field=import_field;
+                    req.kind=external_kind;
+                    req.result=NULL;
+                    m->import_resolver->resolve(m->import_resolver,&req);
+                    val=req.result;
                 }
 
                 if(val == NULL && !strcmp("pwart_builtin",import_module)){
                     struct pwart_builtin_symbols *builtin=pwart_get_builtin_symbols();
                     if(!strcmp("version",import_field)){
                         val=builtin->version;
-                    }else if(!strcmp("malloc32",import_field)){
-                        val=builtin->malloc32;
-                    }else if(!strcmp("malloc64",import_field)){
-                        val=builtin->malloc64;
+                    }else if(!strcmp("memory_alloc",import_field)){
+                        val=builtin->memory_alloc;
+                    }else if(!strcmp("memory_free",import_field)){
+                        val=builtin->memory_free;
                     }else if(!strcmp("get_self_runtime_context",import_field)){
                         val=builtin->get_self_runtime_context;
                     }else if(!strcmp("native_index_size",import_field)){
                         val=builtin->native_index_size;
+                    }else if(!strcmp("ref_from_index",import_field)){
+                        val=builtin->ref_from_index;
+                    }else if(!strcmp("ref_copy_bytes",import_field)){
+                        val=builtin->ref_copy_bytes;
+                    }else if(!strcmp("ref_string_length",import_field)){
+                        val=builtin->ref_string_length;
+                    }else if(!strcmp("ref_from_i64",import_field)){
+                        val=builtin->ref_from_i64;
+                    }else if(!strcmp("i64_from_ref",import_field)){
+                        val=builtin->i64_from_ref;
                     }else if(!strcmp("native_memory",import_field)){
                         val=&builtin->native_memory;
                     }
