@@ -73,11 +73,10 @@ int test1() {
       break;
     case 1:
       printf("test config:stack_flags=PWART_STACK_FLAGS_AUTO_ALIGN\n");
-      gcfg.stack_flags&=PWART_STACK_FLAGS_AUTO_ALIGN;
+      gcfg.stack_flags|=PWART_STACK_FLAGS_AUTO_ALIGN;
       pwart_set_global_compile_config(&gcfg);
       break;
     }
-
     struct pwart_inspect_result1 ctxinfo;
     char *loadresult = pwart_compile(m, data, len);
     if (loadresult != NULL) {
@@ -115,7 +114,7 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(addTwo, sp);
     ri64 = geti64(&sp);
-    printf("expect %llu, got %llu\n", 777ll, ri64);
+    printf("1.expect %llu, got %llu\n", 777ll, ri64);
 
     if (777ll != ri64) {
       return 0;
@@ -128,7 +127,7 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(test1, sp);
     ri32 = geti32(&sp);
-    printf("expect %u, got %u\n", (22 + 33) * 2, ri32);
+    printf("2.expect %u, got %u\n", (22 + 33) * 2, ri32);
 
     if ((22 + 33) * 2 != ri32) {
       return 0;
@@ -140,18 +139,18 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(test1, sp);
     ri32 = geti32(&sp);
-    printf("expect %u, got %u\n", 100 + 11, ri32);
+    printf("3.expect %u, got %u\n", 100 + 11, ri32);
     if (100 + 11 != ri32) {
       return 0;
     }
 
     char *memstr = (uint8_t *)ctxinfo.memory;
     *(memstr + 50) = 0;
-    printf("expect HelloHello!!!!, got %s\n", memstr + 1);
+    printf("4.expect HelloHello!!!!, got %s\n", memstr + 1);
     if (strcmp(memstr + 1, "HelloHello!!!!") != 0) {
       return 0;
     }
-    printf("expect %p, got %p , %p\n", ctxinfo.table_entries[0],
+    printf("5.expect %p, got %p , %p\n", ctxinfo.table_entries[0],
            ctxinfo.table_entries[1], ctxinfo.table_entries[2]);
     if (ctxinfo.table_entries[0] != ctxinfo.table_entries[1]) {
       return 0;
@@ -166,7 +165,7 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(test2, sp);
     ri64 = geti64(&sp);
-    printf("expect %u, got %llu\n", (22 + 33 + 140), ri64);
+    printf("6.expect %u, got %llu\n", (22 + 33 + 140), ri64);
     if (22 + 33 + 140 != ri64) {
       return 0;
     }
@@ -178,7 +177,7 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(test2, sp);
     ri64 = geti64(&sp);
-    printf("expect %u, got %llu\n", 22 + 33 + 140 + 2, ri64);
+    printf("7.expect %u, got %llu\n", 22 + 33 + 140 + 2, ri64);
     if (22 + 33 + 140 + 2 != ri64) {
       return 0;
     }
@@ -192,7 +191,7 @@ int test1() {
     pwart_call_wasm_function(test3, sp);
     ri32 = geti32(&sp);
     ri64 = geti64(&sp);
-    printf("expect %d,%llu, got %d,%llu\n", 3844, (int64_t)(3.25 + 4.75), ri32,
+    printf("8.expect %d,%llu, got %d,%llu\n", 3844, (int64_t)(3.25 + 4.75), ri32,
            ri64);
     if ((int64_t)(3.25 + 4.75) != ri64) {
       return 0;
@@ -211,7 +210,7 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(fib_main, sp);
     ri32 = geti32(&sp);
-    printf("fib test, expect %d, got %d\n", 832040, ri32);
+    printf("9.fib test, expect %d, got %d\n", 832040, ri32);
     if (832040 != ri32) {
       return 0;
     }
@@ -224,7 +223,7 @@ int test1() {
     ri32_2=geti32(&sp);
     rref = getref(&sp);
     ri32_3=geti32(&sp);
-    printf("builtinFuncTest test, expect %x,%x,%p,%x, got %x,%x,%p,%x\n",
+    printf("10.builtinFuncTest test, expect %x,%x,%p,%x, got %x,%x,%p,%x\n",
            pwart_get_version(),sizeof(void *) ,ctx,strlen(memstr+1), ri32, ri32_2,rref,ri32_3);
     if (pwart_get_version() != ri32 || sizeof(void *)!=ri32_2 || ctx != rref || strlen(memstr+1)!=ri32_3) {
       return 0;
@@ -2421,6 +2420,7 @@ int main(int argc, char *argv[]) {
     printf("convert_test failed\n");
     return 1;
   }
+  
   
   if (test1()) {
     printf("test1 pass\n");

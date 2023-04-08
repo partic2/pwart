@@ -40,10 +40,11 @@ static void opgen_GenGlobalGet(ModuleCompiler *m, uint32_t idx) {
   int32_t a;
   StackValue *sv;
   a = pwart_GetFreeReg(m, RT_BASE, 0);
-  sv = dynarr_get(m->locals, StackValue, m->globals_base_local);
-  sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.op, sv->val.opw);
+  sv = dynarr_get(m->globals, StackValue, idx);
+  sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM, sv->val.opw);
   sv = stackvalue_PushStackValueLike(m, dynarr_get(m->globals, StackValue, idx));
   sv->val.op = SLJIT_MEM1(a);
+  sv->val.opw=0;
   sv->jit_type = SVT_GENERAL;
   pwart_EmitStackValueLoadReg(m, sv);
 }
@@ -52,11 +53,10 @@ static void opgen_GenGlobalSet(ModuleCompiler *m, uint32_t idx) {
   int32_t a;
   StackValue *sv, *sv2;
   a = pwart_GetFreeReg(m, RT_BASE, 0);
-  sv = dynarr_get(m->locals, StackValue, m->globals_base_local);
-  sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.op, sv->val.opw);
   sv = dynarr_get(m->globals, StackValue, idx);
+  sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM, sv->val.opw);
   sv2 = &m->stack[m->sp];
-  pwart_EmitStoreStackValue(m, sv2, SLJIT_MEM1(a), sv->val.opw);
+  pwart_EmitStoreStackValue(m, sv2, SLJIT_MEM1(a), 0);
   m->sp--;
 }
 
@@ -232,7 +232,7 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t index){
     m->sp--;
     return sv2->val.op;
   }
-  if(index==0 && m->mem_base_local>=0){
+  if(index==m->cached_midx){
     sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
     //here we don't need reserve top stack value
     a = pwart_GetFreeReg(m, RT_BASE, 1);
@@ -265,7 +265,7 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t index){
   return a;
 }
 
-// size: result size. size2: memory size.
+
 static void opgen_GenLoad(ModuleCompiler *m, int32_t opcode, sljit_sw offset,
                           sljit_sw align,sljit_uw memindex) {
   int32_t a;

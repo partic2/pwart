@@ -16,7 +16,7 @@ about sljit: https://github.com/zherczeg/sljit
 
 Currently only support GCC-like toolchain, consider use MinGW on Windows please.
 
-1. set environment variable PWART_SOURCE_ROOT to the project directory.
+1. Set environment variable PWART_SOURCE_ROOT to the project directory.
 
 2. In your Makefile, write
 ```shell
@@ -51,12 +51,12 @@ cd $PWART_SOURCE_ROOT/tests
 make
 ```
 
-## Features
 
-
-### Implemented
+## Implemented
 
 WebAssembly MVP
+
+Import/Export of Mutable Globals
 
 Sign-extension operators
 
@@ -70,9 +70,9 @@ Memory64(support i64 index, offset and align are still 32bit. bulk memory op. ar
 
 Reference types
 
-Multiple memories(not test yet)
+Multiple memories
 
-### NOT Implemented
+## NOT Implemented
 
 Fixed-width SIMD.
 
@@ -82,6 +82,6 @@ Fixed-width SIMD.
 
 2. Performance optimization.
 
-3. Implement more feature.
+3. Namespace/Linker
 
 4. WASI Support.

@@ -389,15 +389,18 @@ static int pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
     }
     sv->val.opw = sv->frame_offset;
   }
-  Memory *mem0=*dynarr_get(m->context->memories,Memory *,0);
-  if((m->mem_base_local >= 0) && (!mem0->fixed)){
-    //reload memory base
-    uint32_t tr;
-    StackValue *sv;
-    tr=pwart_GetFreeReg(m,RT_BASE,0);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, tr, 0, SLJIT_IMM,(sljit_uw)&mem0->bytes);
-    sv=dynarr_get(m->locals,StackValue,m->mem_base_local);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw, SLJIT_MEM1(tr),0);
+  
+  if((m->mem_base_local >= 0)){
+    Memory *mem0=*dynarr_get(m->context->memories,Memory *,m->cached_midx);
+    if(!mem0->fixed){
+      //reload memory base
+      uint32_t tr;
+      StackValue *sv;
+      tr=pwart_GetFreeReg(m,RT_BASE,0);
+      sljit_emit_op1(m->jitc, SLJIT_MOV, tr, 0, SLJIT_IMM,(sljit_uw)&mem0->bytes);
+      sv=dynarr_get(m->locals,StackValue,m->mem_base_local);
+      sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw, SLJIT_MEM1(tr),0);
+    }
   }
 }
 
@@ -419,9 +422,19 @@ static int pwart_EmitFuncReturn(ModuleCompiler *m) {
   sljit_emit_return_void(m->jitc);
 }
 
+static int stackvalue_AnyRegUsedBySvalue(StackValue *sv){
+  if(sv->jit_type==SVT_GENERAL){
+    return sv->val.op&0xf;
+  }else if(sv->jit_type==SVT_TWO_REG){
+    return sv->val.tworeg.opr1;
+  }else{
+    SLJIT_UNREACHABLE();
+  }
+}
+
 // get free register. check up to upstack.
 static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype, int upstack) {
-  int i, used;
+  int i;
   sljit_s32 fr;
   StackValue *sv;
 
@@ -451,8 +464,9 @@ static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype, int upst
           }
         }
       }
+      fr=stackvalue_AnyRegUsedBySvalue(sv);
       pwart_EmitSaveStack(m, sv);
-      return SLJIT_R0;
+      return fr;
     }else{
       for (fr = SLJIT_R0; fr < SLJIT_R0 + SLJIT_NUMBER_OF_SCRATCH_REGISTERS;
           fr++) {
@@ -464,8 +478,9 @@ static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype, int upst
           return fr;
         }
       }
+      fr=stackvalue_AnyRegUsedBySvalue(sv);
       pwart_EmitSaveStack(m, sv);
-      return SLJIT_R0;
+      return fr;
     }
   } else {
     for (fr = SLJIT_FR0;
@@ -478,8 +493,9 @@ static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype, int upst
         return fr;
       }
     }
+    fr=stackvalue_AnyRegUsedBySvalue(sv);
     pwart_EmitSaveStack(m, sv);
-    return SLJIT_FR0;
+    return fr;
   }
 }
 
@@ -620,7 +636,7 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
 
   
   if (m->mem_base_local >= 0) {
-    Memory *mem=*dynarr_get(m->context->memories,Memory *,0);
+    Memory *mem=*dynarr_get(m->context->memories,Memory *,m->cached_midx);
     sv = dynarr_get(m->locals, StackValue, m->mem_base_local);
     if(mem->bytes==NULL){
       //raw memory, so we don't need save memory base.
@@ -641,7 +657,7 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
                    SLJIT_IMM, (sljit_uw)tab->entries);
   }
 
-  if(m->functions_base_local >= 0 || m->globals_base_local >= 0){
+  if(m->functions_base_local >= 0){
     sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,(sljit_uw)m->context);
   }
 
@@ -649,13 +665,6 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
     sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
     sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
                    SLJIT_MEM1(SLJIT_R0), get_funcarr_offset(m));
-  }
-  if (m->globals_base_local >= 0) {
-    sv = dynarr_get(m->locals, StackValue, m->globals_base_local);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R1, 0, SLJIT_MEM1(SLJIT_R0),
-                   offsetof(RuntimeContext, globals));
-    sljit_emit_op2(m->jitc, SLJIT_ADD, sv->val.op, sv->val.opw, SLJIT_R1, 0,
-                   SLJIT_IMM, offsetof(struct dynarr, data));
   }
 
   m->runtime_ptr_local = m->locals->len;

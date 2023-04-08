@@ -147,7 +147,7 @@ typedef struct RuntimeContext{
     Table *own_tables; //tables owned by module self, not imported. (can't move)
     Memory *own_memories; //memories owned by module self, not imported. (can't move)
     //XXX: maybe use fixed size array is better
-    struct dynarr *globals; // globals variable buffer, type uint8_t
+    struct dynarr *own_globals; // globals variable buffer, type uint8_t
     struct dynarr *tables; // tables, type Table *
     struct dynarr *memories; // memories, type Memory *
     struct dynarr *exports;// exorts, type Export
@@ -195,23 +195,23 @@ typedef struct ModuleCompiler {
     struct dynarr *br_table; // br_table branch indexes, uint32_t type
     uint8_t eof;      // end of function
 
+    //prepare info, used in compile time
+    Type *function_type;   // function type current processing.
+    uint8_t *function_locals_type; //function locals type current processing.
+    struct dynarr *locals;      // function only, allocate after pwart_PrepareFunc, StackValue type
+    int16_t mem_base_local;   // index of local variable which store memory 0 base.
+    int16_t table_entries_local;  // index of local variable which store the table 0 base.
+    int16_t functions_base_local; // index of local variable which store functions base.
+    int16_t runtime_ptr_local; // index of local variable which store pointer refer to RuntimeContext.
+    int16_t first_stackvalue_offset;
+    int16_t cached_midx;     //the index of memory we cache memory base to register.
+    uint32_t registers_status[SLJIT_NUMBER_OF_SCRATCH_REGISTERS]; // register status [Rx-R0]
+    uint32_t float_registers_status[SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS];
     union{
-        //prepare info, used in compile time
-        struct{
-        Type *function_type;   // function type current processing.
-        uint8_t *function_locals_type; //function locals type current processing.
-        struct dynarr *locals;      // function only, allocate after pwart_PrepareFunc, StackValue type
-        int16_t mem_base_local;   // index of local variable which store memory 0 base.
-        int16_t table_entries_local;  // index of local variable which store the table 0 base.
-        int16_t functions_base_local; // index of local variable which store functions base.
-        int16_t globals_base_local; // index of local variable which store globals base.
-        int16_t runtime_ptr_local; // index of local variable which store pointer refer to RuntimeContext.
-        int16_t first_stackvalue_offset;
-        uint32_t registers_status[SLJIT_NUMBER_OF_SCRATCH_REGISTERS]; // register status [Rx-R0]
-        uint32_t float_registers_status[SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS];
-        };
         //temporary buffer used in importing
         char import_name_buffer[512];
+        //buffer to format error message.
+        char err_message[512];
     };
     
 } ModuleCompiler;

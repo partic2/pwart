@@ -95,7 +95,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
     dynarr_init(&m->context->exports,sizeof(Export));
     dynarr_init(&m->context->memories,sizeof(Memory *));
     dynarr_init(&m->context->tables,sizeof(Table *));
-    dynarr_init(&m->context->globals,sizeof(uint8_t));
+    dynarr_init(&m->context->own_globals,sizeof(uint8_t));
     dynarr_init(&m->functions,sizeof(WasmFunction));
     m->start_function = -1;
 
@@ -277,20 +277,8 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                     StackValue *sv;
                     sv=dynarr_push_type(&m->globals,StackValue);
                     sv->wasm_type=content_type;
-                    sv->val.opw=m->context->globals->len;
-                    switch (content_type) {
-                    case WVT_I32:
-                    case WVT_F32:
-                     *(uint32_t *)dynarr_push(&m->context->globals,4)=*(uint32_t *)val;
-                      break;
-                    case WVT_I64: 
-                    case WVT_F64: 
-                    *(uint64_t *)dynarr_push(&m->context->globals,8)=*(uint64_t *)val;
-                      break;
-                    default:
-                    *(sljit_sw *)dynarr_push(&m->context->globals,sizeof(sljit_sw))=*(sljit_sw *)val;
-                      break;
-                    }
+                    sv->val.op=SLJIT_IMM|SLJIT_MEM;
+                    sv->val.opw=(sljit_sw)val;
                 }break;
                 default:
                     wa_debug("Import of kind %d not supported\n", external_kind);
@@ -367,7 +355,9 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 uint32_t gidx = m->globals->len;
                 sv=dynarr_push_type(&m->globals,StackValue);
                 sv->wasm_type=type;
-                sv->val.opw=m->context->globals->len;
+                //Here we use SLJIT_IMM to mark opw as offset, instead of address, and set real address later.
+                sv->val.op=SLJIT_IMM;
+                sv->val.opw=m->context->own_globals->len;
                 // Run the init_expr to get global value
                 m->pc=pos;
                 waexpr_run_const(m,&result);
@@ -375,17 +365,25 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 switch (type) {
                     case WVT_I32:
                     case WVT_F32:
-                     *(uint32_t *)dynarr_push(&m->context->globals,4)=(uint32_t)result;
+                     *(uint32_t *)dynarr_push(&m->context->own_globals,4)=(uint32_t)result;
                       break;
                     case WVT_I64: 
                     case WVT_F64: 
-                    *(uint64_t *)dynarr_push(&m->context->globals,8)=result;
+                    *(uint64_t *)dynarr_push(&m->context->own_globals,8)=result;
                       break;
                     default:
-                    *(sljit_sw *)dynarr_push(&m->context->globals,sizeof(sljit_sw))=(sljit_sw)result;
+                    *(sljit_sw *)dynarr_push(&m->context->own_globals,sizeof(sljit_sw))=(sljit_sw)result;
                       break;
                     }
                 wa_debug("globals %d ,type %d, value %lld\n",g,type,result);
+            }
+            //set real address
+            for(int i=0;i<m->globals->len;i++){
+                StackValue *sv=dynarr_get(m->globals,StackValue,i);
+                if(sv->val.op==SLJIT_IMM){
+                    sv->val.opw=(sljit_uw)(m->context->own_globals->data+sv->val.opw);
+                    sv->val.op=SLJIT_IMM|SLJIT_MEM;
+                }
             }
             pos = start_pos+slen;
             break;
@@ -417,7 +415,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                         exp->value = *dynarr_get(m->context->memories,Memory *,index);
                         break;
                     case PWART_KIND_GLOBAL:
-                        exp->value = &m->context->globals->data+dynarr_get(m->globals,StackValue,index)->val.opw;
+                        exp->value = (void *)dynarr_get(m->globals,StackValue,index)->val.opw;
                         break;
                     }
                 }
@@ -590,8 +588,8 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
 
 static int free_runtimectx(RuntimeContext *rc){
     int i;
-    if(rc->globals!=NULL){
-        dynarr_free(&rc->globals);
+    if(rc->own_globals!=NULL){
+        dynarr_free(&rc->own_globals);
     }
     pool_free(&rc->strings_pool);
     if(rc->exports!=NULL){

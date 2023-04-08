@@ -92,13 +92,14 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
 
   uint32_t cur_pc;
 
-  uint32_t arg, val, fidx, tidx, depth, count,tabidx;
+  uint32_t arg, val, fidx, tidx, depth, count,tabidx,midx;
   uint32_t flags, offset, addr;
-  uint8_t opcode, eof;
+  uint8_t opcode, eof=0;
   uint32_t len = 0;
   uint32_t block_depth = 1;
   m->locals = NULL;
   dynarr_init(&m->locals, sizeof(StackValue));
+  m->cached_midx=-1;
 
   for (int i = 0; m->function_type->params[i] != 0; i++) {
     sv = dynarr_push_type(&m->locals, StackValue);
@@ -114,7 +115,6 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
   m->mem_base_local = -1;
   m->table_entries_local = -1;
   m->functions_base_local = -1;
-  m->globals_base_local = -1;
   while (!eof && m->pc < m->byte_count) {
     opcode = bytes[m->pc];
     cur_pc = m->pc;
@@ -146,11 +146,9 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
       break;
     case 0x23: // global.get
       arg = read_LEB(bytes, &m->pc, 32);
-      m->globals_base_local = -2;
       break;
     case 0x24: // global.set
       arg = read_LEB(bytes, &m->pc, 32);
-      m->globals_base_local = -2;
       break;
     case 0x25:                            // table.get
       tidx = read_LEB(bytes, &m->pc, 32); // table index
@@ -162,18 +160,17 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
       break;
     // Memory load operators
     case 0x28 ... 0x35:
-      flags = read_LEB(bytes, &m->pc, 32);
-      offset = read_LEB(bytes, &m->pc, 32);
-      m->mem_base_local = -2;
-      break;
-
     // Memory store operators
     case 0x36 ... 0x3e:
-      flags = read_LEB(bytes, &m->pc, 32);
-      offset = read_LEB(bytes, &m->pc, 32);
-      m->mem_base_local = -2;
+      midx=0;
+      arg = read_LEB(m->bytes, &m->pc, 32);
+      if(arg&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
+      offset = read_LEB(m->bytes, &m->pc, 32);
+      if(m->cached_midx<0 && (*dynarr_get(m->context->memories,Memory *,midx))->bytes!=NULL){
+        m->mem_base_local = -2;
+        m->cached_midx=midx;
+      }
       break;
-
     case 0xd2: // ref.func
       fidx = read_LEB(bytes, &m->pc, 32);
       m->functions_base_local = -2;
@@ -198,11 +195,6 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
   }
   if (m->functions_base_local == -2) {
     m->functions_base_local = m->locals->len;
-    sv = dynarr_push_type(&m->locals, StackValue);
-    sv->wasm_type = WVT_REF;
-  }
-  if (m->globals_base_local == -2) {
-    m->globals_base_local = m->locals->len;
     sv = dynarr_push_type(&m->locals, StackValue);
     sv->wasm_type = WVT_REF;
   }

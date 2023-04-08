@@ -9,7 +9,7 @@ include $(PWART_SOURCE_ROOT)/pwart/make_config.mk
 test:build_pwart
 	- rm testexe || rm testexe.exe
 	$(CC) $(PWART_CFLAGS) $(CFLAGS) -o testexe testmain.c $(PWART_LDFLAGS) $(LDFLAGS)
-	$(WAT2WASM) test1.wat
+	$(WAT2WASM) --enable-multi-memory test1.wat
 	$(WAT2WASM) unary.wat
 	$(WAT2WASM) binary.wat
 	$(WAT2WASM) control.wat

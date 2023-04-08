@@ -102,8 +102,8 @@ extern char *pwart_inspect_module_state(pwart_module_state c,struct pwart_inspec
         result->memory_size=mem->pages*PAGE_SIZE;
         result->memory=mem->bytes;
     }
-    result->globals_buffer_size=rc->globals->len;
-    result->globals_buffer=&rc->globals->data;
+    result->globals_buffer_size=rc->own_globals->len;
+    result->globals_buffer=&rc->own_globals->data;
     return NULL;
 }
 
@@ -139,9 +139,10 @@ extern void pwart_rstack_put_i32(void **sp,int val){
 }
 extern void pwart_rstack_put_i64(void **sp,long long val){
     if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-        int t=(size_t)sp&7;
+        size_t spv=(size_t)*sp;
+        int t=(size_t)spv&7;
         if(t>0){
-            sp=(void *)sp+8-t;
+            *sp=(void *)(spv+8-t);
         }
     }
     *(int64_t *)(*sp)=val;
@@ -153,19 +154,21 @@ extern void pwart_rstack_put_f32(void **sp,float val){
 }
 extern void pwart_rstack_put_f64(void **sp,double val){
     if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-        int t=(size_t)sp&7;
+        size_t spv=(size_t)*sp;
+        int t=(size_t)spv&7;
         if(t>0){
-            sp=(void *)sp+8-t;
+            *sp=(void *)(spv+8-t);
         }
     }
     *(double *)(*sp)=val;
     *sp+=8;
 }
 extern void pwart_rstack_put_ref(void **sp,void *val){
-    if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN) && (sizeof(void *)==8)){
-        int t=(size_t)sp&7;
+    if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN)&&(sizeof(void *)==8)){
+        size_t spv=(size_t)*sp;
+        int t=(size_t)spv&7;
         if(t>0){
-            sp=(void *)sp+8-t;
+            *sp=(void *)(spv+8-t);
         }
     }
     *(void **)(*sp)=val;
@@ -179,9 +182,10 @@ extern int pwart_rstack_get_i32(void **sp){
 }
 extern long long pwart_rstack_get_i64(void **sp){
     if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-        int t=(size_t)sp&7;
+        size_t spv=(size_t)*sp;
+        int t=(size_t)spv&7;
         if(t>0){
-            sp=(void *)sp+8-t;
+            *sp=(void *)(spv+8-t);
         }
     }
     int64_t *sp2=*sp;
@@ -195,9 +199,10 @@ extern float pwart_rstack_get_f32(void **sp){
 }
 extern double pwart_rstack_get_f64(void **sp){
     if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-        int t=(size_t)sp&7;
+        size_t spv=(size_t)*sp;
+        int t=(size_t)spv&7;
         if(t>0){
-            sp=(void *)sp+8-t;
+            *sp=(void *)(spv+8-t);
         }
     }
     double *sp2=*sp;
@@ -205,10 +210,11 @@ extern double pwart_rstack_get_f64(void **sp){
     return *sp2;
 }
 extern void *pwart_rstack_get_ref(void **sp){
-    if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN) && (sizeof(void *)==8)){
-        int t=(size_t)sp&7;
+    if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN)&&(sizeof(void *)==8)){
+        size_t spv=(size_t)*sp;
+        int t=(size_t)spv&7;
         if(t>0){
-            sp=(void *)sp+8-t;
+            *sp=(void *)(spv+8-t);
         }
     }
     void **sp2=*sp;

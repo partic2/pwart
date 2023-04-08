@@ -366,7 +366,7 @@ static void insn_memoryfill32(void *fp){
   RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
   Memory *dmem=*dynarr_get(m->memories,Memory *,dmi);
   #ifdef DEBUG_BUILD
-  printf("test_aid:insn_insn_memoryfill32(%d,%d,%d,%p)\n",d,val,n);
+  printf("test_aid:insn_insn_memoryfill32(%d,%d,%d)\n",d,val,n);
   #endif
   memset(dmem->bytes+d,val,n);
 }
@@ -497,9 +497,9 @@ static void waexpr_run_const(ModuleCompiler *m, void *result) {
     uint32_t arg = read_LEB(m->bytes, &m->pc, 32);
     StackValue *sv = dynarr_get(m->globals, StackValue, arg);
     if (stackvalue_GetSizeAndAlign(sv, NULL) == 8) {
-      *(uint64_t *)result = *(uint64_t *)(&m->context->globals->data+sv->val.opw);
+      *(uint64_t *)result = *(uint64_t *)(sv->val.opw);
     } else {
-      *(uint32_t *)result = *(uint32_t *)(&m->context->globals->data+sv->val.opw);
+      *(uint32_t *)result = *(uint32_t *)(sv->val.opw);
     }
   } break;
   case 0xd0: //ref.null
