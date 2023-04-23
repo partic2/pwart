@@ -39,7 +39,9 @@ pwart_wasmfunction test1 = pwart_get_export_function(ctx, "test1");
 pwart_call_wasm_function(test1,stackbase);
 ...
 ```
-See [include/pwart.h](include/pwart.h) , [tests/testmain.c](tests/testmain.c) and [tests/Makefile](tests/Makefile) for detail usage.
+
+See [include/pwart.h](include/pwart.h) , [tests/testmain.c](tests/testmain.c)  [tests/testmain2.c](tests/testmain2.c)
+and [tests/Makefile](tests/Makefile) for detail usage.
 
 ## Test
 
@@ -72,6 +74,8 @@ Reference types
 
 Multiple memories
 
+Simple namespace support
+
 ## NOT Implemented
 
 Fixed-width SIMD.
@@ -82,6 +86,4 @@ Fixed-width SIMD.
 
 2. Performance optimization.
 
-3. Namespace/Linker
-
-4. WASI Support.
+3. WASI Support.

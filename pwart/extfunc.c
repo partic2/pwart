@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include "def.h"
+#include "namespace.c"
 
 static void insn_i64eqz(void *fp){
   uint32_t *result = fp;
@@ -313,13 +314,13 @@ static void insn_version(uint32_t *fp){
 //allocate memory
 static void insn_memory_alloc(void *fp){
   void *sp=fp;
-  uint32_t size=pwart_rstack_get_i32(sp);
+  uint32_t size=pwart_rstack_get_i32(&sp);
   sp=fp;
-  pwart_rstack_put_i64(sp,(uint64_t)(size_t)malloc(size));
+  pwart_rstack_put_i64(&sp,(uint64_t)(size_t)malloc(size));
 }
 static void insn_memory_free(void *fp){
   void *sp=fp;
-  void *p=(void *)(size_t)pwart_rstack_get_i64(sp);
+  void *p=(void *)(size_t)pwart_rstack_get_i64(&sp);
   free(p);
 }
 
@@ -423,6 +424,45 @@ static void insn_ref_string_length(void *fp){
   uint32_t n=strlen(s);
   sp=fp;
   pwart_rstack_put_i32(&sp,n);
+}
+
+
+static void insn_load_module(void *fp){
+  void *sp=fp;
+  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
+  char *name=pwart_rstack_get_ref(&sp);
+  char *wasm_bytes=pwart_rstack_get_ref(&sp);
+  uint32_t length=pwart_rstack_get_i32(&sp);
+  Namespace *ns=namespace_GetNamespaceFormResolver(m->resolver);
+  char *err_msg=NULL;
+  pwart_namespace_define_wasm_module((pwart_namespace)ns,name,wasm_bytes,length,&err_msg);
+  sp=fp;
+  pwart_rstack_put_ref(&sp,err_msg);
+}
+
+static void insn_unload_module(void *fp){
+  void *sp=fp;
+  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
+  char *name=pwart_rstack_get_ref(&sp);
+  Namespace *ns=namespace_GetNamespaceFormResolver(m->resolver);
+  char *err_msg=NULL;
+  err_msg=pwart_namespace_remove_module((pwart_namespace)ns,name);
+  sp=fp;
+  pwart_rstack_put_ref(&sp,err_msg);
+}
+
+static void insn_import(void *fp){
+  void *sp=fp;
+  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
+  struct pwart_symbol_resolve_request req;
+  req.import_module=pwart_rstack_get_ref(&sp);
+  req.import_field=pwart_rstack_get_ref(&sp);
+  req.kind=pwart_rstack_get_i32(&sp);
+  req.result=NULL;
+  Namespace *ns=namespace_GetNamespaceFormResolver(m->resolver);
+  ns->resolver.resolve(&ns->resolver,&req);
+  sp=fp;
+  pwart_rstack_put_ref(&sp,req.result);
 }
 
 static uint8_t types_void[] = {0};

@@ -1,7 +1,7 @@
 #ifndef _PWART_WASM_DEF_H
 #define _PWART_WASM_DEF_H
 
-#include "pwart.h"
+#include <pwart.h>
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -121,7 +121,7 @@ typedef struct StackValue {
     }val;
 } StackValue;
 
-///
+
 
 typedef struct pwart_wasm_table Table;
 
@@ -135,8 +135,8 @@ typedef struct Export {
 
 
 typedef struct RuntimeContext{
-    uint8_t memory_model;   // PWART_MEMORY_MODEL_xxxx
     uint8_t stack_flags;    //PWART_STACK_FLAGS_xxx
+    uint8_t is_in_namespace;//if this context attached to namespace.
     struct pool strings_pool;   //string pools, type char
     WasmFunctionEntry *funcentries;  // imported and locally defined functions, type WasmFunctionEntry
     uint32_t funcentries_count;
@@ -151,7 +151,7 @@ typedef struct RuntimeContext{
     struct dynarr *tables; // tables, type Table *
     struct dynarr *memories; // memories, type Memory *
     struct dynarr *exports;// exorts, type Export
-    void (*import_resolver)(char *import_module,char *import_field,uint32_t kind,void *result);
+    struct pwart_symbol_resolver *resolver; //symbol resolver.
     void *userdata;  //user data, pwart don't use it.
 }RuntimeContext;
 
@@ -215,6 +215,13 @@ typedef struct ModuleCompiler {
     };
     
 } ModuleCompiler;
+
+
+
+typedef struct {
+    struct pwart_symbol_resolver resolver;
+    struct dynarr *mods;   //modules in this namespace, type pwart_named_module.
+} Namespace;
 
 
 #if DEBUG_BUILD

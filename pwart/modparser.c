@@ -97,6 +97,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
     dynarr_init(&m->context->tables,sizeof(Table *));
     dynarr_init(&m->context->own_globals,sizeof(uint8_t));
     dynarr_init(&m->functions,sizeof(WasmFunction));
+    m->context->resolver=m->import_resolver;
     m->start_function = -1;
 
     // Check the module
@@ -219,6 +220,12 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                         val=builtin->memory_alloc;
                     }else if(!strcmp("memory_free",import_field)){
                         val=builtin->memory_free;
+                    }else if(!strcmp("load_module",import_field)){
+                        val=builtin->load_module;
+                    }else if(!strcmp("unload_module",import_field)){
+                        val=builtin->unload_module;
+                    }else if(!strcmp("import",import_field)){
+                        val=builtin->import;
                     }else if(!strcmp("get_self_runtime_context",import_field)){
                         val=builtin->get_self_runtime_context;
                     }else if(!strcmp("native_index_size",import_field)){

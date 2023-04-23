@@ -1,13 +1,15 @@
 
 #include <stdio.h>
+#include <pwart.h>
 
 #include "def.h"
 #include "util.c"
 #include "extfunc.c"
 #include "wagen.c"
 #include "modparser.c"
+#include "namespace.c"
 
-#include <pwart.h>
+
 
 extern int pwart_get_version(){
     return PWART_VERSION_1;
@@ -58,6 +60,16 @@ extern struct pwart_wasm_memory *pwart_get_export_memory(pwart_module_state rc,c
     }
 }
 
+extern void *pwart_get_export_global(pwart_module_state rc,char *name){
+    RuntimeContext *m=rc;
+    uint32_t kind=PWART_KIND_GLOBAL;
+    Export *exp=get_export(rc,name,&kind);
+    if(exp!=NULL){
+        return exp->value;
+    }else{
+        return NULL;
+    }
+}
 
 extern struct pwart_wasm_table *pwart_get_export_table(pwart_module_state rc,char *name){
     RuntimeContext *m=rc;
@@ -104,9 +116,14 @@ extern char *pwart_inspect_module_state(pwart_module_state c,struct pwart_inspec
     }
     result->globals_buffer_size=rc->own_globals->len;
     result->globals_buffer=&rc->own_globals->data;
+    result->symbol_resolver=rc->resolver;
     return NULL;
 }
 
+extern char *pwart_set_state_symbol_resolver(pwart_module_state c,struct pwart_symbol_resolver *resolver){
+    RuntimeContext *rc=c;
+    rc->resolver=resolver;
+}
 
 extern void pwart_module_state_set_user_data(pwart_module_state c,void *ud){
     RuntimeContext *rc=c;
@@ -255,6 +272,9 @@ extern struct pwart_builtin_symbols *pwart_get_builtin_symbols(){
         builtin_symbols.version=pwart_wrap_host_function_c((void *)insn_version);
         builtin_symbols.memory_alloc=pwart_wrap_host_function_c((void *)insn_memory_alloc);
         builtin_symbols.memory_free=pwart_wrap_host_function_c((void *)insn_memory_free);
+        builtin_symbols.load_module=pwart_wrap_host_function_c((void *)insn_load_module);
+        builtin_symbols.unload_module=pwart_wrap_host_function_c((void *)insn_unload_module);
+        builtin_symbols.import=pwart_wrap_host_function_c((void *)insn_import);
         builtin_symbols.get_self_runtime_context=pwart_wrap_host_function_c((void *)insn_get_self_runtime_context);
         builtin_symbols.native_index_size=pwart_wrap_host_function_c((void *)insn_native_index_size);
         builtin_symbols.ref_from_index=pwart_wrap_host_function_c((void *)insn_ref_from_index);
@@ -264,6 +284,8 @@ extern struct pwart_builtin_symbols *pwart_get_builtin_symbols(){
         builtin_symbols.i64_from_ref=pwart_wrap_host_function_c((void *)insn_i64_from_ref);
         builtin_symbols.native_memory.bytes=0;
         builtin_symbols.native_memory.fixed=1;
+        builtin_symbols.native_memory.maximum=0x7fffffff;
+        builtin_symbols.native_memory.initial=0x7fffffff;
     }
     return &builtin_symbols;
 }
