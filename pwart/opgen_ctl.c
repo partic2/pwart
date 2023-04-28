@@ -211,25 +211,9 @@ static void opgen_GenCall(ModuleCompiler *m, int32_t fidx) {
 static void opgen_GenCallIndirect(ModuleCompiler *m, int32_t typeidx,
                                   int32_t tableidx) {
   Type *type;
-  StackValue *sv,*sv2;
-  int a,b;
-  StackValue *stack = m->stack;
+  int a;
   type = dynarr_get(m->types, Type, typeidx);
-  sv = &stack[m->sp];
-  a = pwart_GetFreeReg(m, RT_INTEGER, 1);
-  sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
-                 sizeof(void *) == 4 ? 2 : 3);
-
-  if(tableidx==0){
-    sv2 = dynarr_get(m->locals, StackValue, m->table_entries_local);
-    sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv2->val.op, sv2->val.opw);
-  }else{
-    b=pwart_GetFreeRegExcept(m,RT_BASE,a,1);
-    opgen_GenTableEntriesBase(m,tableidx,b);
-    sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, b, 0);
-  }
-  m->sp--;
-
+  a=opgen_GenBaseAddressRegForTable(m,tableidx);
   pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
 }
 

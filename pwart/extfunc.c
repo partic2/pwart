@@ -325,64 +325,24 @@ static void insn_memory_free(void *fp){
 }
 
 
-//(i32 destination,i32 source,i32 count,i32 memory_indexA,i32 memory_indexB,ref runtime_context)
-static void insn_memorycopy32(void *fp){
+//(ref destination,i32 value,i32 count,ref refvalue,i32 fillref)
+static void insn_memoryfill(void *fp){
   void *sp=fp;
-  uint32_t d=pwart_rstack_get_i32(&sp);
-  uint32_t s=pwart_rstack_get_i32(&sp);
-  uint32_t n=pwart_rstack_get_i32(&sp);
-  uint32_t dmi=pwart_rstack_get_i32(&sp);
-  uint32_t smi=pwart_rstack_get_i32(&sp);
-
-  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
-  
-  Memory *dmem=*dynarr_get(m->memories,Memory *,dmi);
-  Memory *smem=*dynarr_get(m->memories,Memory *,smi);
-  #ifdef DEBUG_BUILD
-  printf("test_aid:insn_memorycopy32(%d,%d,%d,%p)\n",d,s,n,m);
-  #endif
-  memmove(dmem->bytes+d,smem->bytes+s,n);
-}
-
-//(i32 destination,i32 source,i32 count,i32 table_indexA,i32 table_indexB,ref runtime_context)
-static void insn_tablecopy32(void *fp){
-  void *sp=fp;
-  uint32_t d=pwart_rstack_get_i32(&sp);
-  uint32_t s=pwart_rstack_get_i32(&sp);
-  uint32_t n=pwart_rstack_get_i32(&sp);
-  uint32_t dtab=pwart_rstack_get_i32(&sp);
-  uint32_t stab=pwart_rstack_get_i32(&sp);
-  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
-  
-  memmove(dynarr_get(m->tables,Table,dtab)+d,dynarr_get(m->tables,Table,stab)+s,n*sizeof(void *));
-}
-//(i32 destination,i32 value,i32 count,i32 memory_index,i32 reserve,ref runtime_context)
-static void insn_memoryfill32(void *fp){
-  void *sp=fp;
-  uint32_t d=pwart_rstack_get_i32(&sp);
+  void *d=pwart_rstack_get_ref(&sp);
   uint32_t val=pwart_rstack_get_i32(&sp);
   uint32_t n=pwart_rstack_get_i32(&sp);
-  uint32_t dmi=pwart_rstack_get_i32(&sp);
-  pwart_rstack_get_i32(&sp);
-  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
-  Memory *dmem=*dynarr_get(m->memories,Memory *,dmi);
-  #ifdef DEBUG_BUILD
-  printf("test_aid:insn_insn_memoryfill32(%d,%d,%d)\n",d,val,n);
+  void *val2=pwart_rstack_get_ref(&sp);
+  uint32_t fillref=pwart_rstack_get_i32(&sp);
+  #if DEBUG_BUILD
+  wa_debug("insn_memoryfill:%p,%x,%x,%p,%x\n",d,val,n,val2,fillref);
   #endif
-  memset(dmem->bytes+d,val,n);
-}
-//(i32 destination,ref value,i32 count,i32 table_index,i32 reserve,ref runtime_context)
-static void insn_tablefill32(void *fp){
-  void *sp=fp;
-  uint32_t d=pwart_rstack_get_i32(&sp);
-  void *val=pwart_rstack_get_ref(&sp);
-  uint32_t n=pwart_rstack_get_i32(&sp);
-  uint32_t tabidx=pwart_rstack_get_i32(&sp);
-  pwart_rstack_get_i32(&sp);
-  RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
-  void **ent=dynarr_get(m->tables,Table,tabidx)->entries;
-  for(int i1=d;i1<d+n;i1++){
-    ent[i1]=val;
+  if(fillref){
+    void **ent=d;
+    for(int i1=0;i1<n;i1++){
+      ent[i1]=val2;
+    }
+  }else{
+    memset(d,val,n);
   }
 }
 
@@ -477,9 +437,11 @@ static uint8_t types_i64_i64[] = {WVT_I64, WVT_I64, 0};
 static uint8_t types_f32_f32[] = {WVT_F32, WVT_F32, 0};
 static uint8_t types_f64_f64[] = {WVT_F64, WVT_F64, 0};
 
-static uint8_t types_i32x5_ref[] = {WVT_I32, WVT_I32, WVT_I32, WVT_I32,WVT_I32, WVT_REF,0};
-
 static uint8_t types_i32_i32_ref[] = {WVT_I32, WVT_I32, WVT_REF,0};
+
+static uint8_t types_ref_ref_i32[]={WVT_REF, WVT_REF,WVT_I32,0};
+
+static uint8_t types_ref_i32_i32_ref_i32[]={WVT_REF,WVT_I32,WVT_I32,WVT_REF,WVT_I32,0};
 
 static Type func_type_ret_void = {.params = types_void, .results = types_void};
 static Type func_type_ret_i32 = {.params = types_void, .results = types_i32};
@@ -512,7 +474,8 @@ static Type func_type_i64_ret_f64 = {.params = types_i64, .results = types_f64};
 
 
 static Type func_type_i32_i32_ref_ret_i32 = {.params = types_i32_i32_ref, .results = types_i32};
-static Type func_type_i32x5_ref_ret_void={.params=types_i32x5_ref,.results=types_void};
+static Type func_type_ref_ref_i32_void={.params=types_ref_ref_i32,.results=types_void};
+static Type func_type_memoryfill={.params=types_ref_i32_i32_ref_i32,.results=types_void};
 
 static void waexpr_run_const(ModuleCompiler *m, void *result) {
   int opcode=m->bytes[m->pc];

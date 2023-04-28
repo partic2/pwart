@@ -246,6 +246,24 @@ struct pwart_builtin_symbols{
     /* function type [ref]->[i64]  */
     pwart_wasm_function i64_from_ref;
 
+
+    /* WIP */
+    /* stdio function */
+    /* function type [ref path,ref mode]->[ref file,i32 err] */
+    pwart_wasm_function fopen;
+
+    /* function type [ref buf,i32 size,i32 count,ref file]->[i32 nread] */
+    pwart_wasm_function fread;
+
+    /* function type [ref buf,i32 size,i32 count,ref file]->[i32 nwrite] */
+    pwart_wasm_function fwrite;
+
+    /* function type [ref file,i64 offset,i32 fromwhere]->[i32 err] */
+    pwart_wasm_function fseek;
+
+    /* function type [ref file]->[i32 err] */
+    pwart_wasm_function fclose;
+
     /* special pwart_wasm_memory that map to the native host memory directly, memory->bytes is 0;  */
     struct pwart_wasm_memory native_memory;
 

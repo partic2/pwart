@@ -68,7 +68,7 @@ Non-trapping Float-to-int Conversions (For performance, the behavior depend on t
 
 Bulk Memory Operations(Conditional Segment Initialization is not support yet.)
 
-Memory64(support i64 index, offset and align are still 32bit. bulk memory op. are not applicable)
+Memory64(support i64 index, offset and align are still 32bit.)
 
 Reference types
 

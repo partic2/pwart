@@ -126,15 +126,26 @@
     i32.const 1
     table.get 0
     table.set 1
+
+    i64.const 300
+    call $printi64
+    drop
+
+    i32.const 3
+    i32.const 2
+    table.get 1
+    i32.const 3
+    table.fill 1
+
       
-    i64.const 200
+    i64.const 400
     call $printi64
     drop
       
     i32.const 2
     call_indirect 1 (type $typeAddTwo)
     
-    i64.const 300
+    i64.const 500
     call $printi64
     drop
     

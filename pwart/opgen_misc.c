@@ -7,8 +7,8 @@
 #include "opgen_mem.c"
 #include "opgen_utils.c"
 
-static void opgen_GenRefNull(ModuleCompiler *m, int32_t tidx) {
-  StackValue *sv = stackvalue_Push(m, tidx);
+static void opgen_GenRefNull(ModuleCompiler *m, int32_t typeidx) {
+  StackValue *sv = stackvalue_Push(m, WVT_REF);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_IMM;
   sv->val.opw = 0;
@@ -60,6 +60,7 @@ static void opgen_GenTableSize(ModuleCompiler *m,int tabidx){
 
 static char *opgen_GenMiscOp_FC(ModuleCompiler *m,int opcode){
   StackValue *sv;
+  int a,b;
   #if DEBUG_BUILD
   switch(opcode){
     case 0 ... 7:
@@ -101,13 +102,13 @@ static char *opgen_GenMiscOp_FC(ModuleCompiler *m,int opcode){
     opgen_GenNumOp(m,0xb1);
     break; 
     case 0x0a: //memory.copy
-    read_LEB_signed(m->bytes,&m->pc,32); //destination memory index
-    read_LEB_signed(m->bytes,&m->pc,32); //source memory index
-    opgen_GenMemoryCopy(m);
+    a=read_LEB_signed(m->bytes,&m->pc,32); //destination memory index
+    b=read_LEB_signed(m->bytes,&m->pc,32); //source memory index
+    opgen_GenMemoryCopy(m,a,b);
     break;
     case 0x0b: //memory.fill
-    read_LEB_signed(m->bytes,&m->pc,32); //destination memory index
-    opgen_GenMemoryFill(m);
+    a=read_LEB_signed(m->bytes,&m->pc,32); //destination memory index
+    opgen_GenMemoryFill(m,a);
     break;
     case 0x0e: //table.copy
     {
@@ -160,8 +161,8 @@ static char *opgen_GenMiscOp(ModuleCompiler *m, int opcode) {
     break;
   case 0xfc: // misc prefix
     opcode2=m->bytes[m->pc];
-    ReturnIfErr(opgen_GenMiscOp_FC(m,opcode2));
     m->pc++;
+    ReturnIfErr(opgen_GenMiscOp_FC(m,opcode2));
     break;
   default:
     wa_debug("unrecognized opcode 0x%x at %d", opcode, m->pc);

@@ -93,9 +93,11 @@ typedef struct WasmFunction {
 //DO NOT use SAVED_REGISTER as val for this type, until i64 operate write SCRATCH_REGISTER properly.
 #define SVT_TWO_REG 4
 
-// 64bit constant.  use const64. 32bit arch only.
+// 64bit constant.  use const64. 32bit arch only. 
 #define SVT_I64CONST 5
 
+// dummy stack value, May also be set if we want stack value to be ignored in free register scanning.
+#define SVT_DUMMY 6 
 
 
 typedef struct StackValue {
@@ -491,5 +493,11 @@ static struct pwart_global_compile_config pwart_gcfg={
 static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype,int upstack);
 static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv,uint32_t *align);
 static void pwart_EmitStackValueLoadReg(ModuleCompiler *m, StackValue *sv);
+static int opgen_GenBaseAddressRegForTable(ModuleCompiler *m,uint32_t tabidx);
+static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t midx);
+static char *opgen_GenNumOp(ModuleCompiler *m, int opcode);
+//if fn is stub/inline function, generate native code and return 1, else return 0.
+static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn);
+static void opgen_GenRefNull(ModuleCompiler *m, int32_t typeidx);
 
 #endif

@@ -1211,31 +1211,31 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
   // reinterpretations
   case 0xbc: // i32.reinterpret_f32
     sv = &stack[m->sp];
-    if (!(sv->val.op & SLJIT_MEM)) {
+    if (!(sv->jit_type == SVT_GENERAL && (sv->val.op & SLJIT_MEM))) {
       pwart_EmitSaveStack(m, sv);
     }
-    sv->wasm_type = WVT_I64;
+    sv->wasm_type = WVT_I32;
     break;
   case 0xbd: // i64.reinterpret_f64
     sv = &stack[m->sp];
-    if (!(sv->val.op & SLJIT_MEM)) {
+    if (!(sv->jit_type == SVT_GENERAL && (sv->val.op & SLJIT_MEM))) {
       pwart_EmitSaveStack(m, sv);
     }
     sv->wasm_type = WVT_I64;
     break;
   case 0xbe: // f32.reinterpret_i32
     sv = &stack[m->sp];
-    if (!(sv->val.op & SLJIT_MEM)) {
+    if (!(sv->jit_type == SVT_GENERAL && (sv->val.op & SLJIT_MEM))) {
       pwart_EmitSaveStack(m, sv);
     }
     sv->wasm_type = WVT_F32;
     break;
   case 0xbf: // f64.reinterpret_i64
     sv = &stack[m->sp];
-    if (!(sv->jit_type = SVT_GENERAL && (sv->val.op & SLJIT_MEM))) {
+    if (!(sv->jit_type == SVT_GENERAL && (sv->val.op & SLJIT_MEM))) {
       pwart_EmitSaveStack(m, sv);
     }
-    sv->wasm_type = WVT_I64;
+    sv->wasm_type = WVT_F64;
     break;
   case 0xc0: // i32.extend8_s
     sv = &stack[m->sp];

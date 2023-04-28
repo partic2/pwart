@@ -195,6 +195,10 @@ static int pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int memr
     } else {
       SLJIT_UNREACHABLE();
     }
+  } else if(sv->jit_type==SVT_DUMMY){
+    //do nothing.
+  }else{
+    SLJIT_UNREACHABLE();
   }
   return 0;
 }
@@ -723,15 +727,6 @@ static void opgen_GenRefConst(ModuleCompiler *m,void *c) {
   sv->val.opw=(sljit_uw)c;
 }
 
-//if fn is stub/inline function, generate native code and return 1, else return 0.
-static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn);
-
-//get the table entries base and store into register r
-static int opgen_GenTableEntriesBase(ModuleCompiler *m,int index,int r){
-  Table *tab=*dynarr_get(m->context->tables,Table *,index);
-  sljit_emit_op1(m->jitc,SLJIT_MOV,r,0,SLJIT_IMM,(sljit_uw)&tab->entries);
-  sljit_emit_op1(m->jitc,SLJIT_MOV,r,0,SLJIT_MEM1(r),0);
-}
 
 
 #endif

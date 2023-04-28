@@ -60,23 +60,33 @@ static void opgen_GenGlobalSet(ModuleCompiler *m, uint32_t idx) {
   m->sp--;
 }
 
-static void opgen_GenTableGet(ModuleCompiler *m, uint32_t idx) {
-  int32_t a,b;
+//pop stack top as table entry index, and convert to base address stored in register, return the register.
+static int opgen_GenBaseAddressRegForTable(ModuleCompiler *m,uint32_t tabidx){
+  int a,b;
   StackValue *sv, *sv2;
   sv = &m->stack[m->sp];
   a = pwart_GetFreeReg(m, RT_INTEGER, 1);
   sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
                 sizeof(void *) == 4 ? 2 : 3);
-  if(idx==0){
+  if(tabidx==0){
     sv2 = dynarr_get(m->locals, StackValue, m->table_entries_local);
     sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv2->val.op, sv2->val.opw);
   }else{
     b=pwart_GetFreeRegExcept(m,RT_BASE,a,1);
-    opgen_GenTableEntriesBase(m,idx,b);
+    Table *tab=*dynarr_get(m->context->tables,Table *,tabidx);
+    sljit_emit_op1(m->jitc,SLJIT_MOV,b,0,SLJIT_IMM,(sljit_uw)&tab->entries);
+    sljit_emit_op1(m->jitc,SLJIT_MOV,b,0,SLJIT_MEM1(b),0);
     sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, b, 0);
   }
-  sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_MEM1(a), 0);
   m->sp--;
+  return a;
+}
+
+static void opgen_GenTableGet(ModuleCompiler *m, uint32_t idx) {
+  int a;
+  StackValue *sv;
+  a=opgen_GenBaseAddressRegForTable(m,idx);
+  sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_MEM1(a), 0);
   sv = stackvalue_Push(m,WVT_FUNC);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = a;
@@ -84,22 +94,10 @@ static void opgen_GenTableGet(ModuleCompiler *m, uint32_t idx) {
 }
 
 static void opgen_GenTableSet(ModuleCompiler *m, uint32_t idx) {
-  int32_t a,b;
+  int32_t a;
   StackValue *sv, *sv2;
   stackvalue_EmitSwapTopTwoValue(m);
-  sv = &m->stack[m->sp];
-  a = pwart_GetFreeReg(m, RT_INTEGER, 1);
-  sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
-                 sizeof(void *) == 4 ? 2 : 3);
-  m->sp--;
-  if(idx==0){
-    sv2 = dynarr_get(m->locals, StackValue, m->table_entries_local);
-    sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, sv2->val.op, sv2->val.opw);
-  }else{
-    b=pwart_GetFreeRegExcept(m,RT_BASE,a,0);
-    opgen_GenTableEntriesBase(m,idx,b);
-    sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, a, 0, b, 0);
-  }
+  a=opgen_GenBaseAddressRegForTable(m,idx);
   sv = &m->stack[m->sp];
   pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(a), 0);
   m->sp--;
@@ -217,8 +215,8 @@ static void opgen_GenFloatLoad(ModuleCompiler *m, int32_t opcode, int32_t a,
     break;
   }
 }
-//pop stack top, and convert to base address stored in register, return the register.
-static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t index){
+//pop stack top as memory index, and convert to base address stored in register, return the register.
+static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t midx){
   StackValue *sv,*sv2;
   int a;
   sljit_s32 op;
@@ -226,18 +224,18 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t index){
   sv2 = &m->stack[m->sp];                                    // addr
   int8_t spAdd=-1;
 
-  if((*dynarr_get(m->context->memories,Memory *,index))->bytes==NULL){
+  if((*dynarr_get(m->context->memories,Memory *,midx))->bytes==NULL){
     //raw memory
     pwart_EmitStackValueLoadReg(m,sv2);
     m->sp--;
     return sv2->val.op;
   }
-  if(index==m->cached_midx){
+  if(midx==m->cached_midx){
     sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
     //here we don't need reserve top stack value
     a = pwart_GetFreeReg(m, RT_BASE, 1);
   }else{
-    Memory *mem=*dynarr_get(m->context->memories,Memory *,index);
+    Memory *mem=*dynarr_get(m->context->memories,Memory *,midx);
     a = pwart_GetFreeReg(m, RT_BASE, 0);
     sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,SLJIT_IMM,(sljit_uw)&mem->bytes);
     sljit_emit_op1(m->jitc,SLJIT_MOV,a,0,SLJIT_MEM1(a),0);
@@ -337,33 +335,118 @@ static void opgen_GenStore(ModuleCompiler *m, int32_t opcode, sljit_sw offset,
   m->sp--;
 }
 
-static void opgen_GenMemoryCopy(ModuleCompiler *m){
-  opgen_GenI32Const(m,0);
-  opgen_GenI32Const(m,0);
-  opgen_GenRefConst(m,m->context);
-  pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memorycopy32);
+static void opgen_GenMemoryCopy(ModuleCompiler *m,int dmidx,int smidx){
+  StackValue *sv,*sv2;
+  int r;
+  sv2=m->stack+m->sp-2;//dst index;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+  r=opgen_GenBaseAddressReg(m,dmidx);
+  sv2 = stackvalue_Push(m,WVT_REF);
+  sv2->wasm_type=WVT_REF;sv2->jit_type=SVT_GENERAL;
+  sv2->val.op=r;sv2->val.opw=0;
+
+  sv2=m->stack+m->sp-2;//src index;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+  r=opgen_GenBaseAddressReg(m,smidx);
+  sv2 = stackvalue_Push(m,WVT_REF);
+  sv2->wasm_type=WVT_REF;sv2->jit_type=SVT_GENERAL;
+  sv2->val.op=r;sv2->val.opw=0;
+
+  sv2 = sv=m->stack+m->sp-2;    //n;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+  if(sv->wasm_type==WVT_I64){
+    //XXX: we limit to use 32bit count now, which may be change in future
+    opgen_GenNumOp(m,0xa7);//i32.wrap_i64
+  }
+  pwart_EmitCallFunc(m,&func_type_ref_ref_i32_void,SLJIT_IMM,(sljit_sw)&insn_ref_copy_bytes);
+  // recover stack
+  m->sp-=3;
 }
 
 static void opgen_GenTableCopy(ModuleCompiler *m,int32_t dtab,int32_t stab){
-  opgen_GenI32Const(m,dtab);
-  opgen_GenI32Const(m,stab);
-  opgen_GenRefConst(m,m->context);
-  pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_tablecopy32);
+  StackValue *sv,*sv2;
+  int r;
+  sv2=m->stack+m->sp-2;//dst index;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+  r=opgen_GenBaseAddressRegForTable(m,dtab);
+  sv2 = stackvalue_Push(m,WVT_REF);
+  sv2->wasm_type=WVT_REF;sv2->jit_type=SVT_GENERAL;
+  sv2->val.op=r;sv2->val.opw=0;
+
+  sv2=m->stack+m->sp-2;//src index;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+  r=opgen_GenBaseAddressRegForTable(m,stab);
+  sv2 = stackvalue_Push(m,WVT_REF);
+  sv2->wasm_type=WVT_REF;sv2->jit_type=SVT_GENERAL;
+  sv2->val.op=r;sv2->val.opw=0;
+
+  sv2 = sv=m->stack+m->sp-2;    //n;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+  opgen_GenI32Const(m,(m->target_ptr_size==32)?2:3);
+  opgen_GenNumOp(m,0x74);
+  pwart_EmitCallFunc(m,&func_type_ref_ref_i32_void,SLJIT_IMM,(sljit_sw)&insn_ref_copy_bytes);
+  // recover stack
+  m->sp-=3;
 }
 
 
-static void opgen_GenMemoryFill(ModuleCompiler *m){
+static void opgen_GenMemoryFill(ModuleCompiler *m,int midx){
+  StackValue *sv,*sv2;
+  int r;
+  sv2=m->stack+m->sp-2;//dst index;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+  r=opgen_GenBaseAddressReg(m,midx);
+  sv2 = stackvalue_Push(m,WVT_REF);
+  sv2->wasm_type=WVT_REF;sv2->jit_type=SVT_GENERAL;
+  sv2->val.op=r;sv2->val.opw=0;
+
+  sv2 = sv=m->stack+m->sp-2;    //val;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+
+  sv2 = sv=m->stack+m->sp-2;    //n;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+
+  opgen_GenRefNull(m,0);
   opgen_GenI32Const(m,0);
-  opgen_GenI32Const(m,0);
-  opgen_GenRefConst(m,m->context);
-  pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
+
+  pwart_EmitCallFunc(m,&func_type_memoryfill,SLJIT_IMM,(sljit_sw)&insn_memoryfill);
+  m->sp-=3;
 }
 
 static void opgen_GenTableFill(ModuleCompiler *m,int32_t tabidx){
+  StackValue *sv,*sv2;
+  int r;
+  sv2=m->stack+m->sp-2;//dst index;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+  r=opgen_GenBaseAddressRegForTable(m,tabidx);
+  sv2 = stackvalue_Push(m,WVT_REF);
+  sv2->wasm_type=WVT_REF;sv2->jit_type=SVT_GENERAL;
+  sv2->val.op=r;sv2->val.opw=0;
+
   opgen_GenI32Const(m,0);
-  opgen_GenI32Const(m,0);
-  opgen_GenRefConst(m,m->context);
-  pwart_EmitCallFunc(m,&func_type_i32x5_ref_ret_void,SLJIT_IMM,(sljit_sw)&insn_memoryfill32);
+
+  sv2 = sv=m->stack+m->sp-2;    //n;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+
+  sv2 = sv=m->stack+m->sp-4;    //val;
+  sv = stackvalue_PushStackValueLike(m, sv2);
+  sv2->jit_type=SVT_DUMMY;
+
+  opgen_GenI32Const(m,1);
+
+  pwart_EmitCallFunc(m,&func_type_memoryfill,SLJIT_IMM,(sljit_sw)&insn_memoryfill);
+  m->sp-=3;
 }
 
 static char *opgen_GenMemOp(ModuleCompiler *m, int opcode) {
