@@ -266,26 +266,52 @@ extern pwart_module_state *pwart_load_module(char *data,int len,char **err_msg){
     return state;
 }
 
-static struct pwart_builtin_symbols builtin_symbols={NULL};
-extern struct pwart_builtin_symbols *pwart_get_builtin_symbols(){
-    if(builtin_symbols.version==NULL){
-        builtin_symbols.version=pwart_wrap_host_function_c((void *)insn_version);
-        builtin_symbols.memory_alloc=pwart_wrap_host_function_c((void *)insn_memory_alloc);
-        builtin_symbols.memory_free=pwart_wrap_host_function_c((void *)insn_memory_free);
-        builtin_symbols.load_module=pwart_wrap_host_function_c((void *)insn_load_module);
-        builtin_symbols.unload_module=pwart_wrap_host_function_c((void *)insn_unload_module);
-        builtin_symbols.import=pwart_wrap_host_function_c((void *)insn_import);
-        builtin_symbols.get_self_runtime_context=pwart_wrap_host_function_c((void *)insn_get_self_runtime_context);
-        builtin_symbols.native_index_size=pwart_wrap_host_function_c((void *)insn_native_index_size);
-        builtin_symbols.ref_from_index=pwart_wrap_host_function_c((void *)insn_ref_from_index);
-        builtin_symbols.ref_copy_bytes=pwart_wrap_host_function_c((void *)insn_ref_copy_bytes);
-        builtin_symbols.ref_string_length=pwart_wrap_host_function_c((void *)insn_ref_string_length);
-        builtin_symbols.ref_from_i64=pwart_wrap_host_function_c((void *)insn_ref_from_i64);
-        builtin_symbols.i64_from_ref=pwart_wrap_host_function_c((void *)insn_i64_from_ref);
-        builtin_symbols.native_memory.bytes=0;
-        builtin_symbols.native_memory.fixed=1;
-        builtin_symbols.native_memory.maximum=0x7fffffff;
-        builtin_symbols.native_memory.initial=0x7fffffff;
+
+static struct dynarr *builtin_symbols=NULL;  //type pwart_named_symbol
+static struct pwart_wasm_memory native_memory={
+    .bytes=NULL,.fixed=1,.initial=0x7fffffff,.maximum=0x7fffffff,.pages=0x7fffffff
+};
+
+#define _ADD_BUILTIN_FN(fname) sym=dynarr_push_type(&builtin_symbols,struct pwart_named_symbol); \
+sym->name=#fname; \
+sym->kind=PWART_KIND_FUNCTION;\
+sym->val.fn=pwart_wrap_host_function_c((void *)insn_##fname);
+
+extern struct pwart_named_symbol *pwart_get_builtin_symbols(int *arr_size){
+    if(builtin_symbols==NULL){
+        struct pwart_named_symbol *sym;
+        dynarr_init(&builtin_symbols,sizeof(struct pwart_named_symbol));
+        _ADD_BUILTIN_FN(version)
+        _ADD_BUILTIN_FN(memory_alloc)
+        _ADD_BUILTIN_FN(memory_free)
+        _ADD_BUILTIN_FN(load_module)
+        _ADD_BUILTIN_FN(unload_module)
+        _ADD_BUILTIN_FN(import)
+        _ADD_BUILTIN_FN(get_self_runtime_context)
+        pwart_InlineFuncList.get_self_runtime_context=sym->val.fn;
+        _ADD_BUILTIN_FN(native_index_size)
+        _ADD_BUILTIN_FN(ref_from_index)
+        pwart_InlineFuncList.ref_from_index=sym->val.fn;
+        _ADD_BUILTIN_FN(ref_copy_bytes)
+        _ADD_BUILTIN_FN(ref_string_length)
+        _ADD_BUILTIN_FN(ref_from_i64)
+        pwart_InlineFuncList.ref_from_i64=sym->val.fn;
+        _ADD_BUILTIN_FN(i64_from_ref)
+        pwart_InlineFuncList.i64_from_ref=sym->val.fn;
+
+        _ADD_BUILTIN_FN(fread)
+        _ADD_BUILTIN_FN(fwrite)
+        _ADD_BUILTIN_FN(fopen)
+        _ADD_BUILTIN_FN(fclose)
+        _ADD_BUILTIN_FN(stdio)
+        
+        sym=dynarr_push_type(&builtin_symbols,struct pwart_named_symbol);
+        sym->name="native_memory";
+        sym->kind=PWART_KIND_MEMORY;
+        sym->val.mem=&native_memory;
     }
-    return &builtin_symbols;
+    *arr_size=builtin_symbols->len;
+    return (struct pwart_named_symbol *)&builtin_symbols->data;
 }
+
+#undef _ADD_BUILTIN_FN

@@ -213,35 +213,23 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 }
 
                 if(val == NULL && !strcmp("pwart_builtin",import_module)){
-                    struct pwart_builtin_symbols *builtin=pwart_get_builtin_symbols();
-                    if(!strcmp("version",import_field)){
-                        val=builtin->version;
-                    }else if(!strcmp("memory_alloc",import_field)){
-                        val=builtin->memory_alloc;
-                    }else if(!strcmp("memory_free",import_field)){
-                        val=builtin->memory_free;
-                    }else if(!strcmp("load_module",import_field)){
-                        val=builtin->load_module;
-                    }else if(!strcmp("unload_module",import_field)){
-                        val=builtin->unload_module;
-                    }else if(!strcmp("import",import_field)){
-                        val=builtin->import;
-                    }else if(!strcmp("get_self_runtime_context",import_field)){
-                        val=builtin->get_self_runtime_context;
-                    }else if(!strcmp("native_index_size",import_field)){
-                        val=builtin->native_index_size;
-                    }else if(!strcmp("ref_from_index",import_field)){
-                        val=builtin->ref_from_index;
-                    }else if(!strcmp("ref_copy_bytes",import_field)){
-                        val=builtin->ref_copy_bytes;
-                    }else if(!strcmp("ref_string_length",import_field)){
-                        val=builtin->ref_string_length;
-                    }else if(!strcmp("ref_from_i64",import_field)){
-                        val=builtin->ref_from_i64;
-                    }else if(!strcmp("i64_from_ref",import_field)){
-                        val=builtin->i64_from_ref;
-                    }else if(!strcmp("native_memory",import_field)){
-                        val=&builtin->native_memory;
+                    int arrlen=0,i1=0;
+                    struct pwart_named_symbol *builtin=pwart_get_builtin_symbols(&arrlen);
+                    for(i1=0;i1<arrlen;i1++){
+                        if(!strcmp(builtin[i1].name,import_field)){
+                            switch(external_kind){
+                                case PWART_KIND_FUNCTION:
+                                val=builtin[i1].val.fn;
+                                break;
+                                case PWART_KIND_MEMORY:
+                                val=builtin[i1].val.mem;
+                                break;
+                                case PWART_KIND_TABLE:
+                                val=builtin[i1].val.tb;
+                                break;
+                            }
+                            break;
+                        }
                     }
                 }
                 

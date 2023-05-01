@@ -3,7 +3,7 @@
 (import "pwart_builtin" "native_index_size" (func $native_index_size (result i32) ))
 (;; we use funcref to replace anyref ;;)
 (import "pwart_builtin" "get_self_runtime_context" (func $get_self_runtime_context (result funcref) ))
-(import "pwart_builtin" "ref_from_index" (func $ref_from_index (param i32) (result funcref) ))
+(import "pwart_builtin" "ref_from_index" (func $ref_from_index (param i32 i32) (result funcref) ))
 (import "pwart_builtin" "ref_from_i64" (func $ref_from_i64 (param i64) (result funcref) ))
 (import "pwart_builtin" "i64_from_ref" (func $i64_from_ref (param funcref) (result i64) ))
 (import "pwart_builtin" "ref_string_length" (func $ref_string_length (param funcref) (result i32) ))
@@ -262,6 +262,7 @@
   call $getPwartVersion
   call $native_index_size
   call $get_self_runtime_context
+  i32.const 0
   i32.const 1
   call $ref_from_index
   call $i64_from_ref

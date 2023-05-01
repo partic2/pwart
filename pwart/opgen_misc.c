@@ -171,28 +171,33 @@ static char *opgen_GenMiscOp(ModuleCompiler *m, int opcode) {
   return NULL;
 }
 
+
 //if fn is stub/inline function, generate native code and return 1, else return 0.
 static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn){
-  struct pwart_builtin_symbols *functbl=pwart_get_builtin_symbols();
-  if(fn==functbl->get_self_runtime_context){
+  int i1;
+  pwart_get_builtin_symbols(&i1);
+  if(fn==pwart_InlineFuncList.get_self_runtime_context){
     opgen_GenRefConst(m,m->context);
     return 1;
-  }else if(fn==functbl->ref_from_i64){
+  }else if(fn==pwart_InlineFuncList.ref_from_i64){
     if(m->target_ptr_size==32){
-      opgen_GenConvertOp(m,0xa7);
+      opgen_GenConvertOp(m,WASMOPC_i32_wrap_i64);
     }
     m->stack[m->sp].wasm_type=WVT_REF;
     return 1;
-  }else if(fn==functbl->i64_from_ref){
+  }else if(fn==pwart_InlineFuncList.i64_from_ref){
     if(m->target_ptr_size==32){
       m->stack[m->sp].wasm_type=WVT_I32;
-      opgen_GenConvertOp(m,0xad);
+      opgen_GenConvertOp(m,WASMOPC_i64_extend_i32_u);
     }
     m->stack[m->sp].wasm_type=WVT_I64;
     return 1;
-  }else if(fn==functbl->ref_from_index){
-    int r=opgen_GenBaseAddressReg(m,0);
-    StackValue *sv=stackvalue_Push(m,WVT_REF);
+  }else if(fn==pwart_InlineFuncList.ref_from_index){
+    StackValue *sv=m->stack+m->sp-1;
+    SLJIT_ASSERT((sv->jit_type==SVT_GENERAL) && (sv->val.op==SLJIT_IMM));
+    int r=opgen_GenBaseAddressReg(m,sv->val.opw);
+    m->sp--;
+    sv=stackvalue_Push(m,WVT_REF);
     sv->val.op=r;
     sv->val.opw=0;
     sv->jit_type=SVT_GENERAL;

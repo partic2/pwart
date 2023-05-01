@@ -477,14 +477,15 @@ static char OPERATOR_INFO[][20] = {
 
 #endif
 
-// Size of memory load.
-// This starts with the first memory load operator at opcode 0x28
-static uint32_t LOAD_SIZE[] = {
-    4, 8, 4, 8, 1, 1, 2, 2, 1, 1, 2, 2, 4, 4, // loads
-    4, 8, 4, 8, 1, 2, 1, 2, 4};               // stores
+static struct{
+  pwart_wasm_function get_self_runtime_context;
+  pwart_wasm_function ref_from_index;
+  pwart_wasm_function ref_from_i64;
+  pwart_wasm_function i64_from_ref;
+} pwart_InlineFuncList;
 
-
-
+#define WASMOPC_i32_wrap_i64 0xa7
+#define WASMOPC_i64_extend_i32_u 0xad
 
 static struct pwart_global_compile_config pwart_gcfg={
     .stack_flags=0

@@ -71,9 +71,9 @@ struct pwart_wasm_memory {
     uint32_t    maximum;     /* maximum size (64K pages) */
     uint32_t    pages;       /* current size (64K pages) */
 
-    /*  memory area, if 0, indicate this memory is mapped to native host memory directly, and the pwart will generated faster code to access this memory. 
+    /*  memory area, if 0(NULL), indicate this memory is mapped to native host memory directly, and the pwart will generated faster code to access this memory. 
         In this case, memory can only be allocated by call pwart_builtin.memory_alloc, and index type should match the machine word size.
-        wasm module can use this memory by import memory pwart_builtin.native_memory, see pwart_builtin_symbols for detail.
+        wasm module can use this memory by import memory pwart_builtin.native_memory, see "pwart builtin symbols list" for detail.
     */
     uint8_t    *bytes;
 
@@ -187,89 +187,103 @@ extern double pwart_rstack_get_f64(void **sp);
 extern void *pwart_rstack_get_ref(void **sp);
 
 
-
-/* pwart builtin symbol, can be use by import "pwart_builtin" module in wasm. */
-/* Unless explicitly mark as Overwriteable,  Modifing the value may take no effect and should be avoided. */
-struct pwart_builtin_symbols{
-    /* get pwart version, []->[i32] */
-    pwart_wasm_function version;
-
-    /* allocate memory, see also pwart_wasm_memory.bytes */
-    /* allocate memory with 'size', in byte, return index on native_memory, for 32bit native_memory, the most significant 32bit word are 0. */
-    /* function type [i32 size]->[i64] */
-    pwart_wasm_function memory_alloc;
-    /* function type [i64]->[] */
-    pwart_wasm_function memory_free;
-
-
-    /* get the index size to access native memory, in byte (sizeof(void *)). */
-    /* function type []->[i32] */
-    pwart_wasm_function native_index_size;
-
-    /* module function */
-
-    /* load module into same namespace, the caller module must been attached to a namespace. */
-    /* function type [ref self_context,ref name,ref wasm_bytes,i32 length]->[ref err_msg] */
-    pwart_wasm_function load_module;
-
-    /* function type [ref self_context,ref name]->[ref err_msg] */
-    pwart_wasm_function unload_module;
-
-    /* Only support PWART_KIND_FUNCTION now */
-    /* function type [ref self_context,ref module_name,ref field_name,i32 kind] -> [ref] */
-    pwart_wasm_function import;
-
-    /* Stub function, can only be called DIRECTLY by wasm. */
-    /* PWART will compile these 'call' instruction into native code, instead of function call. */
-
-    /* get pwart_module_state attached to current function. */
-    /* function type []->[ref self_context] */
-    pwart_wasm_function get_self_runtime_context;
-
-    /* get "pointer" reference that represent the address specified by the index at memory 0, should only be called directly. */
-    /* function type [i32|i64 index]->[ref] */
-    pwart_wasm_function ref_from_index;
-
-    /* copy bytes from 'src' to 'dst' for 'n' bytes, use "pointer" reference.  */
-    /* function type [ref dst,ref src,i32 n]->[] */
-    pwart_wasm_function ref_copy_bytes;
-
-    /* get the length of a string, specified by "pointer" reference. */
-    /* function type [ref str]->[i32 n] */
-    pwart_wasm_function ref_string_length;
-
-    /* cast i64 to "pointer" reference. */
-    /* function type [i64]->[ref]  */
-    pwart_wasm_function ref_from_i64;
-
-    /* cast "pointer" reference to i64. */
-    /* function type [ref]->[i64]  */
-    pwart_wasm_function i64_from_ref;
-
-
-    /* WIP */
-    /* stdio function */
-    /* function type [ref path,ref mode]->[ref file,i32 err] */
-    pwart_wasm_function fopen;
-
-    /* function type [ref buf,i32 size,i32 count,ref file]->[i32 nread] */
-    pwart_wasm_function fread;
-
-    /* function type [ref buf,i32 size,i32 count,ref file]->[i32 nwrite] */
-    pwart_wasm_function fwrite;
-
-    /* function type [ref file,i64 offset,i32 fromwhere]->[i32 err] */
-    pwart_wasm_function fseek;
-
-    /* function type [ref file]->[i32 err] */
-    pwart_wasm_function fclose;
-
-    /* special pwart_wasm_memory that map to the native host memory directly, memory->bytes is 0;  */
-    struct pwart_wasm_memory native_memory;
-
+struct pwart_named_symbol{
+    const char *name;
+    union{
+        pwart_wasm_function fn;
+        struct pwart_wasm_memory *mem;
+        struct pwart_wasm_table *tb;
+    }val;
+    uint8_t kind;
 };
+/* get the pwart builtin symbol array. Builtin symbol can be use by import "pwart_builtin" module in wasm. */
+extern struct pwart_named_symbol *pwart_get_builtin_symbols(int *arr_size);
 
-extern struct pwart_builtin_symbols *pwart_get_builtin_symbols();
+/* 
+pwart builtin symbols list
+
+======== Format ============
+name
+type
+optional description
+============================
+
+version
+func []->[i32]
+get pwart version.
+
+memory_alloc
+func [i32 size]->[i64]
+allocate memory with 'size', in byte, return i64 index on native_memory, for 32bit native_memory, the most significant 32bit word are 0. 
+see also pwart_wasm_memory.bytes 
+
+memory_free
+func [i64]->[]
+ 
+native_index_size
+func []->[i32]
+get the index size to access native memory, in byte (sizeof(void *)). 
+
+load_module
+func [ref self_context,ref name,ref wasm_bytes,i32 length]->[ref err_msg] 
+load module into same namespace, the caller module must been attached to a namespace. 
+
+unload_module
+func [ref self_context,ref name]->[ref err_msg] 
+
+import
+func [ref self_context,ref module_name,ref field_name,i32 kind] -> [ref]
+Only support PWART_KIND_FUNCTION now
+
+get_self_runtime_context
+func []->[ref self_context] 
+This is a STUB function can ONLY be called DIRECTLY by wasm. 
+PWART will compile these 'call' instruction into native code, instead of a function call. 
+
+ref_from_index
+func [const i32 memindex,i32|i64 index]->[ref] 
+STUB function, get "pointer" reference that represent the address specified by the index of memory memindex.
+the memindex must be produced by i32.const xxx.
+
+ref_copy_bytes
+func [ref dst,ref src,i32 n]->[] 
+copy bytes from 'src' to 'dst' for 'n' bytes, use "pointer" reference.  
+
+ref_string_length
+func [ref str]->[i32 n] 
+get the length of the null-terminal string, specified by "pointer" reference. 
+
+ref_from_i64
+func [i64]->[ref]
+cast i64 to "pointer" reference.
+
+i64_from_ref
+func [ref]->[i64] 
+cast "pointer" reference to i64. 
+
+stdio function 
+
+fopen
+func [ref path,ref mode]->[ref file,i32 err] 
+
+fread
+func [ref buf,i32 size,i32 count,ref file]->[i32 nread] 
+pwart_wasm_function fread;
+
+fwrite
+func [ref buf,i32 size,i32 count,ref file]->[i32 nwrite] 
+
+fclose
+func [ref file]->[i32 err] 
+
+stdio
+func []->[ref stdin,ref stdout,ref stderr]
+
+native_memory
+memory
+special pwart_wasm_memory that map to the native host memory directly, memory->bytes is 0;  
+*/
+
 
 
 

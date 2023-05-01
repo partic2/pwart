@@ -425,6 +425,7 @@ static void insn_import(void *fp){
   pwart_rstack_put_ref(&sp,req.result);
 }
 
+
 static uint8_t types_void[] = {0};
 
 static uint8_t types_i32[] = {WVT_I32, 0};
@@ -558,4 +559,61 @@ static void debug_printfunctype(Type *type){
   debug_printtypes(type->results);
   wa_debug("\n");
 }
+
+
+
+#include <stdio.h>
+#include <errno.h>
+#define _wargref(vname) void *vname=pwart_rstack_get_ref(&sp);
+#define _wargi32(vname) uint32_t vname=pwart_rstack_get_i32(&sp);
+#define _wargi64(vname) uint64_t vname=pwart_rstack_get_i32(&sp);
+static void insn_fopen(void *fp){
+  void *sp=fp;
+  _wargref(filename)
+  _wargref(mode)
+  sp=fp;
+  FILE *f=fopen(filename,mode);
+  pwart_rstack_put_ref(&sp,f);
+  pwart_rstack_put_i32(&sp,errno);
+}
+
+static void insn_fread(void *fp){
+  void *sp=fp;
+  _wargref(buf)
+  _wargi32(size)
+  _wargi32(count)
+  _wargref(file)
+  sp=fp;
+  uint32_t nread=(uint32_t)fread(buf,size,count,file);
+  pwart_rstack_put_i32(&sp,nread);
+  pwart_rstack_put_i32(&sp,errno);
+}
+
+static void insn_fwrite(void *fp){
+  void *sp=fp;
+  _wargref(buf)
+  _wargi32(size)
+  _wargi32(count)
+  _wargref(file)
+  sp=fp;
+  uint32_t nwrite=(uint32_t)fwrite(buf,size,count,file);
+  pwart_rstack_put_i32(&sp,nwrite);
+  pwart_rstack_put_i32(&sp,errno);
+}
+
+static void insn_fclose(void *fp){
+  void *sp=fp;
+  _wargref(file)
+  sp=fp;
+  fclose(file);
+  pwart_rstack_put_i32(&sp,errno);
+}
+
+static void insn_stdio(void *fp){
+  void *sp=fp;
+  pwart_rstack_put_ref(&sp,stdin);
+  pwart_rstack_put_ref(&sp,stdout);
+  pwart_rstack_put_ref(&sp,stderr);
+}
+
 #endif
