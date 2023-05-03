@@ -393,10 +393,14 @@ static void insn_load_module(void *fp){
   char *name=pwart_rstack_get_ref(&sp);
   char *wasm_bytes=pwart_rstack_get_ref(&sp);
   uint32_t length=pwart_rstack_get_i32(&sp);
+  sp=fp;
   Namespace *ns=namespace_GetNamespaceFormResolver(m->resolver);
   char *err_msg=NULL;
-  pwart_namespace_define_wasm_module((pwart_namespace)ns,name,wasm_bytes,length,&err_msg);
-  sp=fp;
+  pwart_module_state stat=pwart_namespace_define_wasm_module((pwart_namespace)ns,name,wasm_bytes,length,&err_msg);
+  pwart_wasm_function stfn=pwart_get_start_function(stat);
+  if(stfn!=NULL){
+    pwart_call_wasm_function(stfn,sp);
+  }
   pwart_rstack_put_ref(&sp,err_msg);
 }
 
@@ -424,6 +428,7 @@ static void insn_import(void *fp){
   sp=fp;
   pwart_rstack_put_ref(&sp,req.result);
 }
+
 
 
 static uint8_t types_void[] = {0};
@@ -560,6 +565,45 @@ static void debug_printfunctype(Type *type){
   wa_debug("\n");
 }
 
+#define __tostrInternal(s) #s
+#define tostr(s) __tostrInternal(s)
+static char *host_definition[]={
+  #ifdef __linux__
+  "__linux__",
+  #endif
+  #ifdef _WIN32
+  "_WIN32",
+  #endif
+  #ifdef _WIN64
+  "_WIN64",
+  #endif
+  #ifdef __x86__
+  "__x86__",
+  #endif
+  #ifdef __x86_64__
+  "__x86_64__",
+  #endif
+  #ifdef _M_ARM
+  "_M_ARM="tostr(_M_ARM),
+  #endif
+  #ifdef __aarch64__
+  "__aarch64__",
+  #endif
+  #ifdef __ANDROID__
+  "__ANDROID__",
+  #endif
+  #ifdef __ANDROID_API__
+  "__ANDROID_API__="tostr(__ANDROID_API__),
+  #endif
+  NULL
+};
+
+static void insn_host_definition(void *fp){
+  void *sp=fp;
+  uint32_t idx=pwart_rstack_get_i32(&sp);
+  sp=fp;
+  pwart_rstack_put_ref(&sp,host_definition[idx]);
+}
 
 
 #include <stdio.h>

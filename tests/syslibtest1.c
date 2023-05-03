@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pwart_syslib.h>
 
 #define puti32 pwart_rstack_put_i32
 #define puti64 pwart_rstack_put_i64
@@ -48,7 +49,7 @@ static void do_resolve(struct pwart_host_module *_this,struct pwart_symbol_resol
 struct pwart_host_module testaid={.resolve=&do_resolve,.on_attached=NULL,.on_detached=NULL};
 
 
-int namespace_test(){
+int syslib_test(){
   struct pwart_global_compile_config gcfg;
   void *stackbase = pwart_allocate_stack(64 * 1024);
   char *err=NULL;
@@ -61,6 +62,7 @@ int namespace_test(){
   pwart_get_global_compile_config(&gcfg);
   pwart_namespace *ns=pwart_namespace_new();
 
+  pwart_syslib_load(ns);
   struct pwart_named_module nmod;
   nmod.name="testaid";
   nmod.type=PWART_MODULE_TYPE_HOST_MODULE;
@@ -99,15 +101,6 @@ int namespace_test(){
   sp=stackbase;
   uint64_t *pmem=(uint64_t *)(size_t)geti64(&sp);
   printf("allocated memory at %p, write value %llu, expect %llu\n",pmem,*pmem,123456ll);
-
-  req.import_field="test2";
-  pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
-  if(req.result==NULL){
-    printf("error occur:%s\n","import extension1.test2 failed");
-    return 0;
-  }
-  pwart_wasm_function test2=(pwart_wasm_function)req.result;
-  pwart_call_wasm_function(test2,stackbase);
   return 1;
 }
 

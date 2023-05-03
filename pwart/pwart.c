@@ -266,6 +266,14 @@ extern pwart_module_state *pwart_load_module(char *data,int len,char **err_msg){
     return state;
 }
 
+extern pwart_wasm_function pwart_get_start_function(pwart_module_state m){
+    RuntimeContext *rc=m;
+    if(rc->start_function==0xffffffff){
+        return NULL;
+    }else{
+        return rc->funcentries[rc->start_function];
+    }
+}
 
 static struct dynarr *builtin_symbols=NULL;  //type pwart_named_symbol
 static struct pwart_wasm_memory native_memory={
@@ -298,6 +306,8 @@ extern struct pwart_named_symbol *pwart_get_builtin_symbols(int *arr_size){
         pwart_InlineFuncList.ref_from_i64=sym->val.fn;
         _ADD_BUILTIN_FN(i64_from_ref)
         pwart_InlineFuncList.i64_from_ref=sym->val.fn;
+
+        _ADD_BUILTIN_FN(host_definition)
 
         _ADD_BUILTIN_FN(fread)
         _ADD_BUILTIN_FN(fwrite)

@@ -140,6 +140,7 @@ typedef struct RuntimeContext{
     uint8_t stack_flags;    //PWART_STACK_FLAGS_xxx
     uint8_t is_in_namespace;//if this context attached to namespace.
     struct pool strings_pool;   //string pools, type char
+    uint32_t start_function;    // start function index,0xffffffff if none.
     WasmFunctionEntry *funcentries;  // imported and locally defined functions, type WasmFunctionEntry
     uint32_t funcentries_count;
     uint32_t import_funcentries_count;
@@ -173,8 +174,6 @@ typedef struct ModuleCompiler {
 
 
     uint32_t    import_count;   // number of leading imports in functions
-    
-    uint32_t    start_function; // function to run on module load
 
     WasmFunctionEntry trap_handler;
 

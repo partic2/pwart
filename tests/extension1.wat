@@ -14,12 +14,14 @@
 (import "test1" "addTwo" (func $addTwo (param i64 i64) (result i64) ))
 (import "pwart_builtin" "stdio" (func $stdio (result funcref funcref funcref)))
 (import "pwart_builtin" "fwrite" (func $fwrite (param funcref i32 i32 funcref)))
+(import "pwart_builtin" "host_definition" (func $host_definition (param i32)(result funcref)))
 
 
 (memory $mem2 1 1)
-(data (memory $mem2) (i32.const 0) "fwrite test ok!\n")
+(data (memory $mem2) (i32.const 0) "fwrite test ok!\n\00\n\\0")
 
 (global $mbase (mut i64) (i64.const 0))
+(table $stdiols 3 funcref)
 
 
   (func $test1 (result i64) (local $mem2 i64)(local $stdout funcref)
@@ -29,7 +31,8 @@
 
     (call $stdio)
     drop
-    local.set $stdout
+    (local.set $stdout)
+    (table.set $stdiols (i32.const 0) (local.get $stdout))
     drop
 
     (call $ref_from_i64 (i64.add (local.get $mem2) (i64.const 24)))
@@ -45,7 +48,32 @@
 
     global.get $mbase
   )
-  (func $test2 (local $mem2 i64)
+  (func $printstring (param $str funcref)
+    (call $fwrite 
+    (local.get $str)
+    (call $ref_string_length (local.get $str))
+    (i32.const 1)
+    (table.get $stdiols (i32.const 0))
+    )
+    (call $fwrite 
+    (call $ref_from_index (i32.const 1) (i32.const 17))
+    (i32.const 1)
+    (i32.const 1)
+    (table.get $stdiols (i32.const 0))
+    )
+  )
+  (func $test2 (local $index i32)(local $defstr funcref)
+  (local.set $index (i32.const 0))
+  loop $break1
+    (local.set $defstr (call $host_definition (local.get $index)))
+    (i32.eqz (ref.is_null (local.get $defstr)))
+    if
+      (call $printstring (local.get $defstr))
+      (local.set $index (i32.add (local.get $index)(i32.const 1)))
+      br $break1
+    end
+  end
+    (call $printstring (call $ref_from_index (i32.const 1) (i32.const 0)))
     (call $mfree (global.get $mbase))
   )
   (export "test1" (func $test1))

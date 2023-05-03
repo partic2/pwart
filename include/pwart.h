@@ -105,7 +105,7 @@ extern char *pwart_compile(pwart_module_compiler m,char *data,int len);
 /*  return wasm start function, or NULL if no start function specified. 
     you should call the start function to init module, according to WebAssembly spec. 
     Though it's may not necessary for PWART. */
-extern pwart_wasm_function pwart_get_start_function(pwart_module_compiler m);
+extern pwart_wasm_function pwart_get_start_function(pwart_module_state m);
 
 /*  return error message if any, or NULL if succeded. */
 extern char *pwart_set_global_compile_config(struct pwart_global_compile_config *config);
@@ -261,6 +261,11 @@ i64_from_ref
 func [ref]->[i64] 
 cast "pointer" reference to i64. 
 
+host_definition
+func [i32]->[ref]
+get string in host definition array (at index). the end of the array is NULL(ref.null). 
+"host definition" is the string like the compiler definition "__linux__" , "_WIN32", "__arm__","_M_ARM=7","__ANDROID_API__=21", etc.
+
 stdio function 
 
 fopen
@@ -286,15 +291,14 @@ special pwart_wasm_memory that map to the native host memory directly, memory->b
 
 
 
-
 /* High level API, Namespace and Module */
 
 typedef void *pwart_namespace;
 
 struct pwart_host_module{
      void (*resolve)(struct pwart_host_module *_this,struct pwart_symbol_resolve_request *req);
-     /*Will be set after added to namespace */
-     pwart_namespace namespace;
+     /*Will be set after added to namespace , suffixed 2 to avoid keyword conflict with c++*/
+     pwart_namespace namespace2;
      /*If not null, call after added to namespace */
      void (*on_attached)(struct pwart_host_module *_this);
      /*If not null, call after remove from namespace, or namespace is deleted */

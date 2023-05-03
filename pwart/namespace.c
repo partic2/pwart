@@ -117,7 +117,7 @@ extern char *pwart_namespace_define_module(pwart_namespace ns,struct pwart_named
     memmove(m,mod,sizeof(struct pwart_named_module));
     switch(m->type){
         case PWART_MODULE_TYPE_HOST_MODULE:
-        m->val.host->namespace=ns;
+        m->val.host->namespace2=ns;
         if(m->val.host->on_attached!=NULL){
             m->val.host->on_attached(m->val.host);
         }

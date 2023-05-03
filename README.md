@@ -16,6 +16,18 @@ about sljit: https://github.com/zherczeg/sljit
 
 Currently only support GCC-like toolchain, consider use MinGW on Windows please.
 
+### CMake mode
+```shell
+cmake -S . -B build
+```
+```shell
+cmake -S . -B build -DPWART_SYSLIB_ENABLED=ON
+```
+
+### Makefile mode
+
+(*Makefile mode do not support to build pwart_syslib component yet.*) 
+
 1. Set environment variable PWART_SOURCE_ROOT to the project directory.
 
 2. In your Makefile, write
@@ -23,13 +35,13 @@ Currently only support GCC-like toolchain, consider use MinGW on Windows please.
 include $(PWART_SOURCE_ROOT)/pwart/make_config.mk
 ```
 
-3. Put flags to build your target.
+1. Put flags to build your target.
 ```shell
 your_target:build_pwart
 	$(CC) $(PWART_CFLAGS) $(CFLAGS) -o your_output your_source.c $(PWART_LDFLAGS) $(LDFLAGS)
 ```
 
-4. In your source, include "pwart.h". A simple demo show below.
+1. In your source, include "pwart.h". A simple demo show below.
 
 ```C
 void *stackbase = pwart_allocate_stack(64 * 1024);
@@ -51,6 +63,12 @@ export PWART_SOURCE_ROOT=<the project directory>
 export WAT2WASM=<the executable wat2wasm path>
 cd $PWART_SOURCE_ROOT/tests
 make
+```
+or , If you use cmake
+```
+cmake -S . -B build -DBUILD_TESTING=ON
+cd build
+make test
 ```
 
 
@@ -86,4 +104,6 @@ Fixed-width SIMD.
 
 2. Performance optimization.
 
-3. WASI Support.
+3. libuv and libffi binding.
+
+4. WASI Support.

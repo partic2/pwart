@@ -98,7 +98,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
     dynarr_init(&m->context->own_globals,sizeof(uint8_t));
     dynarr_init(&m->functions,sizeof(WasmFunction));
     m->context->resolver=m->import_resolver;
-    m->start_function = -1;
+    m->context->start_function = 0xffffffff;
 
     // Check the module
     pos = 0;
@@ -419,7 +419,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
             break;
         case 8:
             wa_debug("Parsing Start(8) section (length: 0x%x)\n", slen);
-            m->start_function = read_LEB(bytes, &pos, 32);
+            m->context->start_function = read_LEB(bytes, &pos, 32);
             break;
         case 9:
             wa_debug("Parsing Element(9) section (length: 0x%x)\n", slen);
