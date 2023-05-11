@@ -202,7 +202,6 @@ typedef struct ModuleCompiler {
     struct dynarr *locals;      // function only, allocate after pwart_PrepareFunc, StackValue type
     int16_t mem_base_local;   // index of local variable which store memory 0 base.
     int16_t table_entries_local;  // index of local variable which store the table 0 base.
-    int16_t functions_base_local; // index of local variable which store functions base.
     int16_t runtime_ptr_local; // index of local variable which store pointer refer to RuntimeContext.
     int16_t first_stackvalue_offset;
     int16_t cached_midx;     //the index of memory we cache memory base to register.
@@ -485,6 +484,11 @@ static struct{
 
 #define WASMOPC_i32_wrap_i64 0xa7
 #define WASMOPC_i64_extend_i32_u 0xad
+#define WASMOPC_i32_eqz 0x45
+#define WASMOPC_if 0x04
+#define WASMOPC_br_if 0x0d
+#define WASMOPC_i32_shl 0x74
+#define WASMOPC_i64_shl 0x86
 
 static struct pwart_global_compile_config pwart_gcfg={
     .stack_flags=0

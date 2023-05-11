@@ -661,16 +661,6 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
                    SLJIT_IMM, (sljit_uw)tab->entries);
   }
 
-  if(m->functions_base_local >= 0){
-    sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,(sljit_uw)m->context);
-  }
-
-  if (m->functions_base_local >= 0) {
-    sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw,
-                   SLJIT_MEM1(SLJIT_R0), get_funcarr_offset(m));
-  }
-
   m->runtime_ptr_local = m->locals->len;
   sv = dynarr_push_type(&m->locals, StackValue);
   sv->jit_type = SVT_GENERAL;

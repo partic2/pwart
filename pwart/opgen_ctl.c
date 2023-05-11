@@ -200,9 +200,7 @@ static void opgen_GenCall(ModuleCompiler *m, int32_t fidx) {
   fn = dynarr_get(m->functions, WasmFunction, fidx);
   if(!pwart_CheckAndGenStubFunction(m,fn->func_ptr)){
     a = pwart_GetFreeReg(m, RT_INTEGER, 0);
-    sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
-    sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
-                  sizeof(void *) * fidx);
+    sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM,(sljit_uw)(m->context->funcentries+fidx));
     type = dynarr_get(m->types, Type, fn->tidx);
     pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
   }

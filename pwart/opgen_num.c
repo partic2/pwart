@@ -12,14 +12,19 @@ static void opgen_GenCompareOp(ModuleCompiler *m,int opcode){
   switch(opcode){
   // Comparison operators
   // unary
-  case 0x45: // i32.eqz
+  case WASMOPC_i32_eqz:
     sv=m->stack+m->sp;
-    sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_Z, sv->val.op, sv->val.opw,
-                    SLJIT_IMM, 0);
-    m->sp--;
-    sv=stackvalue_Push(m,WVT_I32);
-    sv->jit_type = SVT_CMP;
-    sv->val.cmp.flag = SLJIT_EQUAL;
+    if(sv->jit_type==SVT_CMP){
+      //inverse flag, we supposed inverse flag are always set.
+      sv->val.cmp.flag=sv->val.cmp.flag^0x1;
+    }else{
+      sljit_emit_op2u(m->jitc, SLJIT_SUB32 | SLJIT_SET_Z, sv->val.op, sv->val.opw,
+                      SLJIT_IMM, 0);
+      m->sp--;
+      sv=stackvalue_Push(m,WVT_I32);
+      sv->jit_type = SVT_CMP;
+      sv->val.cmp.flag = SLJIT_EQUAL;
+    }
     break;
   case 0x50: // i64.eqz
     sv=m->stack+m->sp;
@@ -539,7 +544,7 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
       sljit_emit_op2(m->jitc, SLJIT_XOR32, a, 0, sv->val.op, sv->val.opw,
                      sv2->val.op, sv2->val.opw);
       break;
-    case 0x74: // i32.shl
+    case WASMOPC_i32_shl: // i32.shl
       sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw,
                      sv2->val.op, sv2->val.opw);
       break;
@@ -682,7 +687,7 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
         sljit_emit_op2(m->jitc, SLJIT_XOR, a, 0, sv->val.op, sv->val.opw,
                        sv2->val.op, sv2->val.opw);
         break;
-      case 0x86: // i64.shl
+      case WASMOPC_i64_shl: // i64.shl
         sljit_emit_op2(m->jitc, SLJIT_SHL, a, 0, sv->val.op, sv->val.opw,
                        sv2->val.op, sv2->val.opw);
         break;
@@ -988,25 +993,25 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
 
   // conversion operations
   // case 0xa7 ... 0xbb:
-  case 0xa7: // i32.wrap_i64
+  case WASMOPC_i32_wrap_i64:
     sv = &stack[m->sp];
-    a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     if (m->target_ptr_size == 32 && sv->wasm_type == WVT_I64) {
-      if (sv->jit_type == SVT_TWO_REG) {
-        sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, sv->val.tworeg.opr1, 0);
-      } else if (sv->jit_type == SVT_I64CONST) {
-        sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM,
-                       (sljit_sw)sv->val.const64 & 0xffffffff);
-      }
+      stackvalue_LowWord(m,sv,&op1,&opw1);
+      m->sp--;
+      sv=stackvalue_Push(m,WVT_I32);
+      sv->jit_type = SVT_GENERAL;
+      sv->val.op = op1;
+      sv->val.opw = opw1;
     } else {
+      a = pwart_GetFreeReg(m, RT_INTEGER, 1);
       sljit_emit_op2(m->jitc, SLJIT_AND, a, 0, sv->val.op, sv->val.opw,
                      SLJIT_IMM, 0xffffffff);
+      m->sp--;
+      sv=stackvalue_Push(m,WVT_I32);
+      sv->jit_type = SVT_GENERAL;
+      sv->val.op = a;
+      sv->val.opw = 0;
     }
-    m->sp--;
-    sv=stackvalue_Push(m,WVT_I32);
-    sv->jit_type = SVT_GENERAL;
-    sv->val.op = a;
-    sv->val.opw = 0;
     break;
   case 0xa8: // i32.trunc_f32_s
     sv = &stack[m->sp];
@@ -1056,7 +1061,7 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
       sv->val.opw = 0;
     }
     break;
-  case 0xad: // i64.extend_i32_u
+  case WASMOPC_i64_extend_i32_u:
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     sljit_emit_op1(m->jitc, SLJIT_MOV_U32, a, 0, sv->val.op, sv->val.opw);

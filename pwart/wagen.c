@@ -114,7 +114,6 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
   // scan.
   m->mem_base_local = -1;
   m->table_entries_local = -1;
-  m->functions_base_local = -1;
   while (!eof && m->pc < m->byte_count) {
     opcode = bytes[m->pc];
     cur_pc = m->pc;
@@ -137,7 +136,6 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
       break;
     case 0x10: // call
       fidx = read_LEB(bytes, &m->pc, 32);
-      m->functions_base_local = -2;
       break;
     case 0x11: // call_indirect
       tidx = read_LEB(bytes, &m->pc, 32); //type
@@ -173,7 +171,6 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
       break;
     case 0xd2: // ref.func
       fidx = read_LEB(bytes, &m->pc, 32);
-      m->functions_base_local = -2;
       break;
 
     default:
@@ -190,11 +187,6 @@ static int pwart_PrepareFunc(ModuleCompiler *m) {
   }
   if (m->table_entries_local == -2) {
     m->table_entries_local = m->locals->len;
-    sv = dynarr_push_type(&m->locals, StackValue);
-    sv->wasm_type = WVT_REF;
-  }
-  if (m->functions_base_local == -2) {
-    m->functions_base_local = m->locals->len;
     sv = dynarr_push_type(&m->locals, StackValue);
     sv->wasm_type = WVT_REF;
   }
@@ -236,8 +228,9 @@ static char *pwart_GenCode(ModuleCompiler *m) {
     }
 #endif
 
-    // XXX: save flag if next op is not if or br_if.
-    if (m->sp>=0 && m->stack[m->sp].jit_type == SVT_CMP && opcode != 0x04 && opcode != 0x0d) {
+    // XXX: save flag if next op is not if, br_if or i32.eqz(not).
+    if (m->sp>=0 && m->stack[m->sp].jit_type == SVT_CMP && 
+    opcode != WASMOPC_if && opcode != WASMOPC_br_if && opcode != WASMOPC_i32_eqz) {
       pwart_EmitStackValueLoadReg(m, &m->stack[m->sp]);
     }
 

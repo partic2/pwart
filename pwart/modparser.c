@@ -502,6 +502,9 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
         case 10:
             wa_debug("Parsing Code(10) section (length: 0x%x)\n", slen);
             uint32_t body_count = read_LEB(bytes, &pos, 32);
+            //we must allocate space for function entries here, for code generator.
+            m->context->funcentries_count=m->import_count+body_count;
+            m->context->funcentries=wa_malloc(m->context->funcentries_count*sizeof(WasmFunctionEntry));
             for (uint32_t b=0; b<body_count; b++) {
                 wa_debug("generate code for function %d\n",b);
                 WasmFunction *function = dynarr_get(m->functions,WasmFunction,m->import_count+b);
@@ -549,8 +552,6 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
     }
 
     //set functionentry
-    m->context->funcentries=wa_calloc(m->functions->len*sizeof(WasmFunctionEntry));
-    m->context->funcentries_count=m->functions->len;
     m->context->import_funcentries_count=m->import_count;
     for(int i=0;i<m->functions->len;i++){
         m->context->funcentries[i]=dynarr_get(m->functions,WasmFunction,i)->func_ptr;

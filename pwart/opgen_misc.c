@@ -35,9 +35,7 @@ static void opgen_GenRefFunc(ModuleCompiler *m, int32_t fidx) {
   int32_t a;
   StackValue *sv;
   a = pwart_GetFreeReg(m, RT_INTEGER, 0);
-  sv = dynarr_get(m->locals, StackValue, m->functions_base_local);
-  sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
-                 sizeof(void *) * fidx);
+  sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM,(sljit_uw)(m->context->funcentries+fidx));
   sv = stackvalue_Push(m, WVT_FUNC);
   sv->jit_type = SVT_GENERAL;
   sv->val.op = SLJIT_MEM1(a);

@@ -63,10 +63,23 @@ static void opgen_GenGlobalSet(ModuleCompiler *m, uint32_t idx) {
 //pop stack top as table entry index, and convert to base address stored in register, return the register.
 static int opgen_GenBaseAddressRegForTable(ModuleCompiler *m,uint32_t tabidx){
   int a,b;
+  sljit_s32 op;
+  sljit_sw opw;
   StackValue *sv, *sv2;
   sv = &m->stack[m->sp];
+
+  if(m->target_ptr_size == 64 && sv->wasm_type == WVT_I32){
+    opgen_GenNumOp(m,WASMOPC_i64_extend_i32_u);
+  }else if(m->target_ptr_size == 32 && sv->wasm_type == WVT_I64){
+    stackvalue_LowWord(m,sv,&op,&opw);
+    sv->val.op=op;
+    sv->val.opw=opw;
+    sv->jit_type=SVT_GENERAL;
+    sv->wasm_type=WVT_I32;
+  }
+  
   a = pwart_GetFreeReg(m, RT_INTEGER, 1);
-  sljit_emit_op2(m->jitc, SLJIT_SHL32, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
+  sljit_emit_op2(m->jitc, SLJIT_SHL, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
                 sizeof(void *) == 4 ? 2 : 3);
   if(tabidx==0){
     sv2 = dynarr_get(m->locals, StackValue, m->table_entries_local);
@@ -230,6 +243,17 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t midx){
     m->sp--;
     return sv2->val.op;
   }
+
+  if(m->target_ptr_size == 64 && sv2->wasm_type == WVT_I32){
+    opgen_GenNumOp(m,WASMOPC_i64_extend_i32_u);
+  }else if(m->target_ptr_size == 32 && sv2->wasm_type == WVT_I64){
+    stackvalue_LowWord(m,sv2,&op,&opw);
+    sv2->val.op=op;
+    sv2->val.opw=opw;
+    sv2->jit_type=SVT_GENERAL;
+    sv2->wasm_type=WVT_I32;
+  }
+
   if(midx==m->cached_midx){
     sv = dynarr_get(m->locals, StackValue, m->mem_base_local); // memory base
     //here we don't need reserve top stack value
@@ -245,20 +269,9 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t midx){
     sv->val.op=a;
     sv->val.opw=0;
   }
-  if (sv2->wasm_type == WVT_I32) {
-    sljit_emit_op2(m->jitc, SLJIT_ADD32, a, 0, sv->val.op, sv->val.opw,
-                  sv2->val.op, sv2->val.opw);
-  } else {
-    if (m->target_ptr_size == 64) {
-      sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
+
+  sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
                     sv2->val.op, sv2->val.opw);
-    } else {
-      // For 32bit arch, memory64 only use the least significant word. 
-      stackvalue_LowWord(m,sv2,&op,&opw);
-      sljit_emit_op2(m->jitc, SLJIT_ADD, a, 0, sv->val.op, sv->val.opw,
-                    op, opw);
-    }
-  }
   m->sp+=spAdd;
   return a;
 }

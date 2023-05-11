@@ -583,8 +583,14 @@ static char *host_definition[]={
   #ifdef __x86_64__
   "__x86_64__",
   #endif
-  #ifdef _M_ARM
-  "_M_ARM="tostr(_M_ARM),
+  #ifdef __ARM_ARCH
+  "__ARM_ARCH="tostr(__ARM_ARCH),
+  #endif
+  #ifdef __riscv_xlen
+  "__riscv_xlen="tostr(__riscv_xlen),
+  #endif
+  #ifdef __arm__
+  "__arm__",
   #endif
   #ifdef __aarch64__
   "__aarch64__",
@@ -597,6 +603,8 @@ static char *host_definition[]={
   #endif
   NULL
 };
+
+#undef tostr
 
 static void insn_host_definition(void *fp){
   void *sp=fp;
