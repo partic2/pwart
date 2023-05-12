@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <inttypes.h>
+
 #define puti32 pwart_rstack_put_i32
 #define puti64 pwart_rstack_put_i64
 #define putf32 pwart_rstack_put_f32
@@ -57,6 +59,7 @@ int test1() {
   void *stackbase = pwart_allocate_stack(64 * 1024);
 
   FILE *f = fopen("test1.wasm", "rb");
+  if(f==NULL){printf("open wasm file failed.\n");return 0;}
   // 8MB buffer;
   uint8_t *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);
@@ -114,9 +117,9 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(addTwo, sp);
     ri64 = geti64(&sp);
-    printf("1.expect %llu, got %llu\n", 777ll, ri64);
+    printf("1.expect %"PRIu64", got %"PRIu64"\n", (uint64_t)777ll, ri64);
 
-    if (777ll != ri64) {
+    if ((uint64_t)777ll != ri64) {
       return 0;
     }
 
@@ -165,7 +168,7 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(test2, sp);
     ri64 = geti64(&sp);
-    printf("6.expect %u, got %llu\n", (22 + 33 + 140), ri64);
+    printf("6.expect %u, got %"PRIu64"\n", (22 + 33 + 140), ri64);
     if (22 + 33 + 140 != ri64) {
       return 0;
     }
@@ -177,7 +180,7 @@ int test1() {
     sp = stackbase;
     pwart_call_wasm_function(test2, sp);
     ri64 = geti64(&sp);
-    printf("7.expect %u, got %llu\n", 22 + 33 + 140 + 2, ri64);
+    printf("7.expect %u, got %"PRIu64"\n", 22 + 33 + 140 + 2, ri64);
     if (22 + 33 + 140 + 2 != ri64) {
       return 0;
     }
@@ -191,7 +194,7 @@ int test1() {
     pwart_call_wasm_function(test3, sp);
     ri32 = geti32(&sp);
     ri64 = geti64(&sp);
-    printf("8.expect %d,%llu, got %d,%llu\n", 3844, (int64_t)(3.25 + 4.75), ri32,
+    printf("8.expect %d,%"PRIu64", got %d,%"PRIu64"\n", 3844, (int64_t)(3.25 + 4.75), ri32,
            ri64);
     if ((int64_t)(3.25 + 4.75) != ri64) {
       return 0;
@@ -224,7 +227,7 @@ int test1() {
     rref = getref(&sp);
     ri32_3=geti32(&sp);
     printf("10.builtinFuncTest test, expect %x,%x,%p,%x, got %x,%x,%p,%x\n",
-           pwart_get_version(),sizeof(void *) ,ctx,strlen(memstr+1), ri32, ri32_2,rref,ri32_3);
+           pwart_get_version(),(uint32_t)sizeof(void *) ,ctx,(uint32_t)strlen(memstr+1), ri32, ri32_2,rref,ri32_3);
     if (pwart_get_version() != ri32 || sizeof(void *)!=ri32_2 || ctx != rref || strlen(memstr+1)!=ri32_3) {
       return 0;
     }
@@ -238,6 +241,7 @@ int test1() {
 
 int unary_test() {
   FILE *f = fopen("unary.wasm", "rb");
+  if(f==NULL){printf("open wasm file failed.\n");return 0;}
   // 8MB buffer;
   uint8_t *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);
@@ -329,7 +333,7 @@ int unary_test() {
   pwart_call_wasm_function(fn, sp);
   printf("i64_clz check...");
   if (*(uint64_t *)sp != 56) {
-    printf("failed, expect %llu, got %llu\n", 56ll, *(uint64_t *)sp);
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)56ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -339,7 +343,7 @@ int unary_test() {
   pwart_call_wasm_function(fn, sp);
   printf("i64_ctz check...");
   if (*(uint64_t *)sp != 7) {
-    printf("failed, expect %llu, got %llu\n", 7ll, *(uint64_t *)sp);
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)7ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -349,7 +353,7 @@ int unary_test() {
   pwart_call_wasm_function(fn, sp);
   printf("i64_popcnt check...");
   if (*(uint64_t *)sp != 1) {
-    printf("failed, expect %llu, got %llu\n", 1ll, *(uint64_t *)sp);
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)1ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -540,6 +544,7 @@ int unary_test() {
 
 int binary_test() {
   FILE *f = fopen("binary.wasm", "rb");
+  if(f==NULL){printf("open wasm file failed.\n");return 0;}
   // 8MB buffer;
   uint8_t *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);
@@ -715,7 +720,7 @@ int binary_test() {
   pwart_call_wasm_function(fn, sp);
   printf("i64_add check...");
   if (*(uint64_t *)sp != 3L) {
-    printf("failed, expect %llu, got %llu\n", 3ll, *(uint64_t *)sp);
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)3ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -724,8 +729,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_sub check...");
-  if (*(uint64_t *)sp != 16ll) {
-    printf("failed, expect %llu, got %llu\n", 16ll, *(uint64_t *)sp);
+  if (*(uint64_t *)sp != (uint64_t)16ll) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)16ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -734,8 +739,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_mul check...");
-  if (*(uint64_t *)sp != 21ll) {
-    printf("failed, expect %llu, got %llu\n", 21ll, *(uint64_t *)sp);
+  if (*(uint64_t *)sp != (uint64_t)21ll) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)21ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -744,8 +749,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_div_s check...");
-  if (*(uint64_t *)sp != 18446744073709551614ull) {
-    printf("failed, expect %llu, got %llu\n", 18446744073709551614ull,
+  if (*(uint64_t *)sp != (uint64_t)18446744073709551614ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)18446744073709551614ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -755,8 +760,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_div_u check...");
-  if (*(uint64_t *)sp != 9223372036854775806ull) {
-    printf("failed, expect %llu, got %llu\n", 9223372036854775806ull,
+  if (*(uint64_t *)sp != (uint64_t)9223372036854775806ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)9223372036854775806ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -766,8 +771,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_rem_s check...");
-  if (*(uint64_t *)sp != 18446744073709551615ull) {
-    printf("failed, expect %llu, got %llu\n", 18446744073709551615ull,
+  if (*(uint64_t *)sp != (uint64_t)18446744073709551615ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)18446744073709551615ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -778,7 +783,7 @@ int binary_test() {
   pwart_call_wasm_function(fn, sp);
   printf("i64_rem_u check...");
   if (*(uint64_t *)sp != 1L) {
-    printf("failed, expect %llu, got %llu\n", 1ll, *(uint64_t *)sp);
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)1ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -788,7 +793,7 @@ int binary_test() {
   pwart_call_wasm_function(fn, sp);
   printf("i64_and check...");
   if (*(uint64_t *)sp != 1L) {
-    printf("failed, expect %llu, got %llu\n", 1ll, *(uint64_t *)sp);
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)1ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -798,7 +803,7 @@ int binary_test() {
   pwart_call_wasm_function(fn, sp);
   printf("i64_or check...");
   if (*(uint64_t *)sp != 15L) {
-    printf("failed, expect %llu, got %llu\n", 15ll, *(uint64_t *)sp);
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)15ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -808,7 +813,7 @@ int binary_test() {
   pwart_call_wasm_function(fn, sp);
   printf("i64_xor check...");
   if (*(uint64_t *)sp != 14L) {
-    printf("failed, expect %llu, got %llu\n", 14ll, *(uint64_t *)sp);
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)14ll, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -817,8 +822,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_shl check...");
-  if (*(uint64_t *)sp != 18446744073709550816ull) {
-    printf("failed, expect %llu, got %llu\n", 18446744073709550816ull,
+  if (*(uint64_t *)sp != (uint64_t)18446744073709550816ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)18446744073709550816ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -828,8 +833,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_shr_u check...");
-  if (*(uint64_t *)sp != 2305843009213693939ull) {
-    printf("failed, expect %llu, got %llu\n", 2305843009213693939ull,
+  if (*(uint64_t *)sp != (uint64_t)2305843009213693939ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)2305843009213693939ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -839,8 +844,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_shr_s check...");
-  if (*(uint64_t *)sp != 18446744073709551603ull) {
-    printf("failed, expect %llu, got %llu\n", 18446744073709551603ull,
+  if (*(uint64_t *)sp != (uint64_t)18446744073709551603ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)18446744073709551603ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -850,8 +855,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_rotl check...");
-  if (*(uint64_t *)sp != 18446744073709550823ull) {
-    printf("failed, expect %llu, got %llu\n", 18446744073709550823ull,
+  if (*(uint64_t *)sp != (uint64_t)18446744073709550823ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)18446744073709550823ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -861,8 +866,8 @@ int binary_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_rotr check...");
-  if (*(uint64_t *)sp != 11529215046068469747ull) {
-    printf("failed, expect %llu, got %llu\n", 11529215046068469747ull,
+  if (*(uint64_t *)sp != (uint64_t)11529215046068469747ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)11529215046068469747ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -1022,6 +1027,7 @@ int binary_test() {
 
 int control_test() {
   FILE *f = fopen("control.wasm", "rb");
+  if(f==NULL){printf("open wasm file failed.\n");return 0;}
   // 8MB buffer;
   uint8_t *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);
@@ -1162,6 +1168,7 @@ int control_test() {
 
 int convert_test() {
   FILE *f = fopen("convert.wasm", "rb");
+  if(f==NULL){printf("open wasm file failed.\n");return 0;}
   // 8MB buffer;
   uint8_t *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);
@@ -1236,8 +1243,8 @@ int convert_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_extend_u_i32 check...");
-  if (*(uint64_t *)sp != 4294967295ull) {
-    printf("failed, expect %llu, got %llu\n", 4294967295ull, *(uint64_t *)sp);
+  if (*(uint64_t *)sp != (uint64_t)4294967295ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)4294967295ull, *(uint64_t *)sp);
     return 0;
   }
   printf("pass\n");
@@ -1246,8 +1253,8 @@ int convert_test() {
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
   printf("i64_extend_s_i32 check...");
-  if (*(uint64_t *)sp != 18446744073709551615ull) {
-    printf("failed, expect %llu, got %llu\n", 18446744073709551615ull,
+  if (*(uint64_t *)sp != (uint64_t)18446744073709551615ull) {
+    printf("failed, expect %"PRIu64", got %"PRIu64"\n", (uint64_t)18446744073709551615ull,
            *(uint64_t *)sp);
     return 0;
   }
@@ -1399,6 +1406,7 @@ int convert_test() {
 
 int compare_test() {
   FILE *f = fopen("compare.wasm", "rb");
+  if(f==NULL){printf("open wasm file failed.\n");return 0;}
   // 8MB buffer;
   uint8_t *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);

@@ -47,12 +47,19 @@ typedef void (*pwart_host_function_c)(void *stack_frame);
 struct pwart_global_compile_config{
     /* PWART_STACK_FLAGS_xxx flags, indicate how operand stored in stack. */
     char stack_flags;
+    /* PWART_MISC_FLAGS_xxx flags */
+    char misc_flags;
 };
 
 /* If set, elements on stack will align to it's size, and function frame base will align to 8. 
 Some arch require this flag to avoid align error. */
 #define PWART_STACK_FLAGS_AUTO_ALIGN 1
 
+/* If set, 32bit index will be always extended to 64bit on 64bit host on loading/storing.  
+Some processor, like risc-v64, extend sign bit , require this flag to use index larger than 2GB.
+In most case, this flag is not necessary and may slow the generated code. 
+This flag has no effect for "native_memory" access. */
+#define PWART_MISC_FLAGS_EXTEND_INDEX 1
 
 
 extern int pwart_get_version();
@@ -71,7 +78,7 @@ struct pwart_wasm_memory {
     uint32_t    maximum;     /* maximum size (64K pages) */
     uint32_t    pages;       /* current size (64K pages) */
 
-    /*  memory area, if 0(NULL), indicate this memory is mapped to native host memory directly, and the pwart will generated faster code to access this memory. 
+    /*  memory area, if 0(NULL), indicate this memory is mapped to native host memory directly(native_memory), and the pwart will generated faster code to access this memory. 
         In this case, memory can only be allocated by call pwart_builtin.memory_alloc, and index type should match the machine word size.
         wasm module can use this memory by import memory pwart_builtin.native_memory, see "pwart builtin symbols list" for detail.
     */

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #define puti32 pwart_rstack_put_i32
 #define puti64 pwart_rstack_put_i64
@@ -98,7 +99,7 @@ int namespace_test(){
   pwart_call_wasm_function(test1,stackbase);
   sp=stackbase;
   uint64_t *pmem=(uint64_t *)(size_t)geti64(&sp);
-  printf("allocated memory at %p, write value %llu, expect %llu\n",pmem,*pmem,123456ll);
+  printf("allocated memory at %p, write value %"PRIu64", expect %llu\n",pmem,*pmem,123456ll);
 
   req.import_field="test2";
   pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);

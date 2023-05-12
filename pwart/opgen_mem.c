@@ -69,7 +69,11 @@ static int opgen_GenBaseAddressRegForTable(ModuleCompiler *m,uint32_t tabidx){
   sv = &m->stack[m->sp];
 
   if(m->target_ptr_size == 64 && sv->wasm_type == WVT_I32){
-    opgen_GenNumOp(m,WASMOPC_i64_extend_i32_u);
+    if(sv->jit_type==SVT_GENERAL && sv->val.op<SLJIT_IMM && !(pwart_gcfg.misc_flags&PWART_MISC_FLAGS_EXTEND_INDEX)){
+      sv->wasm_type=WVT_I64;
+    }else{
+      opgen_GenNumOp(m,WASMOPC_i64_extend_i32_u);
+    }
   }else if(m->target_ptr_size == 32 && sv->wasm_type == WVT_I64){
     stackvalue_LowWord(m,sv,&op,&opw);
     sv->val.op=op;
@@ -245,7 +249,11 @@ static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t midx){
   }
 
   if(m->target_ptr_size == 64 && sv2->wasm_type == WVT_I32){
-    opgen_GenNumOp(m,WASMOPC_i64_extend_i32_u);
+    if(sv2->jit_type==SVT_GENERAL && sv2->val.op<SLJIT_IMM && !(pwart_gcfg.misc_flags&PWART_MISC_FLAGS_EXTEND_INDEX)){
+      sv2->wasm_type=WVT_I64;
+    }else{
+      opgen_GenNumOp(m,WASMOPC_i64_extend_i32_u);
+    }
   }else if(m->target_ptr_size == 32 && sv2->wasm_type == WVT_I64){
     stackvalue_LowWord(m,sv2,&op,&opw);
     sv2->val.op=op;

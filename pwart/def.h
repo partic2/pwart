@@ -491,7 +491,7 @@ static struct{
 #define WASMOPC_i64_shl 0x86
 
 static struct pwart_global_compile_config pwart_gcfg={
-    .stack_flags=0
+    .stack_flags=0,.misc_flags=0
 };
 
 static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype,int upstack);
