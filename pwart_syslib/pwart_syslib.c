@@ -30,6 +30,7 @@ extern char *pwart_syslib_load(pwart_namespace ns){
     pwart_namespace_define_module(ns,&mod);
     mod.name="libffi";
     mod.val.host=pwart_libffi_module_new();
+    pwart_namespace_define_module(ns,&mod);
     return NULL;
 }
 

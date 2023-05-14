@@ -8,8 +8,13 @@ option(BUILD_TESTING "enable test" OFF)
 
 option(DEPS_SOURCE_DIRS "dependency sources directory, where DEPS_SOURCE_DIRS/libffi DEPS_SOURCE_DIRS/libuv exists, if defined, add these as subdirectory.")
 
+if(BUILD_TESTING)
+add_compile_options(-ggdb3)
+add_definitions(-DDEBUG_BUILD=1)
+endif()
 
 add_library(pwart STATIC pwart/pwart.c sljit/sljit_src/sljitLir.c)
+target_link_libraries(pwart m)
 target_include_directories(pwart PUBLIC include sljit/sljit_src)
 
 
@@ -39,11 +44,20 @@ if (BUILD_TESTING)
   execute_process(COMMAND ${WAT2WASM} "control.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)
   execute_process(COMMAND ${WAT2WASM} "convert.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)
   execute_process(COMMAND ${WAT2WASM} "compare.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)
-  
   add_executable(pwarttest tests/testmain.c)
   add_executable(pwarttest2 tests/testmain2.c)
   target_link_libraries(pwarttest pwart)
   target_link_libraries(pwarttest2 pwart)
   add_test(NAME test1 COMMAND pwarttest WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests")
   add_test(NAME test2 COMMAND pwarttest2 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+
+  if(PWART_SYSLIB_ENABLED)
+  execute_process(COMMAND ${WAT2WASM} "syslibtest1.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)
+  add_library(ffitestdll SHARED tests/ffitestdll.c)
+  set_property(TARGET ffitestdll PROPERTY OUTPUT_NAME syslibtestdll.dll)
+  add_executable(syslibtest1 tests/syslibtest1.c)
+  target_link_libraries(syslibtest1 pwart pwart_syslib)
+  #add_test(NAME syslibtest1 COMMAND syslibtest1 syslibtestdll.dll WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+  endif()
+
 endif()

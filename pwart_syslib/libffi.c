@@ -20,6 +20,66 @@ static void wasm__ffi_prep_cif(void *fp){
     pwart_rstack_put_i32(&sp,ffi_status);
 }
 
+static ffi_type *ffix_CharToType(int typeid){
+    switch(typeid){
+        case 'i':
+        return &ffi_type_uint32;
+        case 'l':
+        return &ffi_type_uint64;
+        case 'f':
+        return &ffi_type_float;
+        case 'd':
+        return &ffi_type_double;
+        case 'p':
+        return &ffi_type_pointer;
+        case 'v':
+        return &ffi_type_void;
+        default:
+        return &ffi_type_pointer;
+    }
+}
+
+static void wasm__ffix_new_cif(void *fp){
+    void *sp=fp;
+    _wargref(fndef);
+    char *typeid=fndef;
+    int i=0,alen=0;
+    ffi_status ffistat;
+    ffi_type *rtype;
+    sp=fp;
+
+    for(i=0;i<256;i++){
+        if(typeid[i]==0 || typeid[i]=='>'){
+            alen=i;
+            break;
+        }
+    }
+    if(i==256&&alen==0){
+        pwart_rstack_put_ref(&sp,NULL);
+        pwart_rstack_put_i32(&sp,1);
+        return;
+    }
+    ffi_cif *cif=wa_malloc(sizeof(ffi_cif)+sizeof(ffi_type *)*alen);
+    ffi_type **typearr=(ffi_type *)((char *)cif+sizeof(ffi_cif));
+    for(i=0;i<alen;i++){
+        typearr[i]=ffix_CharToType(typeid[i]);
+    }
+    if(typeid[alen]=='>'){
+        rtype=ffix_CharToType(typeid[alen+1]);
+    }else{
+        rtype=&ffi_type_void;
+    }
+    ffistat=ffi_prep_cif(cif,FFI_DEFAULT_ABI,alen,rtype,typearr);
+    pwart_rstack_put_ref(&sp,cif);
+    pwart_rstack_put_i32(&sp,ffistat);
+}
+
+static void wasm__ffix_del_cif(void *fp){
+    void *sp=fp;
+    _wargref(cif);
+    wa_free(cif);
+}
+
 static void wasm__ffi_prep_cif_var(void *fp){
     void *sp=fp;
     _wargref(cif)
@@ -41,6 +101,21 @@ static void wasm__ffi_call(void *fp){
     _wargref(avalue)
     sp=fp;
     ffi_call(cif,fn,rvalue,avalue);
+}
+
+static void wasm__ffix_call(void *fp){
+    void *sp=fp;
+    ffi_cif *cif=pwart_rstack_get_ref(&sp);
+    _wargref(fn)
+    void *rvalue=pwart_rstack_get_ref(&sp);
+    int64_t *i64arg=pwart_rstack_get_ref(&sp);
+    void **avalue=wa_malloc(sizeof(void *)*cif->nargs);
+    int i1;
+    for(i1=0;i1<cif->nargs;i1++){
+        avalue[i1]=i64arg+i1;
+    }
+    ffi_call(cif,fn,rvalue,avalue);
+    wa_free(avalue);
 }
 
 static void wasm__ffi_default_abi(void *fp){
@@ -73,12 +148,17 @@ extern struct pwart_host_module *pwart_libffi_module_new(){
         _ADD_BUILTIN_FN(ffi_call)
         _ADD_BUILTIN_FN(ffi_default_abi)
         _ADD_BUILTIN_FN(ffi_built_in_types)
+        _ADD_BUILTIN_FN(ffix_new_cif)
+        _ADD_BUILTIN_FN(ffix_del_cif)
+        _ADD_BUILTIN_FN(ffix_call)
+        ffisyms=syms;
     }
     struct ModuleDef *md=wa_malloc(sizeof(struct ModuleDef));
     md->syms=ffisyms;
     md->mod.resolve=(void *)&ModuleResolver;
     md->mod.on_attached=NULL;
     md->mod.on_detached=NULL;
+    return md;
 }
 
 extern char *pwart_libffi_module_delete(struct pwart_host_module *mod){

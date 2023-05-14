@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pwart_syslib.h>
+#include <uv.h>
 
 #define puti32 pwart_rstack_put_i32
 #define puti64 pwart_rstack_put_i64
@@ -49,7 +50,8 @@ static void do_resolve(struct pwart_host_module *_this,struct pwart_symbol_resol
 struct pwart_host_module testaid={.resolve=&do_resolve,.on_attached=NULL,.on_detached=NULL};
 
 
-int syslib_test(){
+int syslib_test(char *ffitestdll){
+
   struct pwart_global_compile_config gcfg;
   void *stackbase = pwart_allocate_stack(64 * 1024);
   char *err=NULL;
@@ -69,47 +71,59 @@ int syslib_test(){
   nmod.val.host=&testaid;
   pwart_namespace_define_module(ns,&nmod);
 
-  f = fopen("test1.wasm", "rb");
+  f = fopen("syslibtest1.wasm", "rb");
   len = fread(data, 1, 1024 * 1024 * 8, f);
   fclose(f);
-  pwart_namespace_define_wasm_module(ns,"test1",data,len,&err);
-  if(err!=NULL){
-    printf("error occur:%s\n",err);
-    return 0;
-  }
-
-  f = fopen("extension1.wasm", "rb");
-  len = fread(data, 1, 1024 * 1024 * 8, f);
-  fclose(f);
-  pwart_namespace_define_wasm_module(ns,"extension1",data,len,&err);
+  pwart_namespace_define_wasm_module(ns,"syslibtest1",data,len,&err);
   if(err!=NULL){
     printf("error occur:%s\n",err);
     return 0;
   }
   struct pwart_symbol_resolve_request req;
-  req.import_field="test1";
-  req.import_module="extension1";
+  req.import_module="syslibtest1";
+
+  req.import_field="mem0";
+  req.kind=PWART_KIND_MEMORY;
+  req.result=NULL;
+  pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
+  if(req.result==NULL){
+    printf("error occur:%s\n","import syslibtest1.mem0 failed");
+    return 0;
+  }
+  struct pwart_wasm_memory *mem0=req.result;
+
+  strcpy(mem0->bytes+64,ffitestdll);
+
+  
+  req.import_field="main";
   req.kind=PWART_KIND_FUNCTION;
   req.result=NULL;
   pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
   if(req.result==NULL){
-    printf("error occur:%s\n","import extension1.test1 failed");
+    printf("error occur:%s\n","import syslibtest1.main failed");
     return 0;
   }
   pwart_wasm_function test1=(pwart_wasm_function)req.result;
   pwart_call_wasm_function(test1,stackbase);
   sp=stackbase;
-  uint64_t *pmem=(uint64_t *)(size_t)geti64(&sp);
-  printf("allocated memory at %p, write value %llu, expect %llu\n",pmem,*pmem,123456ll);
+
+  printf("ffi test result:%d, expect %d...",*(int *)(mem0->bytes+128),8);
+  if(*(int *)(mem0->bytes+128)==7){
+    printf("pass\n");
+  }else{
+    return 0;
+  }
+
+
   return 1;
 }
 
 int main(int argc, char *argv[]) {
-  
-  if (namespace_test()) {
-    printf("namespace_test pass\n");
+  printf("build path:%s\n",argv[1]);
+  if (syslib_test(argv[1])) {
+    printf("syslib_test pass\n");
   } else {
-    printf("namespace_test failed\n");
+    printf("syslib_test failed\n");
     return 1;
   }
   printf("all test pass.\n");

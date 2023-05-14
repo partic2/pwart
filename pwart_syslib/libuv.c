@@ -175,6 +175,7 @@ extern struct pwart_host_module *pwart_libuv_module_new(){
     md->mod.resolve=(void *)&ModuleResolver;
     md->mod.on_attached=NULL;
     md->mod.on_detached=NULL;
+    return md;
 }
 
 extern char *pwart_libuv_module_delete(struct pwart_host_module *mod){

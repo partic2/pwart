@@ -99,9 +99,30 @@ int namespace_test(){
   pwart_call_wasm_function(test1,stackbase);
   sp=stackbase;
   uint64_t *pmem=(uint64_t *)(size_t)geti64(&sp);
-  printf("allocated memory at %p, write value %"PRIu64", expect %llu\n",pmem,*pmem,123456ll);
+  printf("allocated memory at %p, write value %"PRIu64",%"PRIu64", expect %llu,%llu...",pmem,*pmem,*(pmem+1),
+    123456ull,456789ull);
+  if(*pmem!=(uint64_t)123456ull || *(pmem+1)!=(uint64_t)456789ull){
+    return 0;
+  }
+  printf("pass\n");
+
+  req.import_field="mbase";
+  req.kind=PWART_KIND_GLOBAL;
+  req.result=NULL;
+  pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
+  if(req.result==NULL){
+    printf("error occur:%s\n","import extension1.mbase failed");
+    return 0;
+  }
+  printf("global mbase:%p, expect %p...",*(void **)req.result,pmem);
+  if(*(void **)req.result!=pmem){
+    return 0;
+  }
+  printf("pass\n");
 
   req.import_field="test2";
+  req.kind=PWART_KIND_FUNCTION;
+  req.result=NULL;
   pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
   if(req.result==NULL){
     printf("error occur:%s\n","import extension1.test2 failed");
