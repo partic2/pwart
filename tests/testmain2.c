@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <time.h>
 
 #define puti32 pwart_rstack_put_i32
 #define puti64 pwart_rstack_put_i64
@@ -133,6 +134,69 @@ int namespace_test(){
   return 1;
 }
 
+
+int benchmark_test(){
+  struct pwart_global_compile_config gcfg;
+  void *stackbase = pwart_allocate_stack(64 * 1024);
+  char *err=NULL;
+  void *sp;
+  FILE *f;
+  int len;
+  // 8MB buffer;
+  uint8_t *data = malloc(1024 * 1024 * 8);
+
+  printf("benchmark testing...\n");
+
+  pwart_get_global_compile_config(&gcfg);
+  pwart_namespace *ns=pwart_namespace_new();
+
+  struct pwart_named_module nmod;
+  nmod.name="testaid";
+  nmod.type=PWART_MODULE_TYPE_HOST_MODULE;
+  nmod.val.host=&testaid;
+  pwart_namespace_define_module(ns,&nmod);
+
+  f = fopen("benchsort.wasm", "rb");
+  len = fread(data, 1, 1024 * 1024 * 8, f);
+  fclose(f);
+  pwart_namespace_define_wasm_module(ns,"benchsort",data,len,&err);
+  if(err!=NULL){
+    printf("error occur:%s\n",err);
+    return 0;
+  }
+  
+  struct pwart_symbol_resolve_request req;
+  req.import_module="benchsort";
+  req.import_field="mainloop";
+  req.kind=PWART_KIND_FUNCTION;
+  req.result=NULL;
+  pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
+  if(req.result==NULL){
+    printf("error occur:%s\n","import benchsort.mainloop failed");
+    return 0;
+  }
+  pwart_wasm_function test1=(pwart_wasm_function)req.result;
+  clock_t beg=clock();
+  pwart_call_wasm_function(test1,stackbase);
+  clock_t end=clock();
+  sp=stackbase;
+
+  req.import_field="memory";
+  req.kind=PWART_KIND_MEMORY;
+  req.result=NULL;
+  pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
+  struct pwart_wasm_memory *mem=req.result;
+  uint32_t *target=(uint32_t *)(mem->bytes+5024);
+  for(int i1=1;i1<1000;i1++){
+    if(*(target+i1)<*(target+i1-1)){
+      printf("benchmark test get wrong result, faled.");
+      return 0;
+    }
+  }
+  printf("benchmark test consume %ld ms\n",end-beg);
+  return 1;
+}
+
 int main(int argc, char *argv[]) {
   
   if (namespace_test()) {
@@ -141,6 +205,13 @@ int main(int argc, char *argv[]) {
     printf("namespace_test failed\n");
     return 1;
   }
+  if(benchmark_test()){
+    printf("benchmark_test pass\n");
+  } else {
+    printf("benchmark_test failed\n");
+    return 1;
+  }
+	  
   printf("all test pass.\n");
   return 0;
 }

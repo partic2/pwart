@@ -21,4 +21,5 @@ test:build_pwart
 test2:build_pwart
 	$(CC) $(PWART_CFLAGS) $(CFLAGS) -o testexe2 testmain2.c $(PWART_LDFLAGS) $(LDFLAGS)
 	$(WAT2WASM) --enable-multi-memory extension1.wat
+	$(WAT2WASM) benchsort.wat
 	./testexe2
