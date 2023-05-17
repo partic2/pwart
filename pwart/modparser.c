@@ -633,7 +633,8 @@ static int free_runtimectx(RuntimeContext *rc){
     return 0;
 }
 
-static int free_module(ModuleCompiler *m){
+static char *free_module(ModuleCompiler *m){
+    int i=0;
     if(!m->compile_succeeded){
         free_runtimectx(m->context);
     }
@@ -650,10 +651,20 @@ static int free_module(ModuleCompiler *m){
         pool_free(&m->types_pool);
     }
     if(m->blocks!=NULL){
+        for(i=0;i<m->blocks->len;i++){
+            Block *blk=dynarr_get(m->blocks,Block,i);
+            dynarr_free(&blk->br_jump);
+        }
         dynarr_free(&m->blocks);
+    }
+    if(m->locals!=NULL){
+        dynarr_free(&m->locals);
     }
     if(m->br_table!=NULL){
         dynarr_free(&m->br_table);
+    }
+    if(m->locals_need_zero!=NULL){
+        dynarr_free(&m->locals_need_zero);
     }
     if(m->jitc!=NULL){
         sljit_free_compiler(m->jitc);

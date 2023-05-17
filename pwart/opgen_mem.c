@@ -82,7 +82,7 @@ static int opgen_GenBaseAddressRegForTable(ModuleCompiler *m,uint32_t tabidx){
     sv->wasm_type=WVT_I32;
   }
   
-  a = pwart_GetFreeReg(m, RT_INTEGER, 1);
+  a = pwart_GetFreeReg(m, RT_BASE, 1);
   sljit_emit_op2(m->jitc, SLJIT_SHL, a, 0, sv->val.op, sv->val.opw, SLJIT_IMM,
                 sizeof(void *) == 4 ? 2 : 3);
   if(tabidx==0){

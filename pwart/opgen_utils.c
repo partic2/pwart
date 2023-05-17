@@ -569,7 +569,7 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
   int nextSfr = SLJIT_FS0;
   int i, len;
   int nextLoc; 
-  StackValue *sv;
+  StackValue *sv=NULL;
 
   // temporarily use nextLoc to represent offset of argument, base on SLJIT_S0
   nextLoc = 0;
@@ -590,7 +590,18 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
 
   //nextLoc: next local offset to store locals variable, base on SLJIT_SP;
   nextLoc=0;
+  //ensure memory base stored into register.
+  
+  if (m->mem_base_local >= 0) {
+    sv = dynarr_get(m->locals, StackValue, m->mem_base_local);
+    sv->jit_type=SVT_GENERAL;
+    sv->val.op=nextSr;
+    sv->val.opw=0;
+    nextSr--;
+  }
+  
   for (i = len; i < m->locals->len; i++) {
+    if(i==m->mem_base_local)continue;
     sv = dynarr_get(m->locals, StackValue, i);
     sv->jit_type = SVT_GENERAL;
     if (m->target_ptr_size == 32) {
@@ -661,11 +672,33 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
                    SLJIT_IMM, (sljit_uw)tab->entries);
   }
 
-  m->runtime_ptr_local = m->locals->len;
-  sv = dynarr_push_type(&m->locals, StackValue);
-  sv->jit_type = SVT_GENERAL;
-  sv->val.op = SLJIT_IMM;
-  sv->val.opw = (sljit_uw)m->context;
+  if(m->locals_need_zero!=NULL){
+    float f32zero=0;
+    double f64zero=0;
+    for(i=0;i<m->locals_need_zero->len;i++){
+      int idx=*dynarr_get(m->locals_need_zero,int16_t,i);
+      sv=dynarr_get(m->locals,StackValue,idx);
+      switch(sv->wasm_type){
+        case WVT_F32:
+        opgen_GenF32Const(m,(uint8_t *)&f32zero);
+        break;
+        case WVT_F64:
+        opgen_GenF32Const(m,(uint8_t *)&f64zero);
+        break;
+        case WVT_I32:
+        opgen_GenI32Const(m,0);
+        break;
+        case WVT_I64:
+        opgen_GenI64Const(m,0);
+        break;
+        default :
+        opgen_GenRefNull(m,WVT_REF);
+        break;
+      }
+      opgen_GenLocalSet(m,idx);
+    }
+    dynarr_free(&m->locals_need_zero);
+  }
 }
 
 

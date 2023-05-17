@@ -62,6 +62,11 @@ This flag has no effect for "native_memory" access. */
 #define PWART_MISC_FLAGS_EXTEND_INDEX 1
 
 
+/* If set. Local variables, if used before initialized.  will be set to 0 when entering a function.
+PWART use a simple glance instead of SSA analyzation, So this flag may slow the generated code.
+But according to the WebAssembly spec, this flag is SET by default  */
+#define PWART_MISC_FLAGS_LOCALS_ZERO_INIT 2
+
 extern int pwart_get_version();
 
 

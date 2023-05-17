@@ -73,13 +73,18 @@ make test
 
 ## Benchmarks
 
-The source code are here [tests/benchsort.c](tests/benchsort.c), tested on Windows10 x86_64
+The source code are here [tests/benchsort.c](tests/benchsort.c).
 
-| | GCC7.3 (-O2) | PWART(fixed memory) | PWART (dynamic memory) | PWART (native memory) | TinyCC | V8(Chrome v113) |
+Until May 18, 2023
+
+Time Consumed
+
+| | GCC (-O2) | PWART (fixed memory) | PWART (dynamic memory) | PWART (native memory) | TinyCC | V8(Chrome v113) |
 | ---- | ----: | ----: | ----: | ----: | ----: | ----: |
-| Time Consumed | 2905ms | 3085ms | 3940ms | No test yet | 6330ms | 5658ms |
+| Windows10 x86_64 | 2823ms | 3622ms | 2720ms | Not test yet | 6330ms | 2618ms |
+| Linux aarch64 | 1561ms | 1997ms | 2079ms | Not test yet | 7681ms | 1465ms |
 
-**fixed memory** mean wasm module use memory with maximum limit size. **native memory** mean memory is mapped to host memory directly, This feature is not supported by any toolchain, So we need write .wat by hand before testing.
+**fixed memory** mean wasm module use memory with maximum limit size (expected to be faster). **native memory** mean memory is mapped to host memory directly, This feature is not supported by any toolchain, So we need write .wat by hand before testing.
 
 See [include/pwart.h](include/pwart.h) for detail.
 

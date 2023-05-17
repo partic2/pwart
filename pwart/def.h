@@ -124,7 +124,6 @@ typedef struct StackValue {
 } StackValue;
 
 
-
 typedef struct pwart_wasm_table Table;
 
 typedef struct pwart_wasm_memory Memory;
@@ -202,9 +201,9 @@ typedef struct ModuleCompiler {
     struct dynarr *locals;      // function only, allocate after pwart_PrepareFunc, StackValue type
     int16_t mem_base_local;   // index of local variable which store memory 0 base.
     int16_t table_entries_local;  // index of local variable which store the table 0 base.
-    int16_t runtime_ptr_local; // index of local variable which store pointer refer to RuntimeContext.
     int16_t first_stackvalue_offset;
     int16_t cached_midx;     //the index of memory we cache memory base to register.
+    struct dynarr *locals_need_zero;  //the array of index of locals we need zero init, type int16_t
     uint32_t registers_status[SLJIT_NUMBER_OF_SCRATCH_REGISTERS]; // register status [Rx-R0]
     uint32_t float_registers_status[SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS];
     union{
@@ -487,11 +486,13 @@ static struct{
 #define WASMOPC_i32_eqz 0x45
 #define WASMOPC_if 0x04
 #define WASMOPC_br_if 0x0d
+#define WASMOPC_br 0x0c
 #define WASMOPC_i32_shl 0x74
 #define WASMOPC_i64_shl 0x86
 
 static struct pwart_global_compile_config pwart_gcfg={
-    .stack_flags=0,.misc_flags=0
+    .stack_flags=0,
+    .misc_flags=PWART_MISC_FLAGS_LOCALS_ZERO_INIT
 };
 
 static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype,int upstack);
@@ -503,5 +504,13 @@ static char *opgen_GenNumOp(ModuleCompiler *m, int opcode);
 //if fn is stub/inline function, generate native code and return 1, else return 0.
 static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn);
 static void opgen_GenRefNull(ModuleCompiler *m, int32_t typeidx);
+static void opgen_GenI32Const(ModuleCompiler *m, uint32_t c);
+static void opgen_GenI64Const(ModuleCompiler *m, uint64_t c);
+static void opgen_GenF32Const(ModuleCompiler *m, uint8_t *c);
+static void opgen_GenF64Const(ModuleCompiler *m, uint8_t *c);
+static void opgen_GenRefConst(ModuleCompiler *m,void *c);
+static void opgen_GenLocalSet(ModuleCompiler *m, uint32_t idx);
+static void opgen_GenLocalTee(ModuleCompiler *m, uint32_t idx);
+static void opgen_GenGlobalGet(ModuleCompiler *m, uint32_t idx);
 
 #endif

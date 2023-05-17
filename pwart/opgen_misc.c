@@ -44,15 +44,13 @@ static void opgen_GenRefFunc(ModuleCompiler *m, int32_t fidx) {
 
 static void opgen_GenTableSize(ModuleCompiler *m,int tabidx){
   int32_t r;
-  StackValue *sv;
+  StackValue *sv=NULL;
   r = pwart_GetFreeReg(m, RT_INTEGER, 0);
-  sv=dynarr_get(m->locals,StackValue,m->runtime_ptr_local);
-  sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,sv->val.op,sv->val.opw,SLJIT_IMM,offsetof(RuntimeContext,tables));
-  sljit_emit_op2(m->jitc,SLJIT_ADD,r,0,SLJIT_MEM1(r),0,SLJIT_IMM,offsetof(struct dynarr,data)+sizeof(Table)*tabidx+offsetof(Table,size));
-  sljit_emit_op1(m->jitc,SLJIT_MOV,r,0,SLJIT_MEM1(r),0);
+  Table *tab=*dynarr_get(m->context->tables,Table *,tabidx);
+  sljit_emit_op1(m->jitc,SLJIT_MOV,r,0,SLJIT_IMM,(sljit_sw)&tab->size);
   sv = stackvalue_Push(m, WVT_I32);
   sv->jit_type = SVT_GENERAL;
-  sv->val.op = r;
+  sv->val.op = SLJIT_MEM1(r);
   sv->val.opw = 0;
 }
 
