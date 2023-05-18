@@ -79,7 +79,7 @@ EM_PORT_API(void) mainloop(){
 int main(){
 	clock_t c=clock();
 	mainloop();
-	printf("time consumed:%d ms\n",clock()-c);
+	printf("time consumed:%d ms\n",(int)((clock()-c)/(CLOCKS_PER_SEC/1000)));
     return 0;
 }
 #endif

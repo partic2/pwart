@@ -193,7 +193,7 @@ int benchmark_test(){
       return 0;
     }
   }
-  printf("benchmark test consume %ld ms\n",end-beg);
+  printf("benchmark test consume %d ms\n",(int)((end-beg)/(CLOCKS_PER_SEC/1000)));
   return 1;
 }
 

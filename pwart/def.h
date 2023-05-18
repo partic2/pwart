@@ -196,6 +196,9 @@ typedef struct ModuleCompiler {
     uint8_t eof;      // end of function
 
     //prepare info, used in compile time
+    #if DEBUG_BUILD
+    uint32_t insnCnt;
+    #endif
     Type *function_type;   // function type current processing.
     uint8_t *function_locals_type; //function locals type current processing.
     struct dynarr *locals;      // function only, allocate after pwart_PrepareFunc, StackValue type

@@ -62,7 +62,7 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     break;
   // block_type
   case 0x02 ... 0x04: // block, loop, if
-    read_LEB(bytes, pos, 7);
+    read_LEB_signed(bytes, pos, 33);
     break;
   // memory_immediate
   case 0x28 ... 0x3e: // *.load*, *.store*
@@ -81,7 +81,10 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     read_LEB(bytes, pos, 32); // default target
     break;
   case 0xfc: //misc op.
-    switch(bytes[*pos]){
+  {
+    int opc2=bytes[*pos];
+    *pos = *pos + 1;
+    switch(opc2){
       case 0xa:
       case 0xe:
       read_LEB(bytes,pos,32); 
@@ -93,6 +96,7 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
       break;
     }
     *pos++;
+  }
     break;
   default: // no immediates
     break;
@@ -130,34 +134,50 @@ static char *pwart_PrepareFunc(ModuleCompiler *m) {
   for (i = 0; m->function_locals_type[i] != 0; i++) {
     sv = dynarr_push_type(&m->locals, StackValue);
     sv->wasm_type = m->function_locals_type[i];
-    //XXX: use sv->jit_type as locals flags. 0 - Unknown 1-Need Zero Init 2-No Need Zero Init
+    //XXX: use sv->jit_type as locals flags. 1:Use before Set detected.
     sv->jit_type=0;
+    //XXX: use sv->val.op as the most top level the local.set take effect.
+    sv->val.op=0xffff;
   }
   // initialize to -1
   // if local variable required, set to -2 and set to real value(>=0) after code
   // scan.
   m->mem_base_local = -1;
   m->table_entries_local = -1;
+
   while (!eof && m->pc < m->byte_count) {
     opcode = bytes[m->pc];
     cur_pc = m->pc;
     m->pc += 1;
+
+    #if DEBUG_BUILD
+    m->insnCnt++;
+    #endif
 
     switch (opcode) {
     //
     // Control flow operators
     //
     case 0x02: // block
+      read_LEB_signed(bytes, &m->pc, 33);
       blk=dynarr_push_type(&m->blocks,Block);
       blk->block_type=0x02;
       break;
     case 0x03: // loop
+      read_LEB_signed(bytes, &m->pc, 33);
       blk=dynarr_push_type(&m->blocks,Block);
       blk->block_type=0x03;
       break;
     case 0x04: // if
+      read_LEB_signed(bytes, &m->pc, 33);
       blk=dynarr_push_type(&m->blocks,Block);
       blk->block_type=0x04;
+      break;
+    case 0x05: // else
+      for(i=0;i<m->locals->len;i++){
+        sv=dynarr_get(m->locals,StackValue,i);
+        if(sv->val.op>=m->blocks->len)sv->val.op=0xffff;
+      }
       break;
     case WASMOPC_br:
     case WASMOPC_br_if: 
@@ -168,6 +188,10 @@ static char *pwart_PrepareFunc(ModuleCompiler *m) {
         eof = 1;
       }else{
         blk=dynarr_pop_type(&m->blocks,Block);
+        for(i=0;i<m->locals->len;i++){
+          sv=dynarr_get(m->locals,StackValue,i);
+          if(sv->val.op>m->blocks->len)sv->val.op=0xffff;
+        }
       }
       break;
     case 0x10: // call
@@ -211,22 +235,22 @@ static char *pwart_PrepareFunc(ModuleCompiler *m) {
     case 0x20: //local.get
       arg=read_LEB(bytes, &m->pc, 32);
       sv=dynarr_get(m->locals,StackValue,arg);
-      if((pwart_gcfg.misc_flags&PWART_MISC_FLAGS_LOCALS_ZERO_INIT)){
-        if(sv->jit_type==0)sv->jit_type=1;
+      if(pwart_gcfg.misc_flags&PWART_MISC_FLAGS_LOCALS_ZERO_INIT){
+        if(sv->val.op>m->blocks->len)sv->jit_type|=1;
       }
       break;
     case 0x21: //local.set
       arg=read_LEB(bytes, &m->pc, 32);
       sv=dynarr_get(m->locals,StackValue,arg);
-      if((pwart_gcfg.misc_flags&PWART_MISC_FLAGS_LOCALS_ZERO_INIT)&&(m->blocks->len==0)){
-        if(sv->jit_type==0)sv->jit_type=2;
+      if(pwart_gcfg.misc_flags&PWART_MISC_FLAGS_LOCALS_ZERO_INIT){
+        if(sv->val.op>m->blocks->len)sv->val.op=m->blocks->len;
       }
       break;
     case 0x22: //local.tee
       arg=read_LEB(bytes, &m->pc, 32);
       sv=dynarr_get(m->locals,StackValue,arg);
-      if((pwart_gcfg.misc_flags&PWART_MISC_FLAGS_LOCALS_ZERO_INIT)){
-        if(sv->jit_type==0)sv->jit_type=1;
+      if(pwart_gcfg.misc_flags&PWART_MISC_FLAGS_LOCALS_ZERO_INIT){
+        if(sv->val.op>m->blocks->len)sv->jit_type|=1;
       }
       break;
     default:
@@ -235,13 +259,13 @@ static char *pwart_PrepareFunc(ModuleCompiler *m) {
       break;
     }
   }
-  SLJIT_ASSERT(m->bytes[m->pc - 1] == 0xb);
+  if(m->bytes[m->pc - 1] != 0xb){return "Function not end with 0x0b, unsupported feature may used.";}
   m->locals_need_zero=NULL;
   if(pwart_gcfg.misc_flags&PWART_MISC_FLAGS_LOCALS_ZERO_INIT){
     dynarr_init(&m->locals_need_zero,sizeof(int16_t));
     for(int i1=paramCnt;i1<m->locals->len;i1++){
       sv=dynarr_get(m->locals,StackValue,i1);
-      if(sv->jit_type==1){
+      if(sv->jit_type&1){
         *dynarr_push_type(&m->locals_need_zero,int16_t)=(int16_t)i1;
       }
     }
@@ -269,6 +293,10 @@ static char *pwart_GenCode(ModuleCompiler *m) {
   Block *block;
   int opcode,cur_pc;
 
+  #if DEBUG_BUILD
+  int insnCnt2=0;
+  #endif
+
   m->jitc = sljit_create_compiler(NULL, NULL);
 #if DEBUG_BUILD
   m->jitc->verbose = stdout;
@@ -294,6 +322,7 @@ static char *pwart_GenCode(ModuleCompiler *m) {
     if(opcode<=0xd2){
       wa_debug("op %x:%s\n", m->pc, OPERATOR_INFO[opcode]);
     }
+    m->insnCnt--;
 #endif
 
     // XXX: save flag if next op is not if, br_if or i32.eqz(not).
@@ -312,6 +341,13 @@ static char *pwart_GenCode(ModuleCompiler *m) {
       ReturnIfErr(opgen_GenMiscOp(m, opcode));
     }
   }
+
+  #if DEBUG_BUILD
+  if(m->insnCnt!=0){
+    wa_debug("instruction count is not matched(prepare phase-generate phase=%d).\n",m->insnCnt);
+    abort();
+  }
+  #endif
 
   dynarr_free(&m->br_table);
   dynarr_free(&m->blocks);
