@@ -209,9 +209,11 @@ static void opgen_GenCall(ModuleCompiler *m, int32_t fidx) {
 static void opgen_GenCallIndirect(ModuleCompiler *m, int32_t typeidx,
                                   int32_t tableidx) {
   Type *type;
-  int a;
+  int a=0;
   type = dynarr_get(m->types, Type, typeidx);
-  a=opgen_GenBaseAddressRegForTable(m,tableidx);
+  opgen_GenBaseAddressRegForTable(m,tableidx);
+  a=m->stack[m->sp].val.op;
+  m->sp--;
   pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
 }
 

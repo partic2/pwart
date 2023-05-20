@@ -103,6 +103,92 @@ static void wasm__ffi_call(void *fp){
     ffi_call(cif,fn,rvalue,avalue);
 }
 
+#if FFI_CLOSURES
+static void wasm__ffi_closure_alloc(void *fp){
+    void *sp=fp;
+    void *code=NULL;
+    sp=fp;
+    void *closure=ffi_closure_alloc(sizeof(FFI_CLOSURES),&code);
+    pwart_rstack_put_ref(&sp,closure);
+    pwart_rstack_put_ref(&sp,code);
+}
+static void wasm__ffi_closure_free(void *fp){
+    void *sp=fp;
+    _wargref(closure)
+    sp=fp;
+    ffi_closure_free(closure);
+}
+static void wasmcb__ffi_closurecb(ffi_cif* cif,void *ret, void* args[],void **userdata2){
+    void *fn2=userdata2[0];
+    void *user_data=userdata2[1];
+    wa_free(userdata2);
+    void *stackbase=pwart_allocate_stack(4096);
+    void *sp=stackbase;
+    pwart_rstack_put_ref(&sp,cif);
+    pwart_rstack_put_ref(&sp,ret);
+    pwart_rstack_put_ref(&sp,args);
+    pwart_rstack_put_ref(&sp,user_data);
+    pwart_call_wasm_function(fn2,stackbase);
+    pwart_free_stack(stackbase);
+}
+static void wasm__ffi_prep_closure_loc(void *fp){
+    void *sp=fp;
+    _wargref(closure)
+    _wargref(cif)
+    _wargref(fn)
+    _wargref(user_data)
+    _wargref(codeloc);
+    sp=fp;
+    void **userdata2=wa_malloc(sizeof(void *)*2);
+    userdata2[0]=fn;
+    userdata2[1]=user_data;
+    ffi_status stat=ffi_prep_closure_loc(closure,cif,&wasmcb__ffi_closurecb,userdata2,codeloc);
+    pwart_rstack_put_i32(&sp,stat);
+}
+
+static void wasmcb__c2wasm_adapter(ffi_cif* cif,void *ret, void* args[],void **userdata2){
+    void *wasmfn=userdata2[0];
+    void *user_data=userdata2[1];
+    wa_free(userdata2);
+    void *stackbase=pwart_allocate_stack(4096);
+    void *sp=stackbase;
+    for(int i=0;i<cif->nargs;i++){
+        int size=cif->arg_types[i]->size;
+        memcpy(sp,args[i],size);
+        sp=sp+8;
+    }
+    void *fp=sp;
+    pwart_rstack_put_ref(&sp,cif);
+    pwart_rstack_put_ref(&sp,ret);
+    pwart_rstack_put_ref(&sp,stackbase);
+    pwart_rstack_put_ref(&sp,user_data);
+    pwart_call_wasm_function(wasmfn,fp);
+    pwart_free_stack(stackbase);
+}
+static void wasm__ffix_new_c_callback(void *fp){
+    void *sp=fp;
+    _wargref(cif)
+    _wargref(fn)
+    _wargref(user_data)
+    sp=fp;
+    void *code=NULL;
+    void **userdata2=wa_malloc(sizeof(void *)*2);
+    userdata2[0]=fn;
+    userdata2[1]=user_data;
+    void *closure=ffi_closure_alloc(sizeof(FFI_CLOSURES),&code);
+    ffi_status stat=ffi_prep_closure_loc(closure,cif,&wasmcb__c2wasm_adapter,userdata2,code);
+    pwart_rstack_put_ref(&sp,closure); 
+    pwart_rstack_put_ref(&sp,code); 
+    pwart_rstack_put_i32(&sp,stat);
+}
+static void wasm__ffix_del_c_callback(void *fp){
+    void *sp=fp;
+    _wargref(closure)
+    sp=fp;
+    ffi_closure_free(closure);
+}
+#endif
+
 static void wasm__ffix_call(void *fp){
     void *sp=fp;
     ffi_cif *cif=pwart_rstack_get_ref(&sp);
@@ -151,6 +237,13 @@ extern struct pwart_host_module *pwart_libffi_module_new(){
         _ADD_BUILTIN_FN(ffix_new_cif)
         _ADD_BUILTIN_FN(ffix_del_cif)
         _ADD_BUILTIN_FN(ffix_call)
+        #if FFI_CLOSURES
+        _ADD_BUILTIN_FN(ffi_closure_alloc)
+        _ADD_BUILTIN_FN(ffi_closure_free)
+        _ADD_BUILTIN_FN(ffi_prep_closure_loc)
+        _ADD_BUILTIN_FN(ffix_new_c_callback)
+        _ADD_BUILTIN_FN(ffix_del_c_callback)
+        #endif
         ffisyms=syms;
     }
     struct ModuleDef *md=wa_malloc(sizeof(struct ModuleDef));

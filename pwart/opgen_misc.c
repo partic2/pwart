@@ -145,7 +145,7 @@ static char *opgen_GenMiscOp(ModuleCompiler *m, int opcode) {
   uint8_t *bytes = m->bytes;
   switch (opcode) {
   case 0xd0:                            // ref.null
-    tidx = read_LEB(bytes, &m->pc, 32); // ref type
+    tidx = read_LEB_signed(bytes, &m->pc, 32); // ref type
     opgen_GenRefNull(m, tidx);
     break;
   case 0xd1: // ref.isnull
@@ -191,12 +191,9 @@ static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn)
   }else if(fn==pwart_InlineFuncList.ref_from_index){
     StackValue *sv=m->stack+m->sp-1;
     SLJIT_ASSERT((sv->jit_type==SVT_GENERAL) && (sv->val.op==SLJIT_IMM));
-    int r=opgen_GenBaseAddressReg(m,sv->val.opw);
+    opgen_GenBaseAddressReg(m,sv->val.opw);
+    stackvalue_EmitSwapTopTwoValue(m);
     m->sp--;
-    sv=stackvalue_Push(m,WVT_REF);
-    sv->val.op=r;
-    sv->val.opw=0;
-    sv->jit_type=SVT_GENERAL;
     return 1;
   }
   return 0;

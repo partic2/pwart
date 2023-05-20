@@ -35,6 +35,8 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     break;
   case 0x23: //global.get
   case 0x24: //global.set
+  case 0xd0: //ref.null
+  case 0xd2: //ref.func
     read_LEB(bytes, pos, 32);
     break;
   case 0x41:          // i32.const

@@ -1,6 +1,6 @@
 
 
-# CFLAGS+= -ggdb3 -DDEBUG_BUILD=1
+CFLAGS+= -ggdb3 -DDEBUG_BUILD=1
 
 all:test test2
 

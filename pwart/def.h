@@ -501,8 +501,8 @@ static struct pwart_global_compile_config pwart_gcfg={
 static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype,int upstack);
 static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv,uint32_t *align);
 static void pwart_EmitStackValueLoadReg(ModuleCompiler *m, StackValue *sv);
-static int opgen_GenBaseAddressRegForTable(ModuleCompiler *m,uint32_t tabidx);
-static int opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t midx);
+static void opgen_GenBaseAddressRegForTable(ModuleCompiler *m,uint32_t tabidx);
+static void opgen_GenBaseAddressReg(ModuleCompiler *m,uint32_t midx);
 static char *opgen_GenNumOp(ModuleCompiler *m, int opcode);
 //if fn is stub/inline function, generate native code and return 1, else return 0.
 static int pwart_CheckAndGenStubFunction(ModuleCompiler *m,WasmFunctionEntry fn);

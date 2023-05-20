@@ -95,20 +95,20 @@ int syslib_test(char *ffitestdll){
   strcpy(mem0->bytes+64,ffitestdll);
 
   
-  req.import_field="main";
+  req.import_field="fficalltest";
   req.kind=PWART_KIND_FUNCTION;
   req.result=NULL;
   pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
   if(req.result==NULL){
-    printf("error occur:%s\n","import syslibtest1.main failed");
+    printf("error occur:%s\n","import syslibtest1.fficalltest failed");
     return 0;
   }
   pwart_wasm_function test1=(pwart_wasm_function)req.result;
   pwart_call_wasm_function(test1,stackbase);
   sp=stackbase;
 
-  printf("ffi test result:%d, expect %d...",*(int *)(mem0->bytes+128),8);
-  if(*(int *)(mem0->bytes+128)==7){
+  printf("ffi test result:%d,%d, expect %d,%d...",*(int *)(mem0->bytes+428),*(int *)(mem0->bytes+432),7,7);
+  if(*(int *)(mem0->bytes+428)==7 && *(int *)(mem0->bytes+432)==7){
     printf("pass\n");
   }else{
     return 0;
@@ -119,7 +119,6 @@ int syslib_test(char *ffitestdll){
 }
 
 int main(int argc, char *argv[]) {
-  printf("build path:%s\n",argv[1]);
   if (syslib_test(argv[1])) {
     printf("syslib_test pass\n");
   } else {
