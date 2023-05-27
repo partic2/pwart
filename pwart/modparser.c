@@ -159,7 +159,9 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 }
                 type->results[count2]=0;
                 wa_debug("type %d:\n",c);
+                #if DEBUG_BUILD
                 debug_printfunctype(type);
+                #endif
             }
         }break;
         case 2:
@@ -355,7 +357,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 sv->val.opw=m->context->own_globals->len;
                 // Run the init_expr to get global value
                 m->pc=pos;
-                waexpr_run_const(m,&result);
+                ReturnIfErr(waexpr_run_const(m,&result));
                 pos=m->pc;
                 switch (type) {
                     case WVT_I32:
@@ -433,7 +435,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                     case 0:case 4:
                     index=0;
                     // Run the init_expr to get offset
-                    m->pc=pos;waexpr_run_const(m,&offset);pos=m->pc;
+                    m->pc=pos;ReturnIfErr(waexpr_run_const(m,&offset));pos=m->pc;
                     break;
                     case 1:case 3:
                     index=0;
@@ -441,14 +443,14 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                     break;
                     case 2:
                     index=read_LEB(bytes, &pos, 32);
-                    m->pc=pos;waexpr_run_const(m,&offset);pos=m->pc;
+                    m->pc=pos;ReturnIfErr(waexpr_run_const(m,&offset));pos=m->pc;
                     pos++;
                     break;
                     case 6:
                     index=read_LEB(bytes, &pos, 32);
-                    m->pc=pos;waexpr_run_const(m,&elem_expr);pos=m->pc;
+                    m->pc=pos;ReturnIfErr(waexpr_run_const(m,&elem_expr));pos=m->pc;
                     case 5:case 7:
-                    m->pc=pos;waexpr_run_const(m,&elem_expr);pos=m->pc;
+                    m->pc=pos;ReturnIfErr(waexpr_run_const(m,&elem_expr));pos=m->pc;
                 }
                 
                 uint32_t num_elem = read_LEB(bytes, &pos, 32);
@@ -485,7 +487,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 }
                 // Run the init_expr to get the offset
                 m->pc=pos;
-                waexpr_run_const(m,&offset);
+                ReturnIfErr(waexpr_run_const(m,&offset));
                 pos=m->pc;
 
                 // Copy the data to the memory offset

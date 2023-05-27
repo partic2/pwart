@@ -94,4 +94,25 @@
   (func (export "i64_reinterpret_f64") (result i64)
     f64.const 1.375e10
     i64.reinterpret_f64)
+
+  (func (export "i64_extend_i8_s") (result i64)
+    i64.const 0xff
+    i64.extend8_s
+  )
+
+  (func (export "i64_extend_i16_s") (result i64)
+    i64.const 0xfff0
+    i64.extend16_s
+  )
+
+  (func (export "i32_extend_i8_s") (result i32)
+    i32.const 0xff
+    i32.extend8_s
+  )
+
+    (func (export "i32_extend_i16_s") (result i32)
+    i32.const 0xfffe
+    i32.extend16_s
+  )
+
 )

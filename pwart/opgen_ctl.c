@@ -88,9 +88,12 @@ static void opgen_GenEnd(ModuleCompiler *m) {
     //Check if there is already a redundant return instruction, if so, skip pwart_EmitFuncReturn.
     //XXX:May we need better way to avoid access m->bytes directly.
     if(m->bytes[m->pc-2]!=0x0f){
+      #if DEBUG_BUILD
+      debug_checkreturnstack(m);
+      wa_assert(m->blocks->len == 0,"block stack not empty");
+      #endif
       pwart_EmitFuncReturn(m);
     }
-    wa_assert(m->blocks->len == 0,"block stack not empty");
     m->eof = 1;
   }
   if (block->br_jump != NULL) {
@@ -187,6 +190,9 @@ static void opgen_GenBrTable(ModuleCompiler *m) {
 }
 
 static void opgen_GenReturn(ModuleCompiler *m) {
+  #if DEBUG_BUILD
+  debug_checkreturnstack(m);
+  #endif
   pwart_EmitFuncReturn(m);
   // pop all value in stack, to avoid unnecessary value saved.
   m->sp = -1;

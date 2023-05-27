@@ -59,7 +59,7 @@ static char *opgen_GenMiscOp_FC(ModuleCompiler *m,int opcode){
   int a,b;
   #if DEBUG_BUILD
   switch(opcode){
-    case 0 ... 7:
+    case 0x0:  case 0x1:  case 0x2:  case 0x3:  case 0x4:  case 0x5:  case 0x6:  case 0x7:  
     wa_debug("op fc %x:%s\n", m->pc, "ixx.trunc_sat_fxx_s|u");
     break;
     case 0x0a:

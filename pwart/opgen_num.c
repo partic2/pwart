@@ -42,7 +42,7 @@ static void opgen_GenCompareOp(ModuleCompiler *m,int opcode){
     break;
 
   // i32 binary
-  case 0x46 ... 0x4f:
+  case 0x46:  case 0x47:  case 0x48:  case 0x49:  case 0x4a:  case 0x4b:  case 0x4c:  case 0x4d:  case 0x4e:  case 0x4f:
     sv2 = m->stack+m->sp;
     sv = m->stack+m->sp-1;
 
@@ -104,7 +104,7 @@ static void opgen_GenCompareOp(ModuleCompiler *m,int opcode){
     sv->jit_type = SVT_CMP;
     sv->val.cmp.flag=a;
     break;
-  case 0x51 ... 0x5a:
+  case 0x51:  case 0x52:  case 0x53:  case 0x54:  case 0x55:  case 0x56:  case 0x57:  case 0x58:  case 0x59:  case 0x5a:
     if (m->target_ptr_size == 32) {
       switch (opcode) {
       case 0x51: // i64.eq
@@ -206,11 +206,12 @@ static void opgen_GenCompareOp(ModuleCompiler *m,int opcode){
         break; // i64.ge_u
       }
     }
+    m->sp-=2;
     sv=stackvalue_Push(m,WVT_I32);
     sv->jit_type = SVT_CMP;
     sv->val.cmp.flag=a;
     break;
-  case 0x5b ... 0x60:
+  case 0x5b:  case 0x5c:  case 0x5d:  case 0x5e:  case 0x5f:  case 0x60: 
     sv2 = m->stack+m->sp;
     sv = m->stack+m->sp-1;
     b = pwart_GetFreeReg(m, RT_INTEGER, 2);
@@ -261,7 +262,7 @@ static void opgen_GenCompareOp(ModuleCompiler *m,int opcode){
     sv->val.op = b;
     sv->val.opw = 0;
     break;
-  case 0x61 ... 0x66:
+  case 0x61:  case 0x62:  case 0x63:  case 0x64:  case 0x65:  case 0x66:
     sv2 = &m->stack[m->sp];
     sv = &m->stack[m->sp]-1;
     b = pwart_GetFreeReg(m, RT_INTEGER, 2);
@@ -397,6 +398,7 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_FLOAT, 1); // free register
     sljit_emit_fop1(m->jitc, SLJIT_ABS_F64, a, 0, sv->val.op, sv->val.opw);
+    m->sp--;
     sv = stackvalue_Push(m, WVT_F64);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
@@ -406,6 +408,7 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_FLOAT, 1); // free register
     sljit_emit_fop1(m->jitc, SLJIT_NEG_F64, a, 0, sv->val.op, sv->val.opw);
+    m->sp--;
     sv = stackvalue_Push(m, WVT_F64);
     sv->jit_type = SVT_GENERAL;
     sv->val.op = a;
@@ -433,7 +436,7 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
     break;
 
   // i32 binary
-  case 0x6a ... 0x78:
+  case 0x6a:  case 0x6b:  case 0x6c:  case 0x6d:  case 0x6e:  case 0x6f:  case 0x70:  case 0x71:  case 0x72:  case 0x73:  case 0x74:  case 0x75:  case 0x76:  case 0x77:  case 0x78:
     if (opcode != 0x77 && opcode != 0x78) {
       sv = &stack[m->sp - 1];
       sv2 = &stack[m->sp];
@@ -575,7 +578,8 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
     break;
 
   // i64 binary
-  case 0x7c ... 0x8a:
+  
+  case 0x7c:  case 0x7d:  case 0x7e:  case 0x7f:  case 0x80:  case 0x81:  case 0x82:  case 0x83:  case 0x84:  case 0x85:  case 0x86:  case 0x87:  case 0x88:  case 0x89:  case 0x8a:  
     if (m->target_ptr_size == 64) {
       if (opcode != 0x89 && opcode != 0x8a) {
         sv = &stack[m->sp - 1];
@@ -764,7 +768,8 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
         stackvalue_HighWord(m, sv, &op1, &opw1);
         stackvalue_HighWord(m, sv2, &op2, &opw2);
         sljit_emit_op2(m->jitc, SLJIT_SUBC, b, 0, op1, opw1, op2, opw2);
-        m->sp--;
+        m->sp-=2;
+        sv=stackvalue_Push(m,WVT_I64);
         sv->jit_type = SVT_TWO_REG;
         sv->val.tworeg.opr1 = a;
         sv->val.tworeg.opr2 = b;
@@ -809,7 +814,8 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
         stackvalue_HighWord(m, sv, &op1, &opw1);
         stackvalue_HighWord(m, sv2, &op2, &opw2);
         sljit_emit_op2(m->jitc, SLJIT_AND, b, 0, op1, opw1, op2, opw2);
-        m->sp--;
+        m->sp-=2;
+        sv=stackvalue_Push(m,WVT_I64);
         sv->jit_type = SVT_TWO_REG;
         sv->val.tworeg.opr1 = a;
         sv->val.tworeg.opr2 = b;
@@ -834,7 +840,8 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
         stackvalue_HighWord(m, sv, &op1, &opw1);
         stackvalue_HighWord(m, sv2, &op2, &opw2);
         sljit_emit_op2(m->jitc, SLJIT_OR, b, 0, op1, opw1, op2, opw2);
-        m->sp--;
+        m->sp-=2;
+        sv=stackvalue_Push(m,WVT_I64);
         sv->jit_type = SVT_TWO_REG;
         sv->val.tworeg.opr1 = a;
         sv->val.tworeg.opr2 = b;
@@ -859,7 +866,8 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
         stackvalue_HighWord(m, sv, &op1, &opw1);
         stackvalue_HighWord(m, sv2, &op2, &opw2);
         sljit_emit_op2(m->jitc, SLJIT_XOR, b, 0, op1, opw1, op2, opw2);
-        m->sp--;
+        m->sp-=2;
+        sv=stackvalue_Push(m,WVT_I64);
         sv->jit_type = SVT_TWO_REG;
         sv->val.tworeg.opr1 = a;
         sv->val.tworeg.opr2 = b;
@@ -888,7 +896,7 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
     }
     break;
   // f32 binary
-  case 0x92 ... 0x98:
+  case 0x92:  case 0x93:  case 0x94:  case 0x95:  case 0x96:  case 0x97:  case 0x98:
     if (opcode <= 0x95) {
       sv = &stack[m->sp - 1];
       sv2 = &stack[m->sp];
@@ -926,7 +934,7 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
     }
     if (opcode <= 0x95) {
       m->sp -= 2;
-      sv = stackvalue_Push(m, WVT_F64);
+      sv = stackvalue_Push(m, WVT_F32);
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
@@ -934,7 +942,7 @@ static void opgen_GenArithmeticOp(ModuleCompiler *m,int opcode){
     break;
 
   // f64 binary
-  case 0xa0 ... 0xa6:
+  case 0xa0:  case 0xa1:  case 0xa2:  case 0xa3:  case 0xa4:  case 0xa5: case 0xa6:
     if (opcode <= 0xa3) {
       sv = &stack[m->sp - 1];
       sv2 = &stack[m->sp];
@@ -992,7 +1000,7 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
   switch(opcode){
 
   // conversion operations
-  // case 0xa7 ... 0xbb:
+  // case 0xa7 to 0xbb:
   case WASMOPC_i32_wrap_i64:
     sv = &stack[m->sp];
     if (m->target_ptr_size == 32 && sv->wasm_type == WVT_I64) {
@@ -1093,7 +1101,6 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
       sv->jit_type = SVT_GENERAL;
       sv->val.op = a;
       sv->val.opw = 0;
-      break;
     }
     break;
   case 0xaf: // i64.trunc_f32_u
@@ -1246,6 +1253,8 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     sljit_emit_op1(m->jitc, SLJIT_MOV32_S8, a, 0, sv->val.op, sv->val.opw);
+    m->sp--;
+    stackvalue_Push(m,WVT_I32);
     sv->val.op = a;
     sv->val.opw = 0;
     break;
@@ -1253,6 +1262,8 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
     sv = &stack[m->sp];
     a = pwart_GetFreeReg(m, RT_INTEGER, 1);
     sljit_emit_op1(m->jitc, SLJIT_MOV32_S16, a, 0, sv->val.op, sv->val.opw);
+    m->sp--;
+    stackvalue_Push(m,WVT_I32);
     sv->val.op = a;
     sv->val.opw = 0;
     break;
@@ -1260,10 +1271,11 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
     sv = &stack[m->sp];
     if (m->target_ptr_size == 32) {
       pwart_EmitStackValueLoadReg(m, sv);
-      sljit_emit_op1(m->jitc, SLJIT_MOV_S8, sv->val.tworeg.opr1, 0, sv->val.op,
-                     sv->val.opw);
+      sljit_emit_op1(m->jitc, SLJIT_MOV_S8, sv->val.tworeg.opr1, 0, sv->val.tworeg.opr1,0);
+      sljit_emit_op2(m->jitc, SLJIT_SHL, sv->val.tworeg.opr2, 0,
+                     sv->val.tworeg.opr1, 0, SLJIT_IMM, 24);            
       sljit_emit_op2(m->jitc, SLJIT_ASHR, sv->val.tworeg.opr2, 0,
-                     sv->val.tworeg.opr1, 0, SLJIT_IMM, 31);
+                     sv->val.tworeg.opr2, 0, SLJIT_IMM, 31);
     } else {
       a = pwart_GetFreeReg(m, RT_INTEGER, 1);
       sljit_emit_op1(m->jitc, SLJIT_MOV_S8, a, 0, sv->val.op, sv->val.opw);
@@ -1275,10 +1287,11 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
     sv = &stack[m->sp];
     if (m->target_ptr_size == 32) {
       pwart_EmitStackValueLoadReg(m, sv);
-      sljit_emit_op1(m->jitc, SLJIT_MOV_S16, sv->val.tworeg.opr1, 0, sv->val.op,
-                     sv->val.opw);
+      sljit_emit_op1(m->jitc, SLJIT_MOV_S16, sv->val.tworeg.opr1, 0, sv->val.tworeg.opr1,0);
+      sljit_emit_op2(m->jitc, SLJIT_SHL, sv->val.tworeg.opr2, 0,
+                     sv->val.tworeg.opr1, 0, SLJIT_IMM, 16);            
       sljit_emit_op2(m->jitc, SLJIT_ASHR, sv->val.tworeg.opr2, 0,
-                     sv->val.tworeg.opr1, 0, SLJIT_IMM, 31);
+                     sv->val.tworeg.opr2, 0, SLJIT_IMM, 31);
     } else {
       a = pwart_GetFreeReg(m, RT_INTEGER, 1);
       sljit_emit_op1(m->jitc, SLJIT_MOV_S8, a, 0, sv->val.op, sv->val.opw);

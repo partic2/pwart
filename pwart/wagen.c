@@ -16,11 +16,11 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
   *pos = *pos + 1;
   switch (opcode) {
   // varuint1
-  case 0x3f ... 0x40: // current_memory, memory.grow
+  case 0x3f: case 0x40: // current_memory, memory.grow
     read_LEB(bytes, pos, 1);
     break;
   // varuint32, varint32
-  case 0x0c ... 0x0d: // br, br_if
+  case 0x0c: case 0x0d: // br, br_if
   case 0x10:          // call
     read_LEB(bytes, pos, 32);
     break;
@@ -63,11 +63,12 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     *pos += 8;
     break;
   // block_type
-  case 0x02 ... 0x04: // block, loop, if
+  case 0x02: case 0x03: case 0x04: // block, loop, if
     read_LEB_signed(bytes, pos, 33);
     break;
   // memory_immediate
-  case 0x28 ... 0x3e: // *.load*, *.store*
+  case 0x28:  case 0x29:  case 0x2a:  case 0x2b:  case 0x2c:  case 0x2d:  case 0x2e:  case 0x2f:  case 0x30:  case 0x31:  case 0x32:  case 0x33:  case 0x34:  case 0x35:  case 0x36:  case 0x37:  case 0x38:  case 0x39:  case 0x3a:  case 0x3b:  case 0x3c:  case 0x3d: case 0x3e:
+  // *.load*, *.store*
   {
     uint32_t align=read_LEB(bytes, pos, 32);
     if(align&0x40){read_LEB(bytes,pos,32);}//memory index
@@ -93,7 +94,7 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
       read_LEB(bytes,pos,32); 
       break;
       case 0x0b:
-      case 0x0f ... 0x11:
+      case 0x0f: case 0x10: case 0x11:
       read_LEB(bytes,pos,32); 
       break;
     }
@@ -218,10 +219,8 @@ static char *pwart_PrepareFunc(ModuleCompiler *m) {
       tidx = read_LEB(bytes, &m->pc, 32); // table index
       if(tidx==0)m->table_entries_local = -2;
       break;
-    // Memory load operators
-    case 0x28 ... 0x35:
-    // Memory store operators
-    case 0x36 ... 0x3e:
+    // Memory load/store operators
+    case 0x28:  case 0x29:  case 0x2a:  case 0x2b:  case 0x2c:  case 0x2d:  case 0x2e:  case 0x2f:  case 0x30:  case 0x31:  case 0x32:  case 0x33:  case 0x34:  case 0x35:  case 0x36:  case 0x37:  case 0x38:  case 0x39:  case 0x3a:  case 0x3b:  case 0x3c:  case 0x3d:  case 0x3e: 
       midx=0;
       arg = read_LEB(m->bytes, &m->pc, 32);
       if(arg&0x40)midx=read_LEB(m->bytes, &m->pc, 32);

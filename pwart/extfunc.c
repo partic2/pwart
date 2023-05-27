@@ -483,7 +483,7 @@ static Type func_type_i32_i32_ref_ret_i32 = {.params = types_i32_i32_ref, .resul
 static Type func_type_ref_ref_i32_void={.params=types_ref_ref_i32,.results=types_void};
 static Type func_type_memoryfill={.params=types_ref_i32_i32_ref_i32,.results=types_void};
 
-static void waexpr_run_const(ModuleCompiler *m, void *result) {
+static char *waexpr_run_const(ModuleCompiler *m, void *result) {
   int opcode=m->bytes[m->pc];
   m->pc++;
   switch (opcode) {
@@ -520,13 +520,16 @@ static void waexpr_run_const(ModuleCompiler *m, void *result) {
     *(WasmFunction **)result = dynarr_get(m->functions,WasmFunction,arg);
   }
   default:
-    SLJIT_UNREACHABLE();
+    return "Unsupport const expr";
     break;
   }
-  SLJIT_ASSERT(m->bytes[m->pc]==0xb);
+  if(m->bytes[m->pc]!=0xb){
+    return "const expr miss end instruction.";
+  }
   m->pc++;
+  return NULL;
 }
-
+#if DEBUG_BUILD
 static void debug_printtypes(char *t){
   for(char *t2=t;*t2!=0;*t2++){
     switch(*t2){
@@ -565,46 +568,21 @@ static void debug_printfunctype(Type *type){
   wa_debug("\n");
 }
 
-#define __tostrInternal(s) #s
-#define tostr(s) __tostrInternal(s)
-static char *host_definition[]={
-  #ifdef __linux__
-  "__linux__",
-  #endif
-  #ifdef _WIN32
-  "_WIN32",
-  #endif
-  #ifdef _WIN64
-  "_WIN64",
-  #endif
-  #ifdef __x86__
-  "__x86__",
-  #endif
-  #ifdef __x86_64__
-  "__x86_64__",
-  #endif
-  #ifdef __ARM_ARCH
-  "__ARM_ARCH="tostr(__ARM_ARCH),
-  #endif
-  #ifdef __riscv_xlen
-  "__riscv_xlen="tostr(__riscv_xlen),
-  #endif
-  #ifdef __arm__
-  "__arm__",
-  #endif
-  #ifdef __aarch64__
-  "__aarch64__",
-  #endif
-  #ifdef __ANDROID__
-  "__ANDROID__",
-  #endif
-  #ifdef __ANDROID_API__
-  "__ANDROID_API__="tostr(__ANDROID_API__),
-  #endif
-  NULL
-};
+static void debug_checkreturnstack(ModuleCompiler *m){
+  int a;
+  wa_assert(m->sp+1==strlen(m->function_type->results),"return values count not matched");
+  for(a=0;a<=m->sp;a++){
+    if(m->stack[a].wasm_type<=WVT_FUNC){
+      wa_assert(m->function_type->results[a]<=WVT_FUNC,"return type not matched.");
+    }else{
+      wa_assert(m->stack[a].wasm_type==m->function_type->results[a],"return type not matched.");
+    }
+  }
+}
 
-#undef tostr
+#endif
+
+#include "hostdef.c"
 
 static void insn_host_definition(void *fp){
   void *sp=fp;

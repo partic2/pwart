@@ -1399,6 +1399,47 @@ int convert_test() {
     return 0;
   }
   printf("pass\n");
+
+  fn = pwart_get_export_function(ctx, "i64_extend_i8_s");
+  sp = stackbase;
+  pwart_call_wasm_function(fn, sp);
+  printf("i64_extend_i8_s check...");
+  if (*(int64_t *)sp != -1) {
+    printf("failed, expect %d, got %"PRId64"\n", -1, *(int64_t *)sp);
+    return 0;
+  }
+  printf("pass\n");
+
+  fn = pwart_get_export_function(ctx, "i64_extend_i16_s");
+  sp = stackbase;
+  pwart_call_wasm_function(fn, sp);
+  printf("i64_extend_i8_s check...");
+  if (*(int64_t *)sp != -16) {
+    printf("failed, expect %d, got %"PRId64"\n", -16, *(int64_t *)sp);
+    return 0;
+  }
+  printf("pass\n");
+
+  fn = pwart_get_export_function(ctx, "i32_extend_i8_s");
+  sp = stackbase;
+  pwart_call_wasm_function(fn, sp);
+  printf("i32_extend_i8_s check...");
+  if (*(int32_t *)sp != -1) {
+    printf("failed, expect %"PRId32", got %"PRId32"\n", -1, *(int32_t *)sp);
+    return 0;
+  }
+  printf("pass\n");
+
+  fn = pwart_get_export_function(ctx, "i32_extend_i16_s");
+  sp = stackbase;
+  pwart_call_wasm_function(fn, sp);
+  printf("i32_extend_i16_s check...");
+  if (*(int32_t *)sp != -2) {
+    printf("failed, expect %"PRId32", got %"PRId32"\n", -2, *(int32_t *)sp);
+    return 0;
+  }
+  printf("pass\n");
+
   pwart_free_module_state(ctx);
   pwart_free_stack(stackbase);
   return 1;
