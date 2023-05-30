@@ -11,7 +11,7 @@
 #include "opgen_misc.c"
 
 
-static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
+static void wasm_SkipImmediates(uint8_t *bytes, uint32_t *pos) {
   uint32_t count, opcode = bytes[*pos];
   *pos = *pos + 1;
   switch (opcode) {
@@ -98,7 +98,6 @@ static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
       read_LEB(bytes,pos,32); 
       break;
     }
-    *pos++;
   }
     break;
   default: // no immediates
@@ -251,12 +250,12 @@ static char *pwart_PrepareFunc(ModuleCompiler *m) {
       arg=read_LEB(bytes, &m->pc, 32);
       sv=dynarr_get(m->locals,StackValue,arg);
       if(pwart_gcfg.misc_flags&PWART_MISC_FLAGS_LOCALS_ZERO_INIT){
-        if(sv->val.op>m->blocks->len)sv->jit_type|=1;
+        if(sv->val.op>m->blocks->len)sv->val.op=m->blocks->len;
       }
       break;
     default:
       m->pc--;
-      skip_immediates(m->bytes, &m->pc);
+      wasm_SkipImmediates(m->bytes, &m->pc);
       break;
     }
   }
