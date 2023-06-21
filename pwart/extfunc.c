@@ -292,16 +292,14 @@ static void insn_memorygrow(void *fp){
   uint32_t index=pwart_rstack_get_i32(&sp); // memory index
   RuntimeContext *m=pwart_rstack_get_ref(&sp);
   Memory *mem=*dynarr_get(m->memories,Memory *,index);
-  uint32_t prev_pages = mem->pages;
-  if (delta == 0) {
-    return; // No change
-  } else if (delta + prev_pages > mem->maximum) {
-    prev_pages = 0xffffffff;
-    return;
+  int32_t prev_pages = mem->pages;
+  if (delta + prev_pages > mem->maximum) {
+    prev_pages = -1;
   }
   mem->pages += delta;
   if(mem->fixed!=0){
     mem->bytes = wa_realloc(mem->bytes, mem->pages * PAGE_SIZE);
+    memset(mem->bytes+prev_pages*PAGE_SIZE,0,delta*PAGE_SIZE);
   }
   sp=fp;
   pwart_rstack_put_i32(&sp,prev_pages);
@@ -529,7 +527,24 @@ static char *waexpr_run_const(ModuleCompiler *m, void *result) {
   m->pc++;
   return NULL;
 }
+
+#if PWART_DEBUG_RUNTIME_PROBE
+
+static void debug_PrintFuncEnter(uint32_t wasmpc){
+  wa_debug("function enter pc:0x%x\n",wasmpc);
+}
+static void debug_PrintFuncReturn(uint32_t wasmpc){
+  wa_debug("function return pc:0x%x\n",wasmpc);
+}
+static void debug_PrintBlockInstr(uint32_t wasmpc){
+  wa_debug("block instruction pc:0x%x\n",wasmpc);
+}
+
+#endif
+
+
 #if DEBUG_BUILD
+
 static void debug_printtypes(char *t){
   for(char *t2=t;*t2!=0;*t2++){
     switch(*t2){
@@ -569,13 +584,16 @@ static void debug_printfunctype(Type *type){
 }
 
 static void debug_checkreturnstack(ModuleCompiler *m){
-  int a;
-  wa_assert(m->sp+1==strlen(m->function_type->results),"return values count not matched");
-  for(a=0;a<=m->sp;a++){
-    if(m->stack[a].wasm_type<=WVT_FUNC){
-      wa_assert(m->function_type->results[a]<=WVT_FUNC,"return type not matched.");
-    }else{
-      wa_assert(m->stack[a].wasm_type==m->function_type->results[a],"return type not matched.");
+  int a,t;
+  int len=strlen(m->function_type->results);
+  if(m->sp+1>=len){
+    for(a=0;a<len;a++){
+      t=m->stack[m->sp-len+a+1].wasm_type;
+      if(t<=WVT_FUNC){
+        wa_assert(m->function_type->results[a]<=WVT_FUNC,"return type not matched.");
+      }else{
+        wa_assert(t==m->function_type->results[a],"return type not matched.");
+      }
     }
   }
 }

@@ -17,9 +17,9 @@ static void opgen_GenLocalSet(ModuleCompiler *m, uint32_t idx) {
   StackValue *sv, *sv2;
   StackValue *stack = m->stack;
   sv = dynarr_get(m->locals, StackValue, idx);
-  // check if local variable still on stack, rarely.
+  // check if local variable still on stack.
   for (int i = 0; i < m->sp; i++) {
-    if (stack[i].val.op == sv->val.op && stack[i].val.opw == sv->val.opw) {
+    if (stack[i].jit_type==SVT_GENERAL && stackvalue_IsFloat(&stack[i]) == stackvalue_IsFloat(sv) && stack[i].val.opw == sv->val.opw) {
       pwart_EmitSaveStack(m, &stack[i]);
     }
   }
@@ -32,6 +32,12 @@ static void opgen_GenLocalTee(ModuleCompiler *m, uint32_t idx) {
   StackValue *sv, *sv2;
   StackValue *stack = m->stack;
   sv = dynarr_get(m->locals, StackValue, idx);
+  // check if local variable still on stack.
+  for (int i = 0; i < m->sp; i++) {
+    if (stack[i].jit_type==SVT_GENERAL && stackvalue_IsFloat(&stack[i]) == stackvalue_IsFloat(sv) && stack[i].val.op == sv->val.op && stack[i].val.opw == sv->val.opw) {
+      pwart_EmitSaveStack(m, &stack[i]);
+    }
+  }
   sv2 = &stack[m->sp];
   pwart_EmitStoreStackValue(m, sv2, sv->val.op, sv->val.opw);
 }
@@ -217,6 +223,7 @@ static void opgen_GenI64Load(ModuleCompiler *m, int32_t opcode, sljit_sw offset)
   m->sp--;
   sv=stackvalue_Push(m,WVT_I64);
   if(m->target_ptr_size==32){
+    sljit_emit_op1(m->jitc,SLJIT_MOV,b,0,SLJIT_IMM,0);
     sv->jit_type=SVT_TWO_REG;
     sv->val.tworeg.opr1=a;
     sv->val.tworeg.opr2=b;

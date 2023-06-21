@@ -10,7 +10,7 @@ static void opgen_GenUnreachable(ModuleCompiler *m) {
   //just do nothing now.
 }
 
-static void opgen_GenBlock(ModuleCompiler *m) {
+static void opgen_GenBlock(ModuleCompiler *m,int stackOffset) {
   Block *block;
   uint8_t *bytes = m->bytes;
   pwart_EmitSaveStackAll(m);
@@ -18,18 +18,30 @@ static void opgen_GenBlock(ModuleCompiler *m) {
   block->block_type = 0x2;
   dynarr_init(&block->br_jump, sizeof(struct sljit_jump *));
   block->else_jump = NULL;
+  block->stack_offset=stackOffset;
+  block->saved_sp=m->sp;
+  #if PWART_DEBUG_RUNTIME_PROBE
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  #endif
 }
-
-static void opgen_GenLoop(ModuleCompiler *m) {
+/* blktype 0x40 indicating the empty type. */
+static void opgen_GenLoop(ModuleCompiler *m,int stackOffset) {
   Block *block;
   uint8_t *bytes = m->bytes;
   pwart_EmitSaveStackAll(m);
   block = dynarr_push_type(&m->blocks, Block);
   block->block_type = 0x3;
   block->br_label = sljit_emit_label(m->jitc);
+  block->stack_offset=stackOffset;
+  block->saved_sp=m->sp;
+  #if PWART_DEBUG_RUNTIME_PROBE
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  #endif
 }
-
-static void opgen_GenIf(ModuleCompiler *m) {
+/* blktype 0x40 indicating the empty type. */
+static void opgen_GenIf(ModuleCompiler *m,int stackOffset) {
   Block *block;
   StackValue *sv;
   struct sljit_jump *jump;
@@ -39,6 +51,11 @@ static void opgen_GenIf(ModuleCompiler *m) {
   for (int i = 0; i < m->sp; i++) {
     pwart_EmitSaveStack(m, &m->stack[i]);
   }
+  #if PWART_DEBUG_RUNTIME_PROBE
+  pwart_EmitSaveStackAll(m);
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  #endif
   block = dynarr_push_type(&m->blocks, Block);
   block->block_type = 0x4;
   dynarr_init(&block->br_jump, sizeof(struct sljit_jump *));
@@ -54,6 +71,9 @@ static void opgen_GenIf(ModuleCompiler *m) {
   }
   block->else_jump = jump;
   m->sp--;
+  block->stack_offset=stackOffset;
+  block->saved_sp=m->sp;
+  
 }
 
 static void opgen_GenElse(ModuleCompiler *m) {
@@ -64,6 +84,11 @@ static void opgen_GenElse(ModuleCompiler *m) {
       sljit_emit_jump(m->jitc, SLJIT_JUMP);
   sljit_set_label(block->else_jump, sljit_emit_label(m->jitc));
   block->else_jump = NULL;
+  m->sp=block->saved_sp;
+  #if PWART_DEBUG_RUNTIME_PROBE
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  #endif
 }
 
 static void opgen_GenEnd(ModuleCompiler *m) {
@@ -82,34 +107,40 @@ static void opgen_GenEnd(ModuleCompiler *m) {
     if (block->else_jump != NULL) {
       sljit_set_label(block->else_jump, block->br_label);
     }
-
   } else if (block->block_type == 0x00) {
     // function
-    //Check if there is already a redundant return instruction, if so, skip pwart_EmitFuncReturn.
-    //XXX:May we need better way to avoid access m->bytes directly.
-    if(m->bytes[m->pc-2]!=0x0f){
-      #if DEBUG_BUILD
-      debug_checkreturnstack(m);
-      wa_assert(m->blocks->len == 0,"block stack not empty");
-      #endif
+    if(!m->block_returned){
       pwart_EmitFuncReturn(m);
     }
     m->eof = 1;
-  }
+  } 
+  m->sp=block->saved_sp+block->stack_offset;
   if (block->br_jump != NULL) {
     dynarr_free(&block->br_jump);
   }
+  m->block_returned=0;
+  #if PWART_DEBUG_RUNTIME_PROBE
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  #endif
 }
 
 static void opgen_GenBr(ModuleCompiler *m, int32_t depth) {
   Block *block;
   pwart_EmitSaveStackAll(m);
+  #if PWART_DEBUG_RUNTIME_PROBE
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  #endif
   block = dynarr_get(m->blocks, Block, m->blocks->len - 1 - depth);
   if (block->br_label != NULL) {
     sljit_set_label(sljit_emit_jump(m->jitc, SLJIT_JUMP), block->br_label);
   } else {
     *dynarr_push_type(&block->br_jump, struct sljit_jump *) =
         sljit_emit_jump(m->jitc, SLJIT_JUMP);
+  }
+  if(block->block_type==0x2 || block->block_type==0x4){
+    m->block_returned=1;
   }
 }
 
@@ -122,6 +153,11 @@ static void opgen_GenBrIf(ModuleCompiler *m, int32_t depth) {
   for (int i = 0; i < m->sp; i++) {
     pwart_EmitSaveStack(m, &m->stack[i]);
   }
+  #if PWART_DEBUG_RUNTIME_PROBE
+  pwart_EmitSaveStackAll(m);
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  #endif
   block = dynarr_get(m->blocks, Block, m->blocks->len - 1 - depth);
   if (sv->jit_type == SVT_CMP) {
     if (block->br_label != NULL) {
@@ -158,6 +194,11 @@ static void opgen_GenBrTable(ModuleCompiler *m) {
   for (int i = 0; i < m->sp; i++) {
     pwart_EmitSaveStack(m, &m->stack[i]);
   }
+  #if PWART_DEBUG_RUNTIME_PROBE
+  pwart_EmitSaveStackAll(m);
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  #endif
   pwart_EmitStackValueLoadReg(m, sv);
   for (a = 0; a < count; a++) {
     depth = *dynarr_get(m->br_table, uint32_t, a);
@@ -196,6 +237,7 @@ static void opgen_GenReturn(ModuleCompiler *m) {
   pwart_EmitFuncReturn(m);
   // pop all value in stack, to avoid unnecessary value saved.
   m->sp = -1;
+  m->block_returned=1;
 }
 
 static void opgen_GenCall(ModuleCompiler *m, int32_t fidx) {
@@ -205,7 +247,7 @@ static void opgen_GenCall(ModuleCompiler *m, int32_t fidx) {
   Type *type;
   fn = dynarr_get(m->functions, WasmFunction, fidx);
   if(!pwart_CheckAndGenStubFunction(m,fn->func_ptr)){
-    a = pwart_GetFreeReg(m, RT_INTEGER, 0);
+    a = pwart_GetFreeReg(m, RT_BASE, 0);
     sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM,(sljit_uw)(m->context->funcentries+fidx));
     type = dynarr_get(m->types, Type, fn->tidx);
     pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
@@ -231,7 +273,8 @@ static void opgen_GenSelect(ModuleCompiler *m) {
   StackValue *stack = m->stack;
   struct sljit_jump *jump;
   pwart_EmitSaveStack(m, &stack[m->sp - 2]);
-  sv = &stack[m->sp--];
+  sv = &stack[m->sp];
+  m->sp--;
 
   if (sv->jit_type == SVT_CMP) {
     jump = sljit_emit_jump(m->jitc, sv->val.cmp.flag);
@@ -241,12 +284,26 @@ static void opgen_GenSelect(ModuleCompiler *m) {
   } else {
     SLJIT_UNREACHABLE();
   }
-  sv2 = &stack[m->sp--];
+  sv2 = &stack[m->sp];
+  m->sp--;
   sv = &stack[m->sp];
   sv->val = sv2->val;
   sv->jit_type = sv2->jit_type;
   pwart_EmitSaveStack(m, sv);
   sljit_set_label(jump, sljit_emit_label(m->jitc));
+}
+
+static char *opgen_ParseBlockStackOffset(ModuleCompiler *m,int *stackOffset){
+  if(*(m->bytes+m->pc)==0x40){
+    *stackOffset=0;
+    m->pc++;
+  }else if(((*(m->bytes+m->pc))&0xC0)==0x40){
+    *stackOffset=1;
+    m->pc++;
+  }else{
+    return "Not support type index for block type";
+  }
+  return NULL;
 }
 
 static char *opgen_GenCtlOp(ModuleCompiler *m, int opcode) {
@@ -260,16 +317,16 @@ static char *opgen_GenCtlOp(ModuleCompiler *m, int opcode) {
   case 0x01: // nop
     break;
   case 0x02: // block
-    blktype = read_LEB_signed(bytes, &m->pc, 33);
-    opgen_GenBlock(m);
+    ReturnIfErr(opgen_ParseBlockStackOffset(m,&count));
+    opgen_GenBlock(m,count);
     break;
   case 0x03: // loop
-    blktype = read_LEB_signed(bytes, &m->pc, 33);
-    opgen_GenLoop(m);
+    ReturnIfErr(opgen_ParseBlockStackOffset(m,&count));
+    opgen_GenLoop(m,count);
     break;
   case 0x04: // if
-    blktype = read_LEB_signed(bytes, &m->pc, 33);
-    opgen_GenIf(m);
+    ReturnIfErr(opgen_ParseBlockStackOffset(m,&count));
+    opgen_GenIf(m,count);
     break;
   case 0x05: // else
     opgen_GenElse(m);
@@ -313,9 +370,9 @@ static char *opgen_GenCtlOp(ModuleCompiler *m, int opcode) {
   case 0x1a: // drop
     opgen_GenDrop(m);
     break;
-  case 0x1c:                     // select t
-    read_LEB(bytes, &m->pc, 32); // ignore type
-  case 0x1b:                     // select
+  case WASMOPC_select_t:                     // select t
+    m->pc++;
+  case WASMOPC_select:                     // select
     opgen_GenSelect(m);
     break;
   default:

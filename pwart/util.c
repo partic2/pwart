@@ -6,6 +6,8 @@
 #define DEBUG_BUILD 0
 #endif
 
+#define PWART_DEBUG_RUNTIME_PROBE 0
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -47,6 +49,7 @@ static void wa_debug(char *fmt,...){
     va_start(args,fmt);
     vprintf(fmt,args);
     va_end(args);
+    fflush(stdout);
     #endif
 }
 

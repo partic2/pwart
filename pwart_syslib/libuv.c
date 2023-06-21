@@ -150,8 +150,8 @@ static struct dynarr *uvsyms=NULL;  //type pwart_named_symbol
 extern struct pwart_host_module *pwart_libuv_module_new(){
     if(uvsyms==NULL){
         struct pwart_named_symbol *sym;
-        dynarr_init(&uvsyms,sizeof(struct pwart_named_symbol));
-        struct dynarr *syms=uvsyms;
+        struct dynarr *syms=NULL;
+        dynarr_init(&syms,sizeof(struct pwart_named_symbol));
         
         _ADD_BUILTIN_FN(uv_version)
 
@@ -169,13 +169,15 @@ extern struct pwart_host_module *pwart_libuv_module_new(){
         _ADD_BUILTIN_FN(uv_cond_destroy)
         _ADD_BUILTIN_FN(uv_cond_signal)
         _ADD_BUILTIN_FN(uv_cond_wait)
+
+        uvsyms=syms;
     }
     struct ModuleDef *md=wa_malloc(sizeof(struct ModuleDef));
     md->syms=uvsyms;
     md->mod.resolve=(void *)&ModuleResolver;
     md->mod.on_attached=NULL;
     md->mod.on_detached=NULL;
-    return md;
+    return (struct pwart_host_module *)md;
 }
 
 extern char *pwart_libuv_module_delete(struct pwart_host_module *mod){

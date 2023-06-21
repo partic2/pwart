@@ -312,6 +312,7 @@ static char *pwart_GenCode(ModuleCompiler *m) {
   block = dynarr_push_type(&m->blocks, Block);
   block->block_type = 0x00;
   m->eof=0;
+  m->block_returned=0;
 
   while (!m->eof && m->pc < m->byte_count) {
     opcode = m->bytes[m->pc];
@@ -327,7 +328,7 @@ static char *pwart_GenCode(ModuleCompiler *m) {
 
     // XXX: save flag if next op is not if, br_if or i32.eqz(not).
     if (m->sp>=0 && m->stack[m->sp].jit_type == SVT_CMP && 
-    opcode != WASMOPC_if && opcode != WASMOPC_br_if && opcode != WASMOPC_i32_eqz) {
+    opcode != WASMOPC_if && opcode != WASMOPC_br_if && opcode != WASMOPC_i32_eqz && opcode !=WASMOPC_select && opcode != WASMOPC_select_t) {
       pwart_EmitStackValueLoadReg(m, &m->stack[m->sp]);
     }
 

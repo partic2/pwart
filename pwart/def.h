@@ -63,6 +63,8 @@ typedef union FuncPtr {
 typedef struct Block {
     uint8_t    block_type;    // 0x00: function, 0x01: init_exp
                               // 0x02: block, 0x03: loop, 0x04: if
+    int8_t     stack_offset;  //stack offset after block end.
+    int16_t    saved_sp;      //sp when enter block.
     //Type      *type;           params/results type
     struct sljit_jump *else_jump;     // if block only
     struct sljit_label *br_label;       // blocks only
@@ -194,6 +196,7 @@ typedef struct ModuleCompiler {
     struct dynarr *blocks; // block stacks, block type
     struct dynarr *br_table; // br_table branch indexes, uint32_t type
     uint8_t eof;      // end of function
+    int8_t block_returned; //the block has br/return out.
 
     //prepare info, used in compile time
     #if DEBUG_BUILD
@@ -489,6 +492,8 @@ static struct{
 #define WASMOPC_i32_eqz 0x45
 #define WASMOPC_if 0x04
 #define WASMOPC_br_if 0x0d
+#define WASMOPC_select 0x1b
+#define WASMOPC_select_t 0x1c
 #define WASMOPC_br 0x0c
 #define WASMOPC_i32_shl 0x74
 #define WASMOPC_i64_shl 0x86
@@ -515,5 +520,14 @@ static void opgen_GenRefConst(ModuleCompiler *m,void *c);
 static void opgen_GenLocalSet(ModuleCompiler *m, uint32_t idx);
 static void opgen_GenLocalTee(ModuleCompiler *m, uint32_t idx);
 static void opgen_GenGlobalGet(ModuleCompiler *m, uint32_t idx);
+
+
+
+#if PWART_DEBUG_RUNTIME_PROBE
+static void debug_PrintFuncEnter(uint32_t wasmpc);
+static void debug_PrintFuncReturn(uint32_t wasmpc);
+static void debug_PrintBlockInstr(uint32_t wasmpc);
+#endif
+
 
 #endif

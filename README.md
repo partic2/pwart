@@ -5,7 +5,7 @@
 
 PWART use sljit to generate native code, no other dependency. All code is writen in C, include sljit.
 
-PWART support 32bit and 64bit architecture, test only on x86_64, i686 and armv7l, but should also work on aarch64,risc-v etc. thanks to sljit.
+PWART support 32bit and 64bit architecture, test only on x86_64, i686 ,aarch64 and armv7l, but should also work on risc-v etc. thanks to sljit.
 
 Currently, PWART still need more test to improve and verify the stablity. 
 
@@ -21,7 +21,7 @@ Currently only support GCC-like toolchain, consider use MinGW on Windows please.
 cmake -S . -B build
 ```
 ```shell
-cmake -S . -B build -DPWART_SYSLIB_ENABLED=ON
+cmake -S . -B build -DPWART_SYSLIB_ENABLED=ON -DDEPS_SOURCE_DIRS=<dependencies sources dir>
 ```
 
 ### Makefile mode
@@ -55,6 +55,13 @@ pwart_call_wasm_function(test1,stackbase);
 See [include/pwart.h](include/pwart.h) , [tests/testmain.c](tests/testmain.c)  [tests/testmain2.c](tests/testmain2.c)
 and [tests/Makefile](tests/Makefile) for detail usage.
 
+## SYSLIB and WASI Support
+
+There are experimental Runtime Core Library(SYSLIB) and WASI Support, can be enabled by `-DPWART_SYSLIB_ENABLED=ON` in CMake. And you may need put the dependencies ([libuv](https://github.com/libuv/libuv), [libffi(with cmake)](https://github.com/partic2/libffi), [uvwasi](https://github.com/nodejs/uvwasi)) in one directory, then pass the directory to `-DDEPS_SOURCE_DIRS=<dependencies sources dir>`. You can also get all dependency [here](https://github.com/partic2/xplatj2)
+
+The `pwart_wasiexec` can be used to execute a WASI module, and you can also use `libpwart_syslib.a` to embed the library. See also [include/pwart_syslib.h](include/pwart_syslib.h) 
+
+
 ## Test
 
 To run the test, you need WAT2WASM to compile wat file. You can get it by compile [wabt](https://github.com/WebAssembly/wabt),Then
@@ -66,27 +73,10 @@ make
 ```
 or , If you use cmake
 ```
-cmake -S . -B build -DBUILD_TESTING=ON
+cmake -S . -B build -DBUILD_TESTING=ON -DPWART_SYSLIB_ENABLED=ON
 cd build
 make test
 ```
-
-## Benchmarks
-
-The source code are here [tests/benchsort.c](tests/benchsort.c).
-
-Until May 18, 2023
-
-Time Consumed
-
-| | GCC (-O2) | PWART (fixed memory) | PWART (dynamic memory) | PWART (native memory) | TinyCC | V8(Chrome v113) |
-| ---- | ----: | ----: | ----: | ----: | ----: | ----: |
-| Windows10 x86_64 | 2823ms | 3622ms | 2720ms | Not test yet | 6330ms | 2618ms |
-| Linux aarch64 | 1561ms | 1997ms | 2079ms | Not test yet | 7681ms | 1465ms |
-
-**fixed memory** mean wasm module use memory with maximum limit size (expected to be faster). **native memory** mean memory is mapped to host memory directly, This feature is not supported by any toolchain, So we need write .wat by hand before testing.
-
-See [include/pwart.h](include/pwart.h) for detail.
 
 ## Implemented
 
@@ -114,12 +104,29 @@ Simple namespace support
 
 Fixed-width SIMD.
 
+
+## Benchmarks
+
+The source code are here [tests/benchsort.c](tests/benchsort.c).
+
+Until May 18, 2023
+
+Time Consumed
+
+| | GCC (-O2) | PWART (fixed memory) | PWART (dynamic memory) | PWART (native memory) | TinyCC | V8(Chrome v113) |
+| ---- | ----: | ----: | ----: | ----: | ----: | ----: |
+| Windows10 x86_64 | 2823ms | 3622ms | 2720ms | Not test yet | 6330ms | 2618ms |
+| Linux aarch64 | 1561ms | 1997ms | 2079ms | Not test yet | 7681ms | 1465ms |
+
+**fixed memory** mean wasm module use memory with maximum limit size (expected to be faster). **native memory** mean memory is mapped to host memory directly, This feature is not supported by any toolchain, So we need write .wat by hand before testing.
+
+See [include/pwart.h](include/pwart.h) for detail.
+
+
 ## Roadmap
 
 1. More test , and fix.
 
 2. Performance optimization.
 
-3. libuv and libffi binding.
-
-4. WASI Support.
+3. More libuv and libffi binding.

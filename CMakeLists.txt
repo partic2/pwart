@@ -1,12 +1,20 @@
 
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
+
+if(COMMAND cmake_policy)
+    cmake_policy(SET CMP0003 NEW)
+endif()
+
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 project(pwart)
 
+
 option(PWART_SYSLIB_ENABLED "compile pwart_syslib, require uv_a and libffi_a defined" OFF)
+option(DEPS_SOURCE_DIRS "dependency sources directory, where DEPS_SOURCE_DIRS/libffi DEPS_SOURCE_DIRS/libuv exists, if defined, add these as subdirectory.")
+
 option(BUILD_TESTING "enable test" OFF)
 
-option(DEPS_SOURCE_DIRS "dependency sources directory, where DEPS_SOURCE_DIRS/libffi DEPS_SOURCE_DIRS/libuv exists, if defined, add these as subdirectory.")
 
 if(BUILD_TESTING)
 add_compile_options(-ggdb3)
@@ -19,12 +27,18 @@ target_include_directories(pwart PUBLIC include sljit/sljit_src)
 
 
 if (PWART_SYSLIB_ENABLED)
+add_library(pwart_syslib STATIC pwart_syslib/pwart_syslib.c)
+add_executable(pwart_wasiexec pwart_syslib/wasiexec.c)
 if (DEPS_SOURCE_DIRS)
 add_subdirectory("${DEPS_SOURCE_DIRS}/libffi" build-libffi)
 add_subdirectory("${DEPS_SOURCE_DIRS}/libuv" build-libuv)
+add_subdirectory("${DEPS_SOURCE_DIRS}/uvwasi" build-uvwasi)
+# uvwasi mark the header as PRIVATE(Strange), So we need include it manually.
+target_include_directories(pwart_syslib PUBLIC "${DEPS_SOURCE_DIRS}/uvwasi/include")
+target_include_directories(pwart_wasiexec PUBLIC "${DEPS_SOURCE_DIRS}/uvwasi/include")
 endif()
-add_library(pwart_syslib STATIC pwart_syslib/pwart_syslib.c)
-target_link_libraries(pwart_syslib PUBLIC pwart uv_a ffi_static)
+target_link_libraries(pwart_syslib PUBLIC pwart uvwasi_a uv_a ffi_static)
+target_link_libraries(pwart_wasiexec pwart_syslib)
 endif()
 
 set(WAT2WASM $ENV{WAT2WASM})

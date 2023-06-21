@@ -327,10 +327,10 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 parse_memory_type(m, &pos,memory);
                 //XXX: custom memory creator?
                 if(memory->maximum==0){
-                    memory->bytes = wa_malloc(memory->initial*PAGE_SIZE);
+                    memory->bytes = wa_calloc(memory->initial*PAGE_SIZE);
                     memory->fixed=0;
                 }else{
-                    memory->bytes = wa_malloc(memory->maximum*PAGE_SIZE);
+                    memory->bytes = wa_calloc(memory->maximum*PAGE_SIZE);
                     memory->fixed=1;
                 }
                 *dynarr_push_type(&m->context->memories,Memory *)=memory;

@@ -104,7 +104,7 @@ static StackValue *stackvalue_FindSvalueUseReg(ModuleCompiler *m, sljit_s32 r,
   }
 }
 
-static int pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int memreg,
+static char *pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int memreg,
                                      int offset) {
   if (sv->jit_type == SVT_GENERAL) {
     if(memreg==sv->val.op && offset==sv->val.opw)return 0;
@@ -200,7 +200,7 @@ static int pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int memr
   }else{
     SLJIT_UNREACHABLE();
   }
-  return 0;
+  return NULL;
 }
 // store value into [S0+IMM]
 static int pwart_EmitSaveStack(ModuleCompiler *m, StackValue *sv) {
@@ -332,7 +332,7 @@ static void stackvalue_EmitSwapTopTwoValue(ModuleCompiler *m) {
     pwart_EmitSaveStack(m, sv);
   }
 }
-static int pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
+static char *pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
                               sljit_sw offset) {
   StackValue *sv,sv2;
   uint32_t a, b, len,func_frame_offset;
@@ -406,13 +406,18 @@ static int pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
       sljit_emit_op1(m->jitc, SLJIT_MOV, sv->val.op, sv->val.opw, SLJIT_MEM1(tr),0);
     }
   }
+  return NULL;
 }
 
-static int pwart_EmitFuncReturn(ModuleCompiler *m) {
+static char *pwart_EmitFuncReturn(ModuleCompiler *m) {
   int idx, len, off;
   StackValue *sv;
   off = 0;
   len = strlen(m->function_type->results);
+  if(m->sp+1<len){
+    /* maybe unreachable code, Do nothing */
+    return NULL;
+  }
   for (idx = 0; idx < len; idx++) {
     sv = &m->stack[m->sp - len + idx + 1];
     if(pwart_gcfg.stack_flags & PWART_STACK_FLAGS_AUTO_ALIGN){
@@ -423,13 +428,22 @@ static int pwart_EmitFuncReturn(ModuleCompiler *m) {
       off += stackvalue_GetSizeAndAlign(sv, NULL);
     }
   }
+  #if PWART_DEBUG_RUNTIME_PROBE
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintFuncReturn);
+  #endif
   sljit_emit_return_void(m->jitc);
+  return NULL;
 }
 
 static int stackvalue_AnyRegUsedBySvalue(StackValue *sv){
+  int r=0;
   if(sv->jit_type==SVT_GENERAL){
-    return sv->val.op&0xf;
+    r=sv->val.op&0xf;
+    SLJIT_ASSERT(r>0);
+    return r;
   }else if(sv->jit_type==SVT_TWO_REG){
+    SLJIT_ASSERT(sv->val.tworeg.opr1>0);
     return sv->val.tworeg.opr1;
   }else{
     SLJIT_UNREACHABLE();
@@ -537,6 +551,7 @@ static void pwart_EmitStackValueLoadReg(ModuleCompiler *m, StackValue *sv) {
     r1 = pwart_GetFreeReg(m, RT_INTEGER, 0);
     r2 = pwart_GetFreeRegExcept(m, RT_INTEGER, r1, 0);
     if (sv->jit_type == SVT_GENERAL) {
+      wa_assert(sv->val.op & SLJIT_MEM,"assert failed.");
       sljit_emit_op1(m->jitc, SLJIT_MOV, r1, 0, sv->val.op, sv->val.opw);
       sljit_emit_op1(m->jitc, SLJIT_MOV, r2, 0, sv->val.op, sv->val.opw + 4);
     } else if (sv->jit_type == SVT_I64CONST) {
@@ -699,6 +714,10 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
     }
     dynarr_free(&m->locals_need_zero);
   }
+  #if PWART_DEBUG_RUNTIME_PROBE
+  sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc+1);
+  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintFuncEnter);
+  #endif
 }
 
 

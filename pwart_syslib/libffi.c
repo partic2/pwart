@@ -60,7 +60,7 @@ static void wasm__ffix_new_cif(void *fp){
         return;
     }
     ffi_cif *cif=wa_malloc(sizeof(ffi_cif)+sizeof(ffi_type *)*alen);
-    ffi_type **typearr=(ffi_type *)((char *)cif+sizeof(ffi_cif));
+    ffi_type **typearr=(ffi_type **)((char *)cif+sizeof(ffi_cif));
     for(i=0;i<alen;i++){
         typearr[i]=ffix_CharToType(typeid[i]);
     }
@@ -142,7 +142,7 @@ static void wasm__ffi_prep_closure_loc(void *fp){
     void **userdata2=wa_malloc(sizeof(void *)*2);
     userdata2[0]=fn;
     userdata2[1]=user_data;
-    ffi_status stat=ffi_prep_closure_loc(closure,cif,&wasmcb__ffi_closurecb,userdata2,codeloc);
+    ffi_status stat=ffi_prep_closure_loc(closure,cif,(void *)&wasmcb__ffi_closurecb,userdata2,codeloc);
     pwart_rstack_put_i32(&sp,stat);
 }
 
@@ -176,7 +176,7 @@ static void wasm__ffix_new_c_callback(void *fp){
     userdata2[0]=fn;
     userdata2[1]=user_data;
     void *closure=ffi_closure_alloc(sizeof(FFI_CLOSURES),&code);
-    ffi_status stat=ffi_prep_closure_loc(closure,cif,&wasmcb__c2wasm_adapter,userdata2,code);
+    ffi_status stat=ffi_prep_closure_loc(closure,cif,(void *)&wasmcb__c2wasm_adapter,userdata2,code);
     pwart_rstack_put_ref(&sp,closure); 
     pwart_rstack_put_ref(&sp,code); 
     pwart_rstack_put_i32(&sp,stat);
@@ -227,8 +227,8 @@ static struct dynarr *ffisyms=NULL;  //type pwart_named_symbol
 extern struct pwart_host_module *pwart_libffi_module_new(){
     if(ffisyms==NULL){
         struct pwart_named_symbol *sym;
-        dynarr_init(&ffisyms,sizeof(struct pwart_named_symbol));
-        struct dynarr *syms=ffisyms;
+        struct dynarr *syms=NULL;
+        dynarr_init(&syms,sizeof(struct pwart_named_symbol));
         _ADD_BUILTIN_FN(ffi_prep_cif)
         _ADD_BUILTIN_FN(ffi_prep_cif_var)
         _ADD_BUILTIN_FN(ffi_call)
@@ -251,7 +251,7 @@ extern struct pwart_host_module *pwart_libffi_module_new(){
     md->mod.resolve=(void *)&ModuleResolver;
     md->mod.on_attached=NULL;
     md->mod.on_detached=NULL;
-    return md;
+    return (struct pwart_host_module *)md;
 }
 
 extern char *pwart_libffi_module_delete(struct pwart_host_module *mod){

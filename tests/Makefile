@@ -23,3 +23,10 @@ test2:build_pwart
 	$(WAT2WASM) --enable-multi-memory extension1.wat
 	$(WAT2WASM) benchsort.wat
 	./testexe2
+
+# WIP...
+test3:build_pwart
+	$(CC) $(PWART_CFLAGS) $(CFLAGS) -o testexe3 testexe3.c $(PWART_LDFLAGS) $(LDFLAGS)
+	$(WAT2WASM) --enable-multi-memory extension1.wat
+	$(WAT2WASM) benchsort.wat
+	./testexe3
