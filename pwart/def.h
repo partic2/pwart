@@ -28,6 +28,8 @@
 #define WVT_FUNC      0x70
 #define WVT_REF       0x6f
 
+#define OPERAND_STACK_COUNT 32
+
 
 
 
@@ -192,7 +194,7 @@ typedef struct ModuleCompiler {
     int32_t target_ptr_size;
     int         pc;        // current parser pos
     int         sp;         // operand stack pointer, stack[sp] is valid stack value.
-    StackValue  stack[32]; // main operand stack
+    StackValue  stack[OPERAND_STACK_COUNT]; // main operand stack
     struct dynarr *blocks; // block stacks, block type
     struct dynarr *br_table; // br_table branch indexes, uint32_t type
     uint8_t eof;      // end of function

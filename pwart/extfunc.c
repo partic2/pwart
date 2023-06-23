@@ -294,10 +294,12 @@ static void insn_memorygrow(void *fp){
   Memory *mem=*dynarr_get(m->memories,Memory *,index);
   int32_t prev_pages = mem->pages;
   if (delta + prev_pages > mem->maximum) {
-    prev_pages = -1;
+    sp=fp;
+    pwart_rstack_put_i32(&sp,-1);
+    return;
   }
   mem->pages += delta;
-  if(mem->fixed!=0){
+  if(!mem->fixed){
     mem->bytes = wa_realloc(mem->bytes, mem->pages * PAGE_SIZE);
     memset(mem->bytes+prev_pages*PAGE_SIZE,0,delta*PAGE_SIZE);
   }
@@ -331,9 +333,6 @@ static void insn_memoryfill(void *fp){
   uint32_t n=pwart_rstack_get_i32(&sp);
   void *val2=pwart_rstack_get_ref(&sp);
   uint32_t fillref=pwart_rstack_get_i32(&sp);
-  #if DEBUG_BUILD
-  wa_debug("insn_memoryfill:%p,%x,%x,%p,%x\n",d,val,n,val2,fillref);
-  #endif
   if(fillref){
     void **ent=d;
     for(int i1=0;i1<n;i1++){

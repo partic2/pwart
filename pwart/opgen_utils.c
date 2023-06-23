@@ -297,6 +297,7 @@ static StackValue *stackvalue_Push(ModuleCompiler *m, int32_t wasm_type) {
       sv2->frame_offset=stackvalue_GetAlignedOffset(sv2,sv2->frame_offset,NULL);
     }
   }
+  wa_assert(m->sp<OPERAND_STACK_COUNT-1,"operand stack overflow");
   return sv2;
 }
 

@@ -49,8 +49,10 @@ static void parse_memory_type(ModuleCompiler *m, uint32_t *pos,Memory *mem) {
   if (flags & 0x1) {
     pages = read_LEB(m->bytes, pos, 32); // Max size
     mem->maximum = pages;
+    mem->fixed=1;
   } else {
-    mem->maximum = 0;
+    mem->maximum = 32768;
+    mem->fixed=0;
   }
 }
 
@@ -326,12 +328,10 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 Memory *memory=m->context->own_memories+i;
                 parse_memory_type(m, &pos,memory);
                 //XXX: custom memory creator?
-                if(memory->maximum==0){
+                if(memory->fixed){
                     memory->bytes = wa_calloc(memory->initial*PAGE_SIZE);
-                    memory->fixed=0;
                 }else{
                     memory->bytes = wa_calloc(memory->maximum*PAGE_SIZE);
-                    memory->fixed=1;
                 }
                 *dynarr_push_type(&m->context->memories,Memory *)=memory;
             }

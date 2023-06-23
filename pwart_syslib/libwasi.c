@@ -169,7 +169,7 @@ static void *wasm__fd_pread(void *fp) {
   }
   uvwasi_errno_t err =
       uvwasi_fd_pread(&uvwc, fd, iovs2, iovs_len, offset,
-                      (uvwasi_size_t *)uwmem->bytes + nread);
+                      (uvwasi_size_t *)(uwmem->bytes + nread));
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
@@ -213,7 +213,7 @@ static void *wasm__fd_read(void *fp) {
     iovs2[i].buf_len=*(uint32_t *)(uwmem->bytes + iovs + 8*i+4);
   }
   uvwasi_errno_t err = uvwasi_fd_read(&uvwc, fd, iovs2,
-                                      iovs_len, (uvwasi_size_t *)uwmem->bytes + nread);
+                                      iovs_len, (uvwasi_size_t *)(uwmem->bytes + nread));
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
@@ -456,8 +456,10 @@ extern char *pwart_wasi_module_init(){
   /* Android failed with environ, Use uv_os_environ? */
   /* init_options.envp = (const char **)environ; */
   init_options.envp=NULL;
-  init_options.preopenc = 0;
-  init_options.preopens = NULL;
+  init_options.preopenc = 1;
+  init_options.preopens = wa_malloc(sizeof(uvwasi_preopen_t));
+  init_options.preopens->mapped_path="/";
+  init_options.preopens->real_path=".";
   init_options.allocator = NULL;
   init_options.argc = wasiargc;
   init_options.argv = wasiargv;
