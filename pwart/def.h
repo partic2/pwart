@@ -500,6 +500,15 @@ static struct{
 #define WASMOPC_i32_shl 0x74
 #define WASMOPC_i64_shl 0x86
 
+#define WASMOPC_i32_add 0x6a
+#define WASMOPC_i32_sub 0x6b
+#define WASMOPC_i32_mul 0x6c
+#define WASMOPC_i64_add 0x7c
+#define WASMOPC_i64_sub 0x7d
+#define WASMOPC_i64_mul 0x7e
+
+#define WASMOPC_end 0x0b
+
 static struct pwart_global_compile_config pwart_gcfg={
     .stack_flags=0,
     .misc_flags=PWART_MISC_FLAGS_LOCALS_ZERO_INIT

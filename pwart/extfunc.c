@@ -481,48 +481,119 @@ static Type func_type_ref_ref_i32_void={.params=types_ref_ref_i32,.results=types
 static Type func_type_memoryfill={.params=types_ref_i32_i32_ref_i32,.results=types_void};
 
 static char *waexpr_run_const(ModuleCompiler *m, void *result) {
-  int opcode=m->bytes[m->pc];
-  m->pc++;
-  switch (opcode) {
-  case 0x41: // i32.const
-    *(uint32_t *)result = read_LEB_signed(m->bytes, &m->pc, 32);
-    break;
-  case 0x42: // i64.const
-    *(uint64_t *)result = read_LEB_signed(m->bytes, &m->pc, 64);
-    break;
-  case 0x43: // f32.const
-    *(float *)result = *(float *)(m->bytes + m->pc);
-    m->pc += 4;
-    break;
-  case 0x44: // f64.const
-    *(double *)result = *(double *)(m->bytes + m->pc);
-    m->pc += 8;
-    break;
-  case 0x23: // global.get
-  {
-    uint32_t arg = read_LEB(m->bytes, &m->pc, 32);
-    StackValue *sv = dynarr_get(m->globals, StackValue, arg);
-    if (stackvalue_GetSizeAndAlign(sv, NULL) == 8) {
-      *(uint64_t *)result = *(uint64_t *)(sv->val.opw);
-    } else {
-      *(uint32_t *)result = *(uint32_t *)(sv->val.opw);
+  int opcode=0;
+  //const stack
+  uint64_t stack[16];
+  void *sp=&stack;
+  int eof=0;
+  while(m->pc<=m->byte_count && !eof){
+    opcode=m->bytes[m->pc];
+    m->pc++;
+    switch (opcode) {
+      case 0x41: // i32.const
+        *(uint32_t *)sp = read_LEB_signed(m->bytes, &m->pc, 32);
+        sp+=4;
+        break;
+      case 0x42: // i64.const
+        *(uint64_t *)sp = read_LEB_signed(m->bytes, &m->pc, 64);
+        sp+=8;
+        break;
+      case 0x43: // f32.const
+      //use memmove to avoid align error
+        memmove(sp,m->bytes + m->pc,4);
+        m->pc += 4;
+        sp+=4;
+        break;
+      case 0x44: // f64.const
+      //use memmove to avoid align error
+        memmove(sp,m->bytes + m->pc,8);
+        m->pc += 8;
+        sp+=8;
+        break;
+      case 0x23: // global.get
+      {
+        uint32_t arg = read_LEB(m->bytes, &m->pc, 32);
+        StackValue *sv = dynarr_get(m->globals, StackValue, arg);
+        if (stackvalue_GetSizeAndAlign(sv, NULL) == 8) {
+          *(uint64_t *)sp = *(uint64_t *)(sv->val.opw);
+          sp+=8;
+        } else {
+          *(uint32_t *)sp = *(uint32_t *)(sv->val.opw);
+          sp+=4;
+        }
+      } break;
+      case 0xd0: //ref.null
+        *(void **)sp=NULL;
+        sp+=m->target_ptr_size/8;
+        break;
+      case 0xd2: //ref.func
+      {
+        uint32_t arg = read_LEB(m->bytes, &m->pc, 32);
+        *(WasmFunction **)sp = dynarr_get(m->functions,WasmFunction,arg);
+        sp+=m->target_ptr_size/8;
+      }break;
+      case WASMOPC_i32_add:
+      {
+        uint32_t *arg1=((void *)sp)-8;
+        uint32_t *arg2=arg1+1;
+        sp-=8;
+        *(uint32_t *)sp=*arg1+*arg2;
+        sp+=4;
+      }break;
+      case WASMOPC_i32_sub:
+      {
+        uint32_t *arg1=((void *)sp)-8;
+        uint32_t *arg2=arg1+1;
+        sp-=8;
+        *(uint32_t *)sp=*arg1-*arg2;
+        sp+=4;
+      }break;
+      case WASMOPC_i32_mul:
+      {
+        uint32_t *arg1=((void *)sp)-8;
+        uint32_t *arg2=arg1+1;
+        sp-=8;
+        *(uint32_t *)sp=(*arg1) * (*arg2);
+        sp+=4;
+      }break;
+      case WASMOPC_i64_add:
+      {
+        uint64_t *arg1=((void *)sp)-16;
+        uint64_t *arg2=arg1+1;
+        sp-=16;
+        *(uint64_t *)sp=*arg1+*arg2;
+        sp+=8;
+      }break;
+      case WASMOPC_i64_sub:
+      {
+        uint64_t *arg1=((void *)sp)-16;
+        uint64_t *arg2=arg1+1;
+        sp-=16;
+        *(uint64_t *)sp=*arg1-*arg2;
+        sp+=8;
+      }break;
+      case WASMOPC_i64_mul:
+      {
+        uint64_t *arg1=((void *)sp)-16;
+        uint64_t *arg2=arg1+1;
+        sp-=16;
+        *(uint64_t *)sp=(*arg1) * (*arg2);
+        sp+=8;
+      }break;
+      case WASMOPC_end:
+        eof=1;
+        m->pc--;
+        break;
+      default:
+        return "Unsupport const expr";
+        break;
     }
-  } break;
-  case 0xd0: //ref.null
-    *(void **)result=NULL;
-    break;
-  case 0xd2: //ref.func
-  {
-    uint32_t arg = read_LEB(m->bytes, &m->pc, 32);
-    *(WasmFunction **)result = dynarr_get(m->functions,WasmFunction,arg);
   }
-  default:
-    return "Unsupport const expr";
-    break;
-  }
+  
   if(m->bytes[m->pc]!=0xb){
     return "const expr miss end instruction.";
   }
+  memcpy(result,&stack,sp-(void *)stack);
   m->pc++;
   return NULL;
 }

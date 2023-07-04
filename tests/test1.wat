@@ -18,6 +18,7 @@
   (elem 0 (i32.const 0) $addTwo )
   (global $one i32 (i32.const 1))
   (global $two i32 (i32.const 2))
+  (global $three (mut i32) (i32.add (i32.const 1)(i32.const 2)))
 
   ;; function 0
   (func $nop
@@ -270,9 +271,19 @@
   call $ref_string_length
   )
 
+  ;; function 10 expect 4
+  (func $miscTest1 (result i32)
+  global.get $three
+  i32.const 1
+  i32.add
+  global.set $three
+  global.get $three
+  )
+
   (export "addTwo" (func $addTwo))
   (export "test1" (func $test1))
   (export "test2" (func $test2))
   (export "test3" (func $test3))
   (export "builtinFuncTest" (func $builtinFuncTest))
+  (export "miscTest1" (func $miscTest1))
 )

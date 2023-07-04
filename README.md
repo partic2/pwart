@@ -90,13 +90,15 @@ Multi-value
 
 Non-trapping Float-to-int Conversions (For performance, the behavior depend on the host.)
 
-Bulk Memory Operations(Conditional Segment Initialization is not support yet.)
+Bulk Memory Operations(Conditional Segment Initialization is not supported yet.)
 
 Memory64(support i64 index, offset and align are still 32bit.)
 
 Reference types
 
 Multiple memories
+
+Extended Constant Expressions
 
 Simple namespace support
 

@@ -99,6 +99,9 @@ int test1() {
     pwart_wasm_function fib_main = pwart_get_export_function(ctx, "fib_main");
     pwart_wasm_function builtinFuncTest =
         pwart_get_export_function(ctx, "builtinFuncTest");
+    pwart_wasm_function miscTest1 =
+        pwart_get_export_function(ctx, "miscTest1");
+    
 
     pwart_free_module_compiler(m);
 
@@ -229,6 +232,17 @@ int test1() {
     printf("10.builtinFuncTest test, expect %x,%x,%p,%x, got %x,%x,%p,%x\n",
            pwart_get_version(),(uint32_t)sizeof(void *) ,ctx,(uint32_t)strlen(memstr+1), ri32, ri32_2,rref,ri32_3);
     if (pwart_get_version() != ri32 || sizeof(void *)!=ri32_2 || ctx != rref || strlen(memstr+1)!=ri32_3) {
+      return 0;
+    }
+
+    // miscTest1 test
+    sp = stackbase;
+    sp = stackbase;
+    pwart_call_wasm_function(miscTest1, sp);
+    ri32 = geti32(&sp);
+    printf("11.miscTest1 test, expect %x got %x\n",
+           4,ri32);
+    if (4!=ri32) {
       return 0;
     }
 
