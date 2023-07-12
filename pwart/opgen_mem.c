@@ -19,7 +19,8 @@ static void opgen_GenLocalSet(ModuleCompiler *m, uint32_t idx) {
   sv = dynarr_get(m->locals, StackValue, idx);
   // check if local variable still on stack.
   for (int i = 0; i < m->sp; i++) {
-    if (stack[i].jit_type==SVT_GENERAL && stackvalue_IsFloat(&stack[i]) == stackvalue_IsFloat(sv) && stack[i].val.opw == sv->val.opw) {
+    // XXX: If we use SLJIT_MEM(SLJIT_Sx), here need change.
+    if (stack[i].jit_type==SVT_GENERAL && stackvalue_IsFloat(&stack[i]) == stackvalue_IsFloat(sv) && stack[i].val.op == sv->val.op  && stack[i].val.opw == sv->val.opw ) {
       pwart_EmitSaveStack(m, &stack[i]);
     }
   }
@@ -34,7 +35,8 @@ static void opgen_GenLocalTee(ModuleCompiler *m, uint32_t idx) {
   sv = dynarr_get(m->locals, StackValue, idx);
   // check if local variable still on stack.
   for (int i = 0; i < m->sp; i++) {
-    if (stack[i].jit_type==SVT_GENERAL && stackvalue_IsFloat(&stack[i]) == stackvalue_IsFloat(sv) && stack[i].val.op == sv->val.op && stack[i].val.opw == sv->val.opw) {
+    // XXX: If we use SLJIT_MEM(SLJIT_Sx), here need change.
+    if (stack[i].jit_type==SVT_GENERAL && stackvalue_IsFloat(&stack[i]) == stackvalue_IsFloat(sv) && stack[i].val.op == sv->val.op  && stack[i].val.opw == sv->val.opw ) {
       pwart_EmitSaveStack(m, &stack[i]);
     }
   }
@@ -149,8 +151,7 @@ static void opgen_GenMemoryGrow(ModuleCompiler *m,uint32_t index) {
   pwart_EmitCallFunc(m, &func_type_i32_i32_ref_ret_i32, SLJIT_IMM,
                      (sljit_sw)&insn_memorygrow);
 }
-// a:memory access base register, can be result register. result StackValue will
-// be pushed to stack.
+
 static void opgen_GenI32Load(ModuleCompiler *m, int32_t opcode, int offset) {
   StackValue *sv=m->stack+m->sp;
   int a=pwart_GetFreeReg(m,RT_INTEGER,1);
@@ -228,6 +229,7 @@ static void opgen_GenI64Load(ModuleCompiler *m, int32_t opcode, sljit_sw offset)
     sv->val.tworeg.opr1=a;
     sv->val.tworeg.opr2=b;
   }else{
+    sv->jit_type=SVT_GENERAL;
     sv->val.op=a;
     sv->val.opw=0;
   }
@@ -531,15 +533,17 @@ static char *opgen_GenMemOp(ModuleCompiler *m, int opcode) {
   case 0x28:  case 0x29:  case 0x2a:  case 0x2b:  case 0x2c:  case 0x2d:  case 0x2e:  case 0x2f:  case 0x30:  case 0x31:  case 0x32:  case 0x33:  case 0x34:  case 0x35:
     midx=0;
     align = read_LEB(m->bytes, &m->pc, 32);
-    if(align&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
     offset = read_LEB(m->bytes, &m->pc, 32);
+    if(align&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
+    align=align&0xf;
     opgen_GenLoad(m, opcode, offset, align,midx);
     break;
   case 0x36:  case 0x37:  case 0x38:  case 0x39:  case 0x3a:  case 0x3b:  case 0x3c:  case 0x3d:  case 0x3e:
     midx=0;
     align = read_LEB(m->bytes, &m->pc, 32);
-    if(align&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
     offset = read_LEB(m->bytes, &m->pc, 32);
+    if(align&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
+    align=align&0xf;
     opgen_GenStore(m, opcode, offset, align,midx);
     break;
   //

@@ -279,6 +279,8 @@ static void opgen_GenSelect(ModuleCompiler *m) {
   if (sv->jit_type == SVT_CMP) {
     jump = sljit_emit_jump(m->jitc, sv->val.cmp.flag);
   } else if (sv->jit_type == SVT_GENERAL) {
+    // sljit_emit_cmp always use machine word length, So load to register first.
+    pwart_EmitStackValueLoadReg(m,sv);
     jump = sljit_emit_cmp(m->jitc, SLJIT_NOT_EQUAL, sv->val.op, sv->val.opw,
                           SLJIT_IMM, 0);
   } else {

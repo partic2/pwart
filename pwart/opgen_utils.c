@@ -85,7 +85,8 @@ static StackValue *stackvalue_FindSvalueUseReg(ModuleCompiler *m, sljit_s32 r,
     if ((regtype == RT_FLOAT) != stackvalue_IsFloat(sv)) {
       continue;
     }
-    if ((sv->jit_type == SVT_GENERAL || sv->jit_type == SVT_POINTER)) {
+    if (sv->jit_type == SVT_GENERAL) {
+      wa_assert((sv->val.op & (~(int)0xff))==0,"two reg operand not supported");
       if ((sv->val.op & 0xf) == r || ((sv->val.op >> 8) & 0xf) == r) {
         used = 1;
         break;
@@ -95,6 +96,10 @@ static StackValue *stackvalue_FindSvalueUseReg(ModuleCompiler *m, sljit_s32 r,
         used = 1;
         break;
       }
+    }else if(sv->jit_type == SVT_I64CONST || sv->jit_type==SVT_CMP ||sv->jit_type==SVT_DUMMY){
+      //pass
+    }else{
+      SLJIT_UNREACHABLE();
     }
   }
   if (used) {
@@ -173,7 +178,8 @@ static char *pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int me
       SLJIT_UNREACHABLE();
     }
   } else if (sv->jit_type == SVT_CMP) {
-    sljit_emit_op_flags(m->jitc, SLJIT_MOV, memreg, offset, sv->val.cmp.flag);
+    wa_assert(sv->wasm_type==WVT_I32,"SVT_CMP must be i32");
+    sljit_emit_op_flags(m->jitc, SLJIT_MOV32, memreg, offset, sv->val.cmp.flag);
   } else if (sv->jit_type == SVT_POINTER) {
     SLJIT_UNREACHABLE();
   } else if (sv->jit_type == SVT_TWO_REG) {
@@ -262,7 +268,7 @@ static int pwart_EmitLoadReg(ModuleCompiler *m, StackValue *sv, int reg) {
       }
     }
   } else if (sv->jit_type == SVT_CMP) {
-    sljit_emit_op_flags(m->jitc, SLJIT_MOV, reg, 0, sv->val.cmp.flag);
+    sljit_emit_op_flags(m->jitc, SLJIT_MOV32, reg, 0, sv->val.cmp.flag);
   } else if (sv->jit_type == SVT_POINTER) {
     SLJIT_UNREACHABLE();
   } else if (sv->jit_type == SVT_TWO_REG) {

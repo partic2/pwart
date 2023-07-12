@@ -222,8 +222,8 @@ static char *pwart_PrepareFunc(ModuleCompiler *m) {
     case 0x28:  case 0x29:  case 0x2a:  case 0x2b:  case 0x2c:  case 0x2d:  case 0x2e:  case 0x2f:  case 0x30:  case 0x31:  case 0x32:  case 0x33:  case 0x34:  case 0x35:  case 0x36:  case 0x37:  case 0x38:  case 0x39:  case 0x3a:  case 0x3b:  case 0x3c:  case 0x3d:  case 0x3e: 
       midx=0;
       arg = read_LEB(m->bytes, &m->pc, 32);
-      if(arg&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
       offset = read_LEB(m->bytes, &m->pc, 32);
+      if(arg&0x40)midx=read_LEB(m->bytes, &m->pc, 32);
       if(m->cached_midx<0 && (*dynarr_get(m->context->memories,Memory *,midx))->bytes!=NULL){
         m->mem_base_local = -2;
         m->cached_midx=midx;
