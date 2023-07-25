@@ -17,7 +17,7 @@ option(BUILD_TESTING "enable test" OFF)
 
 
 if(BUILD_TESTING)
-add_compile_options(-ggdb3)
+add_compile_options(-ggdb3 -Wall)
 add_definitions(-DDEBUG_BUILD=1)
 endif()
 
@@ -51,7 +51,7 @@ endif()
 
 if (BUILD_TESTING)
   enable_testing()
-  execute_process(COMMAND ${WAT2WASM} "--enable-multi-memory" "--enable-extended-const" "test1.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)
+  execute_process(COMMAND ${WAT2WASM} "--enable-multi-memory" "--enable-extended-const" "--enable-tail-call" "test1.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)
   execute_process(COMMAND ${WAT2WASM} "--enable-multi-memory" "extension1.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)
   execute_process(COMMAND ${WAT2WASM} "unary.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)
   execute_process(COMMAND ${WAT2WASM} "binary.wat" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests" COMMAND_ECHO STDOUT)

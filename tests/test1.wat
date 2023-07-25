@@ -151,7 +151,7 @@
     drop
     
     i64.const 140
-    call $addTwo
+    return_call $addTwo
   )
 
   ;; function 5

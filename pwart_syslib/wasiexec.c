@@ -6,7 +6,7 @@
 #include <pwart_syslib.h>
 
 int main(int argc,char **argv){
-    pwart_wasi_module_set_wasiargs(argc,argv);
+    pwart_wasi_module_set_wasiargs(argc-1,argv+1);
     if(argc>=2){
         char *modpath=argv[1];
         void *stackbase = pwart_allocate_stack(64 * 1024);

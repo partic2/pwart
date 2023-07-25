@@ -227,6 +227,17 @@ static int pwart_EmitSaveStackAll(ModuleCompiler *m) {
   }
 }
 
+static int pwart_EmitSaveScratchRegisterAll(ModuleCompiler *m,int upstack) {
+  int i;
+  for (i = 0; i <= m->sp-upstack; i++) {
+    int usereg=m->stack[i].val.op&(SLJIT_IMM-1);
+    if( (m->stack[i].jit_type==SVT_GENERAL  && usereg!=0 && (usereg<SLJIT_FIRST_SAVED_REG)) || 
+      (m->stack[i].jit_type==SVT_TWO_REG) ){
+      pwart_EmitSaveStack(m, &m->stack[i]);
+    }
+  }
+}
+
 static int pwart_EmitLoadReg(ModuleCompiler *m, StackValue *sv, int reg) {
 
   if (sv->jit_type == SVT_GENERAL) {
@@ -339,19 +350,22 @@ static void stackvalue_EmitSwapTopTwoValue(ModuleCompiler *m) {
     pwart_EmitSaveStack(m, sv);
   }
 }
-static char *pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
-                              sljit_sw offset) {
+
+
+static char *pwart_EmitCallFunc2(ModuleCompiler *m, Type *type, sljit_s32 memreg,
+                              sljit_sw offset,int callReturn) {
   StackValue *sv,sv2;
-  uint32_t a, b, len,func_frame_offset;
+  int a, b, len,func_frame_offset;
+  int i;
   //Caution: Do not use scratch register before sljit_emit_icall to avoid overwrite [memreg,offset]
   //XXX: Maybe we need use RS_RESERVED to avoid unexpected overwrite.
-  pwart_EmitSaveStackAll(m);
+  len = strlen(type->params);
+  pwart_EmitSaveScratchRegisterAll(m,0);
   if ((memreg & (SLJIT_MEM - 1)) == SLJIT_R0 ) {
     sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R2, 0, memreg, offset);
     memreg = SLJIT_R2;
     offset = 0;
   }
-  len = strlen(type->params);
   if(len == 0){
     //no argument, push dummy stackvalue
     stackvalue_Push(m,WVT_I32);
@@ -381,14 +395,44 @@ static char *pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
       m->sp-=len;
       sv=m->stack+m->sp+1; // first argument
     }
+  }else if(callReturn){
+    //tail call
+    sv->frame_offset=0;
+    if(len>0){
+      pwart_EmitSaveStack(m,sv);
+      b=sv->frame_offset+stackvalue_GetSizeAndAlign(sv,NULL);
+      m->sp+=len;
+      for(a=1;a<len;a++){
+        sv++;
+        sv->frame_offset = stackvalue_GetAlignedOffset(sv,b,&b);
+        pwart_EmitSaveStack(m,sv);
+      }
+      //move sp back
+      m->sp-=len;
+      sv=m->stack+m->sp+1; // first argument
+    }
+  }else{
+    for(i=len;i>0;i--){
+      m->sp++;
+      pwart_EmitSaveStack(m,&m->stack[m->sp]);
+    }
+    //move sp back
+    m->sp-=len;
+    sv=m->stack+m->sp+1; // first argument
   }
 
   func_frame_offset=sv->frame_offset;
   
   sljit_emit_op2(m->jitc, SLJIT_ADD, SLJIT_R0, 0, SLJIT_S0, 0, SLJIT_IMM,func_frame_offset);
 
-  sljit_emit_icall(m->jitc, SLJIT_CALL, SLJIT_ARGS1(VOID, W), memreg,
+  a=SLJIT_CALL;
+  if(callReturn)a|=SLJIT_CALL_RETURN;
+  sljit_emit_icall(m->jitc, a, SLJIT_ARGS1(VOID, W), memreg,
                    offset);
+
+  if(callReturn){
+    m->block_returned=1;
+  }
   len = strlen(type->results);
   for (a = 0; a < len; a++) {
     b = type->results[a];
@@ -414,6 +458,12 @@ static char *pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
     }
   }
   return NULL;
+}
+
+
+static char *pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
+                              sljit_sw offset){
+  pwart_EmitCallFunc2(m,type,memreg,offset,0);
 }
 
 static char *pwart_EmitFuncReturn(ModuleCompiler *m) {

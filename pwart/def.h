@@ -256,8 +256,8 @@ static char OPERATOR_INFO[][20] = {
     "call",                  // 0x10
     "call_indirect",         // 0x11
 
-    "RESERVED",              // 0x12
-    "RESERVED",              // 0x13
+    "return_call",              // 0x12
+    "return_call_indirect",     // 0x13
     "RESERVED",              // 0x14
     "RESERVED",              // 0x15
     "RESERVED",              // 0x16
@@ -268,7 +268,7 @@ static char OPERATOR_INFO[][20] = {
     // Parametric operators
     "drop",                  // 0x1a
     "select",                // 0x1b
-    "select t",               // 0x1c
+    "select t",              // 0x1c
 
     "RESERVED",              // 0x1d
     "RESERVED",              // 0x1e
@@ -506,6 +506,11 @@ static struct{
 #define WASMOPC_i64_add 0x7c
 #define WASMOPC_i64_sub 0x7d
 #define WASMOPC_i64_mul 0x7e
+
+#define WASMOPC_call 0x10
+#define WASMOPC_call_indirect 0x11
+#define WASMOPC_return_call 0x12
+#define WASMOPC_return_call_indirect 0x13
 
 #define WASMOPC_end 0x0b
 

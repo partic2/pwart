@@ -240,7 +240,7 @@ static void opgen_GenReturn(ModuleCompiler *m) {
   m->block_returned=1;
 }
 
-static void opgen_GenCall(ModuleCompiler *m, int32_t fidx) {
+static void opgen_GenCall(ModuleCompiler *m, int32_t fidx, int callReturn) {
   WasmFunction *fn;
   int a;
   StackValue *sv;
@@ -250,19 +250,19 @@ static void opgen_GenCall(ModuleCompiler *m, int32_t fidx) {
     a = pwart_GetFreeReg(m, RT_BASE, 0);
     sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM,(sljit_uw)(m->context->funcentries+fidx));
     type = dynarr_get(m->types, Type, fn->tidx);
-    pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
+    pwart_EmitCallFunc2(m, type, SLJIT_MEM1(a), 0,callReturn);
   }
 }
 
 static void opgen_GenCallIndirect(ModuleCompiler *m, int32_t typeidx,
-                                  int32_t tableidx) {
+                                  int32_t tableidx, int callReturn) {
   Type *type;
   int a=0;
   type = dynarr_get(m->types, Type, typeidx);
   opgen_GenBaseAddressRegForTable(m,tableidx);
   a=m->stack[m->sp].val.op;
   m->sp--;
-  pwart_EmitCallFunc(m, type, SLJIT_MEM1(a), 0);
+  pwart_EmitCallFunc2(m, type, SLJIT_MEM1(a), 0, callReturn);
 }
 
 static void opgen_GenDrop(ModuleCompiler *m) { m->sp--; }
@@ -357,14 +357,16 @@ static char *opgen_GenCtlOp(ModuleCompiler *m, int opcode) {
   case 0x0f: // return
     opgen_GenReturn(m);
     break;
-  case 0x10: // call
+  case WASMOPC_call:
+  case WASMOPC_return_call: 
     fidx = read_LEB(bytes, &m->pc, 32);
-    opgen_GenCall(m, fidx);
+    opgen_GenCall(m, fidx,opcode==WASMOPC_return_call);
     break;
-  case 0x11: // call_indirect
+  case WASMOPC_call_indirect:
+  case WASMOPC_return_call_indirect:
     tidx = read_LEB(bytes, &m->pc, 32);
     tabidx=read_LEB(bytes, &m->pc, 1); // tableidx. only support 1 table now.
-    opgen_GenCallIndirect(m, tidx, tabidx);
+    opgen_GenCallIndirect(m, tidx, tabidx,opcode==WASMOPC_return_call_indirect);
     break;
   //
   // Parametric operators

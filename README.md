@@ -100,6 +100,8 @@ Multiple memories
 
 Extended Constant Expressions
 
+Tail Call
+
 Simple namespace support
 
 ## NOT Implemented

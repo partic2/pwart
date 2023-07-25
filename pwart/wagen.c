@@ -196,10 +196,12 @@ static char *pwart_PrepareFunc(ModuleCompiler *m) {
         }
       }
       break;
-    case 0x10: // call
+    case WASMOPC_call:
+    case WASMOPC_return_call:
       fidx = read_LEB(bytes, &m->pc, 32);
       break;
-    case 0x11: // call_indirect
+    case WASMOPC_call_indirect:
+    case WASMOPC_return_call_indirect:
       tidx = read_LEB(bytes, &m->pc, 32); //type
       tabidx=read_LEB(bytes, &m->pc, 1); //table index
       if(tabidx==0)m->table_entries_local = -2;
