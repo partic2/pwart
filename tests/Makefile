@@ -4,7 +4,7 @@
 
 all:test test2
 
-include $(PWART_SOURCE_ROOT)/pwart/make_config.mk
+include $(PWART_SOURCE_DIR)/pwart/make_config.mk
 
 
 test:build_pwart

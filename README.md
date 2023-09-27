@@ -28,20 +28,20 @@ cmake -S . -B build -DPWART_SYSLIB_ENABLED=ON -DDEPS_SOURCE_DIRS=<dependencies s
 
 (*Makefile mode do not support to build pwart_syslib component yet.*) 
 
-1. Set environment variable PWART_SOURCE_ROOT to the project directory.
+1. Set environment variable PWART_SOURCE_DIR to the project directory.
 
 2. In your Makefile, write
 ```shell
-include $(PWART_SOURCE_ROOT)/pwart/make_config.mk
+include $(PWART_SOURCE_DIR)/pwart/make_config.mk
 ```
 
-1. Put flags to build your target.
+3. Put flags to build your target.
 ```shell
 your_target:build_pwart
 	$(CC) $(PWART_CFLAGS) $(CFLAGS) -o your_output your_source.c $(PWART_LDFLAGS) $(LDFLAGS)
 ```
 
-1. In your source, include "pwart.h". A simple demo show below.
+4. In your source, include "pwart.h". A simple demo show below.
 
 ```C
 void *stackbase = pwart_allocate_stack(64 * 1024);
@@ -66,9 +66,9 @@ The `pwart_wasiexec` can be used to execute a WASI module, and you can also use 
 
 To run the test, you need WAT2WASM to compile wat file. You can get it by compile [wabt](https://github.com/WebAssembly/wabt),Then
 ```
-export PWART_SOURCE_ROOT=<the project directory>
+export PWART_SOURCE_DIR=<the project directory>
 export WAT2WASM=<the executable wat2wasm path>
-cd $PWART_SOURCE_ROOT/tests
+cd $PWART_SOURCE_DIR/tests
 make
 ```
 or , If you use cmake
