@@ -25,13 +25,18 @@ extern char *pwart_syslib_load(pwart_namespace ns){
     mod.name="libuv";
     mod.type=PWART_MODULE_TYPE_HOST_MODULE;
     mod.val.host=pwart_libuv_module_new();
-    pwart_namespace_define_module(ns,&mod);
+    char *err=pwart_namespace_define_module(ns,&mod);
+    if(err!=NULL)return err;
     mod.name="libffi";
     mod.val.host=pwart_libffi_module_new();
-    pwart_namespace_define_module(ns,&mod);
-    mod.name="wasi_snapshot_preview1";
-    mod.val.host=pwart_wasi_module_new();
-    pwart_namespace_define_module(ns,&mod);
+    err=pwart_namespace_define_module(ns,&mod);
+    if(err!=NULL)return err;
+    if(uvwcinited){
+        mod.name="wasi_snapshot_preview1";
+        mod.val.host=pwart_wasi_module_new();
+        err=pwart_namespace_define_module(ns,&mod);
+        if(err!=NULL)return err;
+    }
     return NULL;
 }
 

@@ -31,6 +31,11 @@ int main(int argc,char **argv){
         uint8_t *data = malloc(filesize);
 
         pwart_namespace *ns=pwart_namespace_new();
+        
+        err=pwart_wasi_module_init();
+        if(err!=NULL){
+            printf("warning:%s uvwasi will not load",err);
+        }
         pwart_syslib_load(ns);
         len = fread(data, 1, filesize, f);
         fclose(f);
@@ -42,11 +47,6 @@ int main(int argc,char **argv){
         }
         struct pwart_wasm_memory *mem=pwart_get_export_memory(stat,"memory");
         pwart_wasi_module_set_wasimemory(mem);
-        err=pwart_wasi_module_init();
-        if(err!=NULL){
-            printf("%s\n",err);
-            return 1;
-        }
         pwart_wasm_function fn=pwart_get_start_function(stat);
         if(fn!=NULL){
             pwart_call_wasm_function(fn,stackbase);

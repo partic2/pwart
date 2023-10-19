@@ -466,9 +466,9 @@ extern char *pwart_wasi_module_init(){
 
   /* Initialize the sandbox. */
   err = uvwasi_init(&uvwc, &init_options);
+  if(err)return "uvwasi_init failed.";
   uvwcinited=1;
-  if(!err)return NULL;
-  return "uvwasi_init failed.";
+  return NULL;
 }
 
 extern struct pwart_host_module *pwart_wasi_module_new() {
