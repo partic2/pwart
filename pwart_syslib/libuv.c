@@ -143,41 +143,20 @@ static void wasm__uv_cond_timedwait(void *fp){
 
 static struct dynarr *uvsyms=NULL;  //type pwart_named_symbol
 
-
-
+static char *libuv_funcname_list[]={
+    "uv_version","uv_dlopen","uv_dlsym","uv_dlclose","uv_thread_create",
+    "uv_mutex_init","uv_mutex_destroy","uv_mutex_lock","uv_mutex_unlock","uv_mutex_trylock",
+    "uv_cond_init","uv_cond_destroy","uv_cond_signal","uv_cond_wait"
+};
+static void *libuv_funcsymbols_list[]={
+    &wasm__uv_version,&wasm__uv_dlopen,&wasm__uv_dlsym,&wasm__uv_dlclose,&wasm__uv_thread_create,
+    &wasm__uv_mutex_init,&wasm__uv_mutex_destroy,&wasm__uv_mutex_lock,&wasm__uv_mutex_unlock,&wasm__uv_mutex_trylock,
+    &wasm__uv_cond_init,&wasm__uv_cond_destroy,&wasm__uv_cond_signal,&wasm__uv_cond_wait
+};
 
 
 extern struct pwart_host_module *pwart_libuv_module_new(){
-    if(uvsyms==NULL){
-        struct pwart_named_symbol *sym;
-        struct dynarr *syms=NULL;
-        dynarr_init(&syms,sizeof(struct pwart_named_symbol));
-        
-        _ADD_BUILTIN_FN(uv_version)
-
-        _ADD_BUILTIN_FN(uv_dlopen)
-        _ADD_BUILTIN_FN(uv_dlsym)
-        _ADD_BUILTIN_FN(uv_dlclose)
-
-        _ADD_BUILTIN_FN(uv_thread_create)
-        _ADD_BUILTIN_FN(uv_mutex_init)
-        _ADD_BUILTIN_FN(uv_mutex_destroy)
-        _ADD_BUILTIN_FN(uv_mutex_lock)
-        _ADD_BUILTIN_FN(uv_mutex_unlock)
-        _ADD_BUILTIN_FN(uv_mutex_trylock)
-        _ADD_BUILTIN_FN(uv_cond_init)
-        _ADD_BUILTIN_FN(uv_cond_destroy)
-        _ADD_BUILTIN_FN(uv_cond_signal)
-        _ADD_BUILTIN_FN(uv_cond_wait)
-
-        uvsyms=syms;
-    }
-    struct ModuleDef *md=wa_malloc(sizeof(struct ModuleDef));
-    md->syms=uvsyms;
-    md->mod.resolve=(void *)&ModuleResolver;
-    md->mod.on_attached=NULL;
-    md->mod.on_detached=NULL;
-    return (struct pwart_host_module *)md;
+    return pwart_namespace_new_host_module(libuv_funcname_list,libuv_funcsymbols_list,14);
 }
 
 extern char *pwart_libuv_module_delete(struct pwart_host_module *mod){

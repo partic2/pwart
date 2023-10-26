@@ -440,18 +440,19 @@ extern void pwart_wasi_module_set_wasiargs(uint32_t argc, char **argv) {
 
 
 
+
 extern char *pwart_wasi_module_init(){
   uvwasi_options_t init_options;
   uvwasi_errno_t err;
-
+  uvwasi_options_init(&init_options);
   if(uvwcinited){
     uvwasi_destroy(&uvwc);
     uvwcinited=0;
   }
   /* Setup the initialization options. */
-  init_options.in = 0;
-  init_options.out = 1;
-  init_options.err = 2;
+  init_options.in = fileno(stdin);
+  init_options.out = fileno(stdout);
+  init_options.err = fileno(stderr);
   init_options.fd_table_size = 3;
   /* Android failed with environ, Use uv_os_environ? */
   /* init_options.envp = (const char **)environ; */
@@ -471,68 +472,34 @@ extern char *pwart_wasi_module_init(){
   return NULL;
 }
 
+static char *wasi_funcname_list[]={
+  "args_get","args_sizes_get","clock_res_get","clock_time_get","environ_get",
+  "environ_sizes_get","fd_advise","fd_allocate","fd_close","fd_datasync",
+  "fd_fdstat_get","fd_fdstat_set_flags","fd_fdstat_set_rights","fd_filestat_get","fd_filestat_set_size",
+  "fd_filestat_set_times","fd_pread","fd_prestat_get","fd_prestat_dir_name","fd_pwrite",
+  "fd_read","fd_readdir","fd_renumber","fd_seek","fd_sync",
+  "fd_tell","fd_write","path_create_directory","path_filestat_get","path_filestat_set_times",
+  "path_link","path_open","path_readlink","path_remove_directory","path_rename",
+  "path_symlink","path_unlink_file","poll_oneoff","proc_exit","proc_raise",
+  "random_get","sched_yield","sock_accept","sock_recv","sock_send",
+  "sock_shutdown"
+};
+
+static void *wasi_funcsymbols_list[]={
+  &wasm__args_get,&wasm__args_sizes_get,&wasm__clock_res_get,&wasm__clock_time_get,&wasm__environ_get,
+  &wasm__environ_sizes_get,&wasm__fd_advise,&wasm__fd_allocate,&wasm__fd_close,&wasm__fd_datasync,
+  &wasm__fd_fdstat_get,&wasm__fd_fdstat_set_flags,&wasm__fd_fdstat_set_rights,&wasm__fd_filestat_get,&wasm__fd_filestat_set_size,
+  &wasm__fd_filestat_set_times,&wasm__fd_pread,&wasm__fd_prestat_get,&wasm__fd_prestat_dir_name,&wasm__fd_pwrite,
+  &wasm__fd_read,&wasm__fd_readdir,&wasm__fd_renumber,&wasm__fd_seek,&wasm__fd_sync,
+  &wasm__fd_tell,&wasm__fd_write,&wasm__path_create_directory,&wasm__path_filestat_get,&wasm__path_filestat_set_times,
+  &wasm__path_link,&wasm__path_open,&wasm__path_readlink,&wasm__path_remove_directory,&wasm__path_rename,
+  &wasm__path_symlink,&wasm__path_unlink_file,&wasm__poll_oneoff,&wasm__proc_exit,&wasm__proc_raise,
+  &wasm__random_get,&wasm__sched_yield,&wasm__sock_accept,&wasm__sock_recv,&wasm__sock_send,
+  &wasm__sock_shutdown
+};
+
 extern struct pwart_host_module *pwart_wasi_module_new() {
-  if (wasisyms == NULL) {
-    struct pwart_named_symbol *sym;
-    struct dynarr *syms=NULL;
-    dynarr_init(&syms,sizeof(struct pwart_named_symbol));
-
-    _ADD_BUILTIN_FN(args_get)
-    _ADD_BUILTIN_FN(args_sizes_get)
-    _ADD_BUILTIN_FN(clock_res_get)
-    _ADD_BUILTIN_FN(clock_time_get)
-    _ADD_BUILTIN_FN(environ_get)
-    _ADD_BUILTIN_FN(environ_sizes_get)
-    _ADD_BUILTIN_FN(fd_advise)
-    _ADD_BUILTIN_FN(fd_allocate)
-    _ADD_BUILTIN_FN(fd_close)
-    _ADD_BUILTIN_FN(fd_datasync)
-    _ADD_BUILTIN_FN(fd_fdstat_get)
-    _ADD_BUILTIN_FN(fd_fdstat_set_flags)
-    _ADD_BUILTIN_FN(fd_fdstat_set_rights)
-    _ADD_BUILTIN_FN(fd_filestat_get)
-    _ADD_BUILTIN_FN(fd_filestat_set_size)
-    _ADD_BUILTIN_FN(fd_filestat_set_times)
-    _ADD_BUILTIN_FN(fd_pread)
-    _ADD_BUILTIN_FN(fd_prestat_get)
-    _ADD_BUILTIN_FN(fd_prestat_dir_name)
-    _ADD_BUILTIN_FN(fd_pwrite)
-    _ADD_BUILTIN_FN(fd_read)
-    _ADD_BUILTIN_FN(fd_readdir)
-    _ADD_BUILTIN_FN(fd_renumber)
-    _ADD_BUILTIN_FN(fd_seek)
-    _ADD_BUILTIN_FN(fd_sync)
-    _ADD_BUILTIN_FN(fd_tell)
-    _ADD_BUILTIN_FN(fd_write)
-    _ADD_BUILTIN_FN(path_create_directory)
-    _ADD_BUILTIN_FN(path_filestat_get)
-    _ADD_BUILTIN_FN(path_filestat_set_times)
-    _ADD_BUILTIN_FN(path_link)
-    _ADD_BUILTIN_FN(path_open)
-    _ADD_BUILTIN_FN(path_readlink)
-    _ADD_BUILTIN_FN(path_remove_directory)
-    _ADD_BUILTIN_FN(path_rename)
-    _ADD_BUILTIN_FN(path_symlink)
-    _ADD_BUILTIN_FN(path_unlink_file)
-    _ADD_BUILTIN_FN(poll_oneoff)
-    _ADD_BUILTIN_FN(proc_exit)
-    _ADD_BUILTIN_FN(proc_raise)
-    _ADD_BUILTIN_FN(random_get)
-    _ADD_BUILTIN_FN(sched_yield)
-    _ADD_BUILTIN_FN(sock_accept)
-    _ADD_BUILTIN_FN(sock_recv)
-    _ADD_BUILTIN_FN(sock_send)
-    _ADD_BUILTIN_FN(sock_shutdown)
-
-    wasisyms=syms;
-  }
-  struct ModuleDef *md = wa_malloc(sizeof(struct ModuleDef));
-  md->syms = wasisyms;
-  md->mod.resolve = (void *)&ModuleResolver;
-  md->mod.on_attached = NULL;
-  md->mod.on_detached = NULL;
-
-  return (struct pwart_host_module *)md;
+  return pwart_namespace_new_host_module(wasi_funcname_list,wasi_funcsymbols_list,46);
 }
 
 extern char *pwart_wasi_module_delete(struct pwart_host_module *mod) {

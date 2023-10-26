@@ -7,9 +7,9 @@
 
 
 
-/* Low Level API , about loading and compiling wasm module.*/
+/* Low Level API , about loading and compiling wasm module. recommend using High Level API for conveniences */
 
-/* return error message if any, or NULL if succeded. */
+
 struct pwart_symbol_resolve_request{
     char *import_module;
     char *import_field;
@@ -51,8 +51,8 @@ struct pwart_global_compile_config{
     char misc_flags;
 };
 
-/* If set, elements on stack will align to it's size, and function frame base will align to 8. 
-Some arch require this flag to avoid align error. */
+/* If set, elements on stack will align to its size, and function frame base will align to 8. 
+Some archs require this flag to avoid BUS error. */
 #define PWART_STACK_FLAGS_AUTO_ALIGN 1
 
 /* If set, 32bit index will be always extended to 64bit on 64bit host on loading/storing.  
@@ -62,8 +62,8 @@ This flag has no effect for "native_memory" access. */
 #define PWART_MISC_FLAGS_EXTEND_INDEX 1
 
 
-/* If set. Local variables, if used before initialized.  will be set to 0 when entering a function.
-PWART use a simple glance instead of SSA analyzation, So this flag may slow the generated code.
+/* If set. Local variables, if used before initialized, will be set to 0 when entering a function.
+PWART use a simple glance instead of SSA analyzation, So this flag may slightly slow the generated code.
 But according to the WebAssembly spec, this flag is SET by default  */
 #define PWART_MISC_FLAGS_LOCALS_ZERO_INIT 2
 
@@ -347,5 +347,8 @@ extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns
 
 extern struct pwart_symbol_resolver *pwart_namespace_resolver(pwart_namespace ns);
 
+extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,void **symbols,int length);
+
+extern struct pwart_host_module *pwart_namespace_delete_host_module(struct pwart_host_module *hostmod);
 
 #endif

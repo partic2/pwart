@@ -152,4 +152,37 @@ extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns
 }
 
 
+struct InternalHostModule{
+    struct pwart_host_module base;
+    char **names;
+    void **symbols;
+    int length;
+};
+
+static void namespace_InternalHostModuleSymbolResolver(struct pwart_host_module *_this2,struct pwart_symbol_resolve_request *req){
+    struct InternalHostModule *_this=(struct InternalHostModule *)_this2;
+    int i=0;
+    req->result=NULL;
+    for(i=0;i<_this->length;i++){
+        if(strcmp(_this->names[i],req->import_field)==0){
+            req->result=_this->symbols[i];
+            break;
+        }
+    }
+}
+
+extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,void **symbols,int length){
+    struct InternalHostModule *hostmod=wa_calloc(sizeof(struct InternalHostModule));
+    hostmod->length=length;
+    hostmod->names=names;
+    hostmod->symbols=symbols;
+    hostmod->base.resolve=&namespace_InternalHostModuleSymbolResolver;
+    return (struct pwart_host_module *)hostmod;
+}
+
+extern struct pwart_host_module *pwart_namespace_delete_host_module(struct pwart_host_module *hostmod){
+    wa_free(hostmod);
+}
+
+
 #endif

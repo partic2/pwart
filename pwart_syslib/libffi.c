@@ -223,41 +223,25 @@ static void wasm__ffi_built_in_types(void *fp){
 
 static struct dynarr *ffisyms=NULL;  //type pwart_named_symbol
 
+static char *libffi_funcname_list[]={
+    "ffi_prep_cif","ffi_prep_cif_var","ffi_call","ffi_default_abi","ffi_built_in_types",
+    "ffix_new_cif","ffix_del_cif","ffix_call","ffi_closure_alloc","ffi_closure_free",
+    "ffi_prep_closure_loc","ffix_new_c_callback","ffix_del_c_callback"};
+
+static void *libffi_funcsyms_list[]={
+    &wasm__ffi_prep_cif,&wasm__ffi_prep_cif_var,&wasm__ffi_call,&wasm__ffi_default_abi,&wasm__ffi_built_in_types,
+    &wasm__ffix_new_cif,&wasm__ffix_del_cif,&wasm__ffix_call,&wasm__ffi_closure_alloc,&wasm__ffi_closure_free,
+    &wasm__ffi_prep_closure_loc,&wasm__ffix_new_c_callback,&wasm__ffix_del_c_callback};
 
 extern struct pwart_host_module *pwart_libffi_module_new(){
-    if(ffisyms==NULL){
-        struct pwart_named_symbol *sym;
-        struct dynarr *syms=NULL;
-        dynarr_init(&syms,sizeof(struct pwart_named_symbol));
-        _ADD_BUILTIN_FN(ffi_prep_cif)
-        _ADD_BUILTIN_FN(ffi_prep_cif_var)
-        _ADD_BUILTIN_FN(ffi_call)
-        _ADD_BUILTIN_FN(ffi_default_abi)
-        _ADD_BUILTIN_FN(ffi_built_in_types)
-        _ADD_BUILTIN_FN(ffix_new_cif)
-        _ADD_BUILTIN_FN(ffix_del_cif)
-        _ADD_BUILTIN_FN(ffix_call)
-        #if FFI_CLOSURES
-        _ADD_BUILTIN_FN(ffi_closure_alloc)
-        _ADD_BUILTIN_FN(ffi_closure_free)
-        _ADD_BUILTIN_FN(ffi_prep_closure_loc)
-        _ADD_BUILTIN_FN(ffix_new_c_callback)
-        _ADD_BUILTIN_FN(ffix_del_c_callback)
-        #endif
-        ffisyms=syms;
-    }
-    struct ModuleDef *md=wa_malloc(sizeof(struct ModuleDef));
-    md->syms=ffisyms;
-    md->mod.resolve=(void *)&ModuleResolver;
-    md->mod.on_attached=NULL;
-    md->mod.on_detached=NULL;
-    return (struct pwart_host_module *)md;
+    return pwart_namespace_new_host_module(libffi_funcname_list,libffi_funcsyms_list,13);
 }
 
 extern char *pwart_libffi_module_delete(struct pwart_host_module *mod){
-    wa_free(mod);
+    pwart_namespace_delete_host_module(mod);
     return NULL;
 }
+
 
 
 #endif
