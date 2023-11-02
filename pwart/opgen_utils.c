@@ -4,6 +4,7 @@
 #include "def.h"
 #include <stddef.h>
 
+#define SLJIT_GET_REG_PART(r) (r&0x7f)
 //
 // Stack machine (byte code related functions)
 //
@@ -87,7 +88,7 @@ static StackValue *stackvalue_FindSvalueUseReg(ModuleCompiler *m, sljit_s32 r,
     }
     if (sv->jit_type == SVT_GENERAL) {
       wa_assert((sv->val.op & (~(int)0xff))==0,"two reg operand not supported");
-      if ((sv->val.op & 0xf) == r || ((sv->val.op >> 8) & 0xf) == r) {
+      if (SLJIT_GET_REG_PART(sv->val.op) == r || SLJIT_GET_REG_PART(sv->val.op >> 8) == r) {
         used = 1;
         break;
       }
@@ -228,11 +229,14 @@ static int pwart_EmitSaveStackAll(ModuleCompiler *m) {
 }
 
 static int pwart_EmitSaveScratchRegisterAll(ModuleCompiler *m,int upstack) {
-  int i;
+  int i,usereg=0;
   for (i = 0; i <= m->sp-upstack; i++) {
-    int usereg=m->stack[i].val.op&(SLJIT_IMM-1);
-    if( (m->stack[i].jit_type==SVT_GENERAL  && usereg!=0 && (usereg<SLJIT_FIRST_SAVED_REG)) || 
-      (m->stack[i].jit_type==SVT_TWO_REG) ){
+    if(m->stack[i].jit_type==SVT_GENERAL){
+      usereg=SLJIT_GET_REG_PART(m->stack[i].val.op);
+      if(usereg!=0 && usereg< SLJIT_FIRST_SAVED_REG){
+        pwart_EmitSaveStack(m,m->stack+i);
+      }
+    }else if(m->stack[i].jit_type==SVT_TWO_REG){
       pwart_EmitSaveStack(m, &m->stack[i]);
     }
   }
@@ -427,7 +431,7 @@ static char *pwart_EmitCallFunc2(ModuleCompiler *m, Type *type, sljit_s32 memreg
 
   a=SLJIT_CALL;
   if(callReturn)a|=SLJIT_CALL_RETURN;
-  sljit_emit_icall(m->jitc, a, SLJIT_ARGS1(VOID, W), memreg,
+  sljit_emit_icall(m->jitc, a, SLJIT_ARGS1V(W), memreg,
                    offset);
 
   if(callReturn){
@@ -516,7 +520,7 @@ static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype, int upst
   if (regtype != RT_FLOAT) {
 // XXX: on x86-32, R3 - R6 (same as S3 - S6) are emulated, and cannot be used
 // for memory addressing
-    if(sljit_get_register_index(SLJIT_R3)<0){
+    if(sljit_get_register_index(SLJIT_GP_REGISTER,SLJIT_R3)<0){
       if (regtype == RT_BASE) {
         for (fr = SLJIT_R0; fr < SLJIT_R0 + 3; fr++) {
           if (m->registers_status[fr - SLJIT_R0] & RS_RESERVED) {
@@ -715,7 +719,7 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
       sv->val.opw = sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
     }
   }
-  sljit_emit_enter(m->jitc, 0, SLJIT_ARGS1(VOID, W),
+  sljit_emit_enter(m->jitc, 0, SLJIT_ARGS1V(W),
                    SLJIT_NUMBER_OF_SCRATCH_REGISTERS, SLJIT_S0 - nextSr,
                    SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS, SLJIT_FS0 - nextSfr,
                    nextLoc);
