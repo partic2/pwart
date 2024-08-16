@@ -7,6 +7,13 @@
 #include "./util.c"
 
 
+#ifdef PWART_SYSLIB_LIBFFI_ENABLED
+
+/* Check if available before call any other ffi function. */
+static void wasm__ffi_is_enabled(void *fp){
+    void *sp=fp;
+    pwart_rstack_put_i32(&sp,1);
+}
 
 static void wasm__ffi_prep_cif(void *fp){
     void *sp=fp;
@@ -103,7 +110,7 @@ static void wasm__ffi_call(void *fp){
     ffi_call(cif,fn,rvalue,avalue);
 }
 
-#if FFI_CLOSURES
+
 static void wasm__ffi_closure_alloc(void *fp){
     void *sp=fp;
     void *code=NULL;
@@ -187,7 +194,7 @@ static void wasm__ffix_del_c_callback(void *fp){
     sp=fp;
     ffi_closure_free(closure);
 }
-#endif
+
 
 static void wasm__ffix_call(void *fp){
     void *sp=fp;
@@ -221,20 +228,45 @@ static void wasm__ffi_built_in_types(void *fp){
     pwart_rstack_put_ref(&sp,&ffi_type_pointer);
 }
 
-static struct dynarr *ffisyms=NULL;  //type pwart_named_symbol
-
-static char *libffi_funcname_list[]={
-    "ffi_prep_cif","ffi_prep_cif_var","ffi_call","ffi_default_abi","ffi_built_in_types",
-    "ffix_new_cif","ffix_del_cif","ffix_call","ffi_closure_alloc","ffi_closure_free",
-    "ffi_prep_closure_loc","ffix_new_c_callback","ffix_del_c_callback"};
-
-static void *libffi_funcsyms_list[]={
+static void *libffi_funcsyms_list[]={wasm__ffi_is_enabled,
     &wasm__ffi_prep_cif,&wasm__ffi_prep_cif_var,&wasm__ffi_call,&wasm__ffi_default_abi,&wasm__ffi_built_in_types,
     &wasm__ffix_new_cif,&wasm__ffix_del_cif,&wasm__ffix_call,&wasm__ffi_closure_alloc,&wasm__ffi_closure_free,
     &wasm__ffi_prep_closure_loc,&wasm__ffix_new_c_callback,&wasm__ffix_del_c_callback};
 
+#else
+
+static void wasm__ffi_is_enabled(void *fp){
+    void *sp=fp;
+    pwart_rstack_put_i32(&sp,0);
+}
+
+static void wasm__ffi_noop_stub(void *fp){
+}
+
+static void *libffi_funcsyms_list[]={wasm__ffi_is_enabled,
+    &wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,
+    &wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,
+    &wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub};
+
+#endif
+
+
+
+static struct dynarr *ffisyms=NULL;  //type pwart_named_symbol
+
+static char *libffi_funcname_list[]={"ffi_is_enabled",
+    "ffi_prep_cif","ffi_prep_cif_var","ffi_call","ffi_default_abi","ffi_built_in_types",
+    "ffix_new_cif","ffix_del_cif","ffix_call","ffi_closure_alloc","ffi_closure_free",
+    "ffi_prep_closure_loc","ffix_new_c_callback","ffix_del_c_callback"};
+
+extern int pwart_libffi_module_ffi_is_enabled(){
+    int is_enabled;
+    wasm__ffi_is_enabled(&is_enabled);
+    return is_enabled;
+}
+
 extern struct pwart_host_module *pwart_libffi_module_new(){
-    return pwart_namespace_new_host_module(libffi_funcname_list,libffi_funcsyms_list,13);
+    return pwart_namespace_new_host_module(libffi_funcname_list,libffi_funcsyms_list,14);
 }
 
 extern char *pwart_libffi_module_delete(struct pwart_host_module *mod){

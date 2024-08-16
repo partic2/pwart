@@ -9,6 +9,12 @@ extern char **pwart_syslib_get_enabled_list();
 extern char *pwart_syslib_load(pwart_namespace ns);
 extern char *pwart_syslib_unload(pwart_namespace ns);
 
+/* 
+    libffi is optional.
+    There is also "ffi_is_enabled" function in this module. 
+    If libffi isn't enabled, all function in this module just do nothing except "ffi_is_enabled".
+*/
+extern int pwart_libffi_module_ffi_is_enabled();
 extern char *pwart_libffi_module_delete(struct pwart_host_module *mod);
 extern struct pwart_host_module *pwart_libffi_module_new();
 

@@ -13,6 +13,7 @@
 (import "libuv" "uv_dlopen" (func $uv_dlopen (param funcref)(result funcref i32)))
 (import "libuv" "uv_dlsym" (func $uv_dlsym (param funcref funcref)(result funcref)))
 (import "libuv" "uv_dlclose" (func $uv_dlcose (param funcref)))
+(import "libffi" "ffi_is_enabled" (func $ffi_is_enabled (result i32)))
 (import "libffi" "ffix_new_cif" (func $ffix_new_cif (param funcref)(result funcref i32)))
 (import "libffi" "ffi_call" (func $ffi_call (param funcref funcref funcref funcref)(result i32)))
 (import "libffi" "ffix_call" (func $ffix_call (param funcref funcref funcref funcref)(result i32)))
@@ -55,6 +56,14 @@
     (result i32) 
     (local $dll funcref) (local $fn funcref) (local $cif funcref) (local $ccb funcref)
     (local $bp$ i32) (local $fp$ i32) (local $i1$ i32) 
+
+    call $ffi_is_enabled
+    i32.eqz 
+    if 
+    i32.const 0
+    return
+    end
+    
     global.get $crt:sp$
     local.set $bp$
     global.get $crt:sp$

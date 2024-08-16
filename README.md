@@ -57,7 +57,7 @@ and [tests/Makefile](tests/Makefile) for detail usage.
 
 ## SYSLIB and WASI Support
 
-There are experimental Runtime Core Library(SYSLIB) and WASI Support, can be enabled by `-DPWART_SYSLIB_ENABLED=ON` in CMake. And you may need put the dependencies ([libuv](https://github.com/libuv/libuv), [libffi(with cmake)](https://github.com/partic2/libffi), [uvwasi](https://github.com/nodejs/uvwasi)) in one directory, then pass the directory to `-DDEPS_SOURCE_DIRS=<dependencies sources dir>`. You can also get all dependency [here](https://github.com/partic2/xplatj2)
+There are experimental Runtime Core Library(SYSLIB) and WASI Support, can be enabled by `-DPWART_SYSLIB_ENABLED=ON` in CMake. And you may need put the dependencies ([libuv](https://github.com/libuv/libuv), [libffi with cmake(optional)](https://github.com/partic2/libffi), [uvwasi](https://github.com/nodejs/uvwasi)) in one directory, then pass the directory to `-DDEPS_SOURCE_DIRS=<dependencies sources dir>`. You can also get all dependency [here](https://github.com/partic2/xplatj2)
 
 The `pwart_wasiexec` can be used to execute a WASI module, and you can also use `libpwart_syslib.a` to embed the library. See also [include/pwart_syslib.h](include/pwart_syslib.h) 
 
