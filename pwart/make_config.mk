@@ -1,3 +1,5 @@
+ifndef PWART_CFLAGS
+
 include $(PWART_SOURCE_DIR)/makescript/sljit_make_config.mk
 
 PWART_CFLAGS=$(SLJIT_CFLAGS) -I$(PWART_SOURCE_DIR)/include
@@ -10,3 +12,4 @@ build_pwart:build_sljit
 clean:
 	- rm $(PWART_SOURCE_DIR)/pwart/pwart.o
 
+endif
