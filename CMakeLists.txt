@@ -29,20 +29,23 @@ target_include_directories(pwart PUBLIC include sljit/sljit_src)
 if (PWART_SYSLIB_ENABLED)
 add_library(pwart_syslib STATIC pwart_syslib/pwart_syslib.c)
 add_executable(pwart_wasiexec pwart_syslib/wasiexec.c)
-if (DEPS_SOURCE_DIRS)
+if (NOT DEPS_SOURCE_DIRS)
+get_filename_component(DEPS_SOURCE_DIRS .. ABSOLUTE)
+endif()
+
 if (NOT TARGET ffi_static AND EXISTS ${DEPS_SOURCE_DIRS}/libffi)
-add_subdirectory("${DEPS_SOURCE_DIRS}/libffi" build-libffi)
+add_subdirectory("${DEPS_SOURCE_DIRS}/libffi" ./build-libffi)
 endif()
 if(NOT TARGET uv_a)
-add_subdirectory("${DEPS_SOURCE_DIRS}/libuv" build-libuv)
+add_subdirectory("${DEPS_SOURCE_DIRS}/libuv" ./build-libuv)
 endif()
 if(NOT TARGET uvwasi_a)
-add_subdirectory("${DEPS_SOURCE_DIRS}/uvwasi" build-uvwasi)
+add_subdirectory("${DEPS_SOURCE_DIRS}/uvwasi" ./build-uvwasi)
 endif()
 # uvwasi mark the header as PRIVATE(Strange), So we need include it manually.
 target_include_directories(pwart_syslib PUBLIC "${DEPS_SOURCE_DIRS}/uvwasi/include")
 target_include_directories(pwart_wasiexec PUBLIC "${DEPS_SOURCE_DIRS}/uvwasi/include")
-endif()
+
 
 if (TARGET ffi_static)
 message("libffi found, libffi binding is enabled.")
@@ -55,7 +58,7 @@ endif()
 
 
 target_link_libraries(pwart_wasiexec pwart_syslib)
-endif()
+endif(PWART_SYSLIB_ENABLED)
 
 set(WAT2WASM $ENV{WAT2WASM})
 
