@@ -1,14 +1,53 @@
 This file is the short summary of the API changes:
 
+05.02.2025 - Non-backward compatible
+    Rename sljit_emit_mov_addr to sljit_emit_op_addr
+    and SLJIT_LABEL_ALIGN_SW to SLJIT_LABEL_ALIGN_W
+
+11.02.2025 - Non-backward compatible
+    An operation argument is added to
+    sljit_emit_mov_addr function.
+
+31.01.2025 - Non-backward compatible
+    The sljit_emit_const and sljit_set_const
+    functions can specify the operation type.
+
+17.07.2024 - Non-backward compatible
+    Passing float scratch or saved register count
+    to emit_enter / set_context is reworked.
+
+21.06.2024 - Non-backward compatible
+    Atomic instructions are reworked.
+    Different forms are optional now.
+
+10.06.2024 - Non-backward compatible
+    The sljit_emit_simd_op2() has a generic
+    second operand.
+
+20.03.2024 - Non-backward compatible
+    The sljit_p type is renamed to sljit_up.
+
+26.02.2024 - Non-backward compatible
+    Arguments of sljit_create_compiler() and
+    sljit_generate_code() are changed and
+    sljit_get_exec_allocator_data() is removed.
+    The sljit_get_allocator_data() is renamed
+    to sljit_compiler_get_allocator_data().
+
+21.02.2024 - Non-backward compatible
+    The sljit_set_put_label() function is renamed
+    to sljit_emit_mov_addr() and sljit_put_label
+    is merged into sljit_jump and removed.
+
 01.11.2023 - Non-backward compatible
     The SLJIT_ARG_TYPE_VOID definition is changed
     to SLJIT_ARG_TYPE_RET_VOID to improve Windows
     compatibility.
 
-05.9.2023 - Non-backward compatible
+05.09.2023 - Non-backward compatible
     Turn SLJIT_IMM from a flag to a single value.
 
-10.8.2023 - Non-backward compatible
+10.08.2023 - Non-backward compatible
     Rename SLJIT_INT_REGISTER to SLJIT_GP_REGISTER.
 
 01.08.2023 - Non-backward compatible

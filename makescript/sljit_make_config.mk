@@ -1,4 +1,4 @@
-ifndef SLJIT_CFLAGS
+
 
 SLJIT_SOURCE_ROOT=$(PWART_SOURCE_DIR)/sljit
 
@@ -13,6 +13,3 @@ SLJIT_LDFLAGS=sljitLir.o -lm $(PTHREAD_LDFLAGS)
 
 build_sljit:
 	$(CC) $(SLJIT_CFLAGS) $(CFLAGS) -c $(SLJIT_SOURCE_ROOT)/sljit_src/sljitLir.c
-
-
-endif

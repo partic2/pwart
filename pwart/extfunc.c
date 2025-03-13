@@ -99,7 +99,7 @@ static void insn_i32popcount(void *fp){
   uint32_t x = *(uint32_t *)fp;
   x = x - ((x >> 1) & 0x55555555);
   x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
-  *(uint32_t *)fp = ((x + (x >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
+  *(uint32_t *)fp = (((x + (x >> 4)) & 0xF0F0F0F) * 0x1010101) >> 24;
 }
 
 static void insn_i64eq(void *fp){
@@ -615,8 +615,8 @@ static void debug_PrintBlockInstr(uint32_t wasmpc){
 
 #if DEBUG_BUILD
 
-static void debug_printtypes(char *t){
-  for(char *t2=t;*t2!=0;*t2++){
+static void debug_printtypes(uint8_t *t){
+  for(uint8_t *t2=t;*t2!=0;t2++){
     switch(*t2){
       case WVT_I32:
       wa_debug("i32,");
@@ -655,7 +655,7 @@ static void debug_printfunctype(Type *type){
 
 static void debug_checkreturnstack(ModuleCompiler *m){
   int a,t;
-  int len=strlen(m->function_type->results);
+  int len=strlen((const char *)m->function_type->results);
   if(m->sp+1>=len){
     for(a=0;a<len;a++){
       t=m->stack[m->sp-len+a+1].wasm_type;

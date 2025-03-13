@@ -12,7 +12,6 @@ static void opgen_GenUnreachable(ModuleCompiler *m) {
 
 static void opgen_GenBlock(ModuleCompiler *m,int stackOffset) {
   Block *block;
-  uint8_t *bytes = m->bytes;
   pwart_EmitSaveStackAll(m);
   block = dynarr_push_type(&m->blocks, Block);
   block->block_type = 0x2;
@@ -28,7 +27,6 @@ static void opgen_GenBlock(ModuleCompiler *m,int stackOffset) {
 /* blktype 0x40 indicating the empty type. */
 static void opgen_GenLoop(ModuleCompiler *m,int stackOffset) {
   Block *block;
-  uint8_t *bytes = m->bytes;
   pwart_EmitSaveStackAll(m);
   block = dynarr_push_type(&m->blocks, Block);
   block->block_type = 0x3;
@@ -45,7 +43,6 @@ static void opgen_GenIf(ModuleCompiler *m,int stackOffset) {
   Block *block;
   StackValue *sv;
   struct sljit_jump *jump;
-  uint8_t *bytes = m->bytes;
   StackValue *stack = m->stack;
   // stack top will be remove soon. Don't save it here.
   for (int i = 0; i < m->sp; i++) {

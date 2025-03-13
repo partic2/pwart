@@ -127,6 +127,7 @@ extern char *pwart_namespace_define_module(pwart_namespace ns,struct pwart_named
         ((RuntimeContext *)m->val.wasm)->is_in_namespace=1;
         break;
     }
+    return NULL;
 }
 
 extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns,char *name,char *wasm_bytes,int length,char **err_msg){
@@ -180,7 +181,7 @@ extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,vo
     return (struct pwart_host_module *)hostmod;
 }
 
-extern struct pwart_host_module *pwart_namespace_delete_host_module(struct pwart_host_module *hostmod){
+extern void pwart_namespace_delete_host_module(struct pwart_host_module *hostmod){
     wa_free(hostmod);
 }
 

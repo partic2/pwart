@@ -34,8 +34,7 @@ extern char *pwart_free_module_state(pwart_module_state rc2){
 
 
 extern char *pwart_compile(pwart_module_compiler m,char *data,int len){
-    return load_module(m,data,len);
-
+    return load_module(m,(uint8_t *)data,len);
 }
 
 extern pwart_wasm_function pwart_get_export_function(pwart_module_state rc,char *name){
@@ -91,9 +90,11 @@ extern char *pwart_set_symbol_resolver(pwart_module_compiler m2,struct pwart_sym
 
 extern char *pwart_set_global_compile_config(struct pwart_global_compile_config *cfg){
     memcpy(&pwart_gcfg,cfg,sizeof(struct pwart_global_compile_config));
+    return NULL;
 };
 extern char *pwart_get_global_compile_config(struct pwart_global_compile_config *cfg){
     memcpy(cfg,&pwart_gcfg,sizeof(struct pwart_global_compile_config));
+    return NULL;
 }
 
 
@@ -123,6 +124,7 @@ extern char *pwart_inspect_module_state(pwart_module_state c,struct pwart_inspec
 extern char *pwart_set_state_symbol_resolver(pwart_module_state c,struct pwart_symbol_resolver *resolver){
     RuntimeContext *rc=c;
     rc->resolver=resolver;
+    return NULL;
 }
 
 extern void pwart_module_state_set_user_data(pwart_module_state c,void *ud){

@@ -192,7 +192,7 @@ typedef struct ModuleCompiler {
     struct sljit_compiler *jitc;
     //in bits, 32 or 64
     int32_t target_ptr_size;
-    int         pc;        // current parser pos
+    uint32_t    pc;        // current parser pos
     int         sp;         // operand stack pointer, stack[sp] is valid stack value.
     StackValue  stack[OPERAND_STACK_COUNT]; // main operand stack
     struct dynarr *blocks; // block stacks, block type

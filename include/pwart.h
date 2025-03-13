@@ -349,6 +349,6 @@ extern struct pwart_symbol_resolver *pwart_namespace_resolver(pwart_namespace ns
 
 extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,void **symbols,int length);
 
-extern struct pwart_host_module *pwart_namespace_delete_host_module(struct pwart_host_module *hostmod);
+extern void pwart_namespace_delete_host_module(struct pwart_host_module *hostmod);
 
 #endif

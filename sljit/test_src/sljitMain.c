@@ -47,7 +47,7 @@ void devel(void)
 {
 	executable_code code;
 
-	struct sljit_compiler *compiler = sljit_create_compiler(NULL, NULL);
+	struct sljit_compiler *compiler = sljit_create_compiler(NULL);
 	sljit_sw buf[4];
 
 	if (!compiler)
@@ -60,11 +60,11 @@ void devel(void)
 #if (defined SLJIT_VERBOSE && SLJIT_VERBOSE)
 	sljit_compiler_verbose(compiler, stdout);
 #endif
-	sljit_emit_enter(compiler, 0, SLJIT_ARGS1(W, P), 4, 5, 4, 0, 2 * sizeof(sljit_sw));
+	sljit_emit_enter(compiler, 0, SLJIT_ARGS1(W, P), 4 | SLJIT_ENTER_FLOAT(4), 5, 2 * sizeof(sljit_sw));
 
 	sljit_emit_return(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 0);
 
-	code.code = sljit_generate_code(compiler);
+	code.code = sljit_generate_code(compiler, 0, NULL);
 	sljit_free_compiler(compiler);
 
 	printf("Code at: %p\n", (void*)SLJIT_FUNC_ADDR(code.code));

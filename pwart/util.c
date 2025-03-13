@@ -192,9 +192,9 @@ struct pool{
     int cur;
     int used;
     int chunk_size;
-}
+};
 
-static pool_init(struct pool *p,int chunk_size){
+static void pool_init(struct pool *p,int chunk_size){
     dynarr_init(&p->chunks,sizeof(char *));
     *dynarr_push_type(&p->chunks,char *)=wa_calloc(chunk_size);
     p->cur=0;

@@ -33,7 +33,7 @@ static uint32_t stackvalue_GetSizeAndAlign(StackValue *sv, uint32_t *align) {
   return wasmtype_GetSizeAndAlign(sv->wasm_type,align);
 }
 //return offset where can place the StackValue 'sv' behind the free 'offset', set the next free offset to 'nextOffset', if not NULL.
-static uint32_t stackvalue_GetAlignedOffset(StackValue *sv,uint32_t offset,uint32_t *nextOffset){
+static uint32_t stackvalue_GetAlignedOffset(StackValue *sv,int offset,int *nextOffset){
   uint32_t align,size,t;
   size=stackvalue_GetSizeAndAlign(sv,&align);
   t=offset&(align-1);
@@ -210,25 +210,26 @@ static char *pwart_EmitStoreStackValue(ModuleCompiler *m, StackValue *sv, int me
   return NULL;
 }
 // store value into [S0+IMM]
-static int pwart_EmitSaveStack(ModuleCompiler *m, StackValue *sv) {
+static char* pwart_EmitSaveStack(ModuleCompiler *m, StackValue *sv) {
   if (sv->val.op == SLJIT_MEM1(SLJIT_S0) && sv->val.opw == sv->frame_offset) {
-    return 1;
+    return NULL;
   }
   pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0), sv->frame_offset);
   sv->val.op = SLJIT_MEM1(SLJIT_S0);
   sv->val.opw = sv->frame_offset;
   sv->jit_type = SVT_GENERAL;
-  return 1;
+  return NULL;
 }
 
-static int pwart_EmitSaveStackAll(ModuleCompiler *m) {
+static char* pwart_EmitSaveStackAll(ModuleCompiler *m) {
   int i;
   for (i = 0; i <= m->sp; i++) {
     pwart_EmitSaveStack(m, &m->stack[i]);
   }
+  return NULL;
 }
 
-static int pwart_EmitSaveScratchRegisterAll(ModuleCompiler *m,int upstack) {
+static char* pwart_EmitSaveScratchRegisterAll(ModuleCompiler *m,int upstack) {
   int i,usereg=0;
   for (i = 0; i <= m->sp-upstack; i++) {
     if(m->stack[i].jit_type==SVT_GENERAL){
@@ -240,9 +241,10 @@ static int pwart_EmitSaveScratchRegisterAll(ModuleCompiler *m,int upstack) {
       pwart_EmitSaveStack(m, &m->stack[i]);
     }
   }
+  return NULL;
 }
 
-static int pwart_EmitLoadReg(ModuleCompiler *m, StackValue *sv, int reg) {
+static char* pwart_EmitLoadReg(ModuleCompiler *m, StackValue *sv, int reg) {
 
   if (sv->jit_type == SVT_GENERAL) {
     if (m->target_ptr_size != 32) {
@@ -304,7 +306,6 @@ static inline size_t get_funcarr_offset(ModuleCompiler *m) {
 // function).
 static StackValue *stackvalue_Push(ModuleCompiler *m, int32_t wasm_type) {
   StackValue *sv2,*sv;
-  uint32_t align,a;
   sv2 = &m->stack[++m->sp];
   sv2->jit_type = SVT_GENERAL;
   sv2->wasm_type=wasm_type;
@@ -358,12 +359,12 @@ static void stackvalue_EmitSwapTopTwoValue(ModuleCompiler *m) {
 
 static char *pwart_EmitCallFunc2(ModuleCompiler *m, Type *type, sljit_s32 memreg,
                               sljit_sw offset,int callReturn) {
-  StackValue *sv,sv2;
+  StackValue *sv;
   int a, b, len,func_frame_offset;
   int i;
   //Caution: Do not use scratch register before sljit_emit_icall to avoid overwrite [memreg,offset]
   //XXX: Maybe we need use RS_RESERVED to avoid unexpected overwrite.
-  len = strlen(type->params);
+  len = strlen((const char *)type->params);
   pwart_EmitSaveScratchRegisterAll(m,0);
   if ((memreg & (SLJIT_MEM - 1)) == SLJIT_R0 ) {
     sljit_emit_op1(m->jitc, SLJIT_MOV, SLJIT_R2, 0, memreg, offset);
@@ -437,7 +438,7 @@ static char *pwart_EmitCallFunc2(ModuleCompiler *m, Type *type, sljit_s32 memreg
   if(callReturn){
     m->block_returned=1;
   }
-  len = strlen(type->results);
+  len = strlen((const char *)type->results);
   for (a = 0; a < len; a++) {
     b = type->results[a];
     sv = stackvalue_Push(m, b);
@@ -467,14 +468,14 @@ static char *pwart_EmitCallFunc2(ModuleCompiler *m, Type *type, sljit_s32 memreg
 
 static char *pwart_EmitCallFunc(ModuleCompiler *m, Type *type, sljit_s32 memreg,
                               sljit_sw offset){
-  pwart_EmitCallFunc2(m,type,memreg,offset,0);
+  return pwart_EmitCallFunc2(m,type,memreg,offset,0);
 }
 
 static char *pwart_EmitFuncReturn(ModuleCompiler *m) {
   int idx, len, off;
   StackValue *sv;
   off = 0;
-  len = strlen(m->function_type->results);
+  len = strlen((const char *)m->function_type->results);
   if(m->sp+1<len){
     /* maybe unreachable code, Do nothing */
     return NULL;
@@ -513,7 +514,6 @@ static int stackvalue_AnyRegUsedBySvalue(StackValue *sv){
 
 // get free register. check up to upstack.
 static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype, int upstack) {
-  int i;
   sljit_s32 fr;
   StackValue *sv;
 
@@ -640,7 +640,7 @@ static void pwart_EmitStackValueLoadReg(ModuleCompiler *m, StackValue *sv) {
   }
 }
 
-static int pwart_EmitFuncEnter(ModuleCompiler *m) {
+static char* pwart_EmitFuncEnter(ModuleCompiler *m) {
   int nextSr = SLJIT_S1;
   int nextSfr = SLJIT_FS0;
   int i, len;
@@ -649,7 +649,7 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
 
   // temporarily use nextLoc to represent offset of argument, base on SLJIT_S0
   nextLoc = 0;
-  len = strlen(m->function_type->params);
+  len = strlen((const char *)m->function_type->params);
   for (i = 0; i < len; i++) {
     sv = dynarr_get(m->locals, StackValue, i);
     sv->wasm_type = m->function_type->params[i];
@@ -716,15 +716,13 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
         }
       }
       sv->val.op = SLJIT_MEM1(SLJIT_SP);
-      sv->val.opw = sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
+      sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
     }
   }
   sljit_emit_enter(m->jitc, 0, SLJIT_ARGS1V(W),
-                   SLJIT_NUMBER_OF_SCRATCH_REGISTERS, SLJIT_S0 - nextSr,
-                   SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS, SLJIT_FS0 - nextSfr,
+                   SLJIT_NUMBER_OF_SCRATCH_REGISTERS | SLJIT_ENTER_FLOAT(SLJIT_NUMBER_OF_SCRATCH_FLOAT_REGISTERS),
+                   (SLJIT_S0 - nextSr) | SLJIT_ENTER_FLOAT(SLJIT_FS0 - nextSfr),
                    nextLoc);
-  
-
   
   if (m->mem_base_local >= 0) {
     Memory *mem=*dynarr_get(m->context->memories,Memory *,m->cached_midx);
@@ -779,6 +777,7 @@ static int pwart_EmitFuncEnter(ModuleCompiler *m) {
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc+1);
   sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintFuncEnter);
   #endif
+  return NULL;
 }
 
 

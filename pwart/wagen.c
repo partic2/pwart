@@ -299,7 +299,7 @@ static char *pwart_GenCode(ModuleCompiler *m) {
   int insnCnt2=0;
   #endif
 
-  m->jitc = sljit_create_compiler(NULL, NULL);
+  m->jitc = sljit_create_compiler(NULL);
 #if DEBUG_BUILD
   m->jitc->verbose = stdout;
 #endif
@@ -373,7 +373,7 @@ static char *pwart_EmitFunction(ModuleCompiler *m, WasmFunction *func) {
   ReturnIfErr(pwart_PrepareFunc(m));
   m->pc = savepos;
   ReturnIfErr(pwart_GenCode(m));
-  code = (WasmFunctionEntry)sljit_generate_code(m->jitc);
+  code = (WasmFunctionEntry)sljit_generate_code(m->jitc,0,NULL);
   sljit_free_compiler(m->jitc);
   m->jitc=NULL;
   dynarr_free(&m->locals);
