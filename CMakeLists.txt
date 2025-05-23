@@ -11,7 +11,7 @@ project(pwart)
 
 
 option(PWART_SYSLIB_ENABLED "compile pwart_syslib, require uv_a and libffi_a defined" OFF)
-option(DEPS_SOURCE_DIRS "dependency sources directory, where DEPS_SOURCE_DIRS/libffi DEPS_SOURCE_DIRS/libuv exists, if defined, add these as subdirectory.")
+option(DEPS_SOURCE_DIRS "dependency sources directory, where DEPS_SOURCE_DIRS/libffi DEPS_SOURCE_DIRS/libuv exists, if defined, add these as subdirectory." ${CMAKE_CURRENT_LIST_DIR}/deps)
 
 option(BUILD_TESTING "enable test" OFF)
 
