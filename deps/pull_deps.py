@@ -6,7 +6,11 @@ def url_replacer(url):
 
 git='git'
 
-deps_dir=os.environ.get('DEPS_SOURCE_DIRS',os.path.dirname(os.path.abspath(__file__)))
+if os.environ.get('DEPS_SOURCE_DIRS','')=='':
+    os.environ['DEPS_SOURCE_DIRS']=os.path.join(os.path.dirname(os.path.abspath(__file__)))
+
+deps_dir=os.environ.get('DEPS_SOURCE_DIRS')
+
 
 def pull(dep_name, repo_url, branch="main"):
     """
@@ -29,6 +33,7 @@ def pull(dep_name, repo_url, branch="main"):
                 git, 'pull',
                 '--rebase'
             ]
+            print(f'[INFO] Update {target_dir}')
             subprocess.run(cmd, check=True,cwd=target_dir)
             print(f"[OK] Successfully pulled {dep_name} @{branch}")
             
@@ -46,6 +51,7 @@ def pull(dep_name, repo_url, branch="main"):
                 repo_url,
                 target_dir
             ]
+            print(f'[INFO] Clone into {target_dir}')
             subprocess.run(cmd, check=True)
             print(f"[OK] Successfully pulled {dep_name} @{branch}")
             
@@ -53,6 +59,7 @@ def pull(dep_name, repo_url, branch="main"):
             print(f"[ERROR] Failed to pull {dep_name}: {str(e)}")
         except Exception as e:
             print(f"[ERROR] Unexpected error: {str(e)}")
+    return target_dir
 
 
 def main():
