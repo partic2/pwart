@@ -172,11 +172,11 @@ static void namespace_InternalHostModuleSymbolResolver(struct pwart_host_module 
     }
 }
 
-extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,void **symbols,int length){
+extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pwart_host_function_c **funcs,int length){
     struct InternalHostModule *hostmod=wa_calloc(sizeof(struct InternalHostModule));
     hostmod->length=length;
     hostmod->names=names;
-    hostmod->symbols=symbols;
+    hostmod->symbols=(void *)funcs;
     hostmod->base.resolve=&namespace_InternalHostModuleSymbolResolver;
     return (struct pwart_host_module *)hostmod;
 }

@@ -14,6 +14,12 @@ struct pwart_symbol_resolve_request{
     char *import_module;
     char *import_field;
     uint32_t kind;
+    /* 
+    Valid result types, depend on kind:
+        struct pwart_wasm_table *
+        struct pwart_wasm_memory *
+        pwart_wasm_function
+    */
     void *result;
 };
 struct pwart_symbol_resolver{
@@ -29,6 +35,8 @@ typedef void *pwart_module_state;
 
 typedef void *pwart_wasm_function;
 
+/* pwart_host_function_c can NOT be used directly as a valid symbol. 
+   To convert it to a pwart_wasm_function, use pwart_wrap_host_function_c */
 typedef void (*pwart_host_function_c)(void *stack_frame);
 
 /* currently only have 1.0 version */
@@ -62,7 +70,7 @@ This flag has no effect for "native_memory" access. */
 #define PWART_MISC_FLAGS_EXTEND_INDEX 1
 
 
-/* If set. Local variables, if used before initialized, will be set to 0 when entering a function.
+/* If set, Local variables, if used before initialized, will be set to 0 when entering a function.
 PWART use a simple glance instead of SSA analyzation, So this flag may slightly slow the generated code.
 But according to the WebAssembly spec, this flag is SET by default  */
 #define PWART_MISC_FLAGS_LOCALS_ZERO_INIT 2
@@ -103,15 +111,15 @@ extern pwart_module_state *pwart_load_module(char *data,int len,char **err_msg);
 
 extern pwart_module_compiler pwart_new_module_compiler();
 
-/*  free compile infomation, have no effect to pwart_module_state and generated code. 
-    return error message if any, or NULL if succeded. */
+/*  free compile information, has no effect to pwart_module_state and generated code. 
+    return error message if failed, or NULL if succeeded. */
 extern char *pwart_free_module_compiler(pwart_module_compiler mod);
 
 extern char *pwart_set_symbol_resolver(pwart_module_compiler m,struct pwart_symbol_resolver *resolver);
 
 
 /*  compile module and generate code. if cfg is NULL, use default compile config. 
-    return error message if any, or NULL if succeded. */
+    return error message if failed, or NULL if succeeded. */
 extern char *pwart_compile(pwart_module_compiler m,char *data,int len);
 
 /*  return wasm start function, or NULL if no start function specified. 
@@ -119,14 +127,14 @@ extern char *pwart_compile(pwart_module_compiler m,char *data,int len);
     Though it's may not necessary for PWART. */
 extern pwart_wasm_function pwart_get_start_function(pwart_module_state m);
 
-/*  return error message if any, or NULL if succeded. */
+/*  return error message if failed, or NULL if succeeded. */
 extern char *pwart_set_global_compile_config(struct pwart_global_compile_config *config);
 extern char *pwart_get_global_compile_config(struct pwart_global_compile_config *config);
 
 extern pwart_module_state pwart_get_module_state(pwart_module_compiler m);
 
 /*  free module state and generated code. 
-    return error message if any, or NULL if succeded. 
+    return error message if failed, or NULL if succeeded. 
     only need free if pwart_compile succeeded. */
 extern char *pwart_free_module_state(pwart_module_state rc);
 
@@ -159,13 +167,13 @@ struct pwart_inspect_result1{
     void *globals_buffer;
     struct pwart_symbol_resolver *symbol_resolver;
 };
-/*  return error message if any, or NULL if succeded. */
+/*  return error message if failed, or NULL if succeeded. */
 extern char *pwart_inspect_module_state(pwart_module_state c,struct pwart_inspect_result1 *result);
 
 extern void pwart_module_state_set_user_data(pwart_module_state c,void *ud);
 extern void *pwart_module_state_get_user_data(pwart_module_state c);
 
-/*  return error message if any, or NULL if succeded. */
+/*  return error message if failed, or NULL if succeeded. */
 extern char *pwart_free_module_compiler(pwart_module_compiler mod);
 
 /* pwart invoke and runtime stack helper */
@@ -305,6 +313,18 @@ special pwart_wasm_memory that map to the native host memory directly, memory->b
 
 /* High level API, Namespace and Module */
 
+/* 
+    pwart namespace mean a group of modules that can import-from/export-to each others. 
+    User usually use pwart with below step.
+    1. create namespace by pwart_namespace_new.
+    2. define host module by pwart_namespace_new_host_module, to provide host function.
+    3. pwart_namespace_define_wasm_module to load wasm file into namespace.
+    4. pwart_get_export_function with pwart_module_state return in last step.
+    5. prepare stack by pwart_allocate_stack. pwart_rstack_put_xxx
+    6. pwart_call_wasm_function.
+
+    NOTE: memory.grow is NOT thread safe.
+*/
 typedef void *pwart_namespace;
 
 struct pwart_host_module{
@@ -347,8 +367,10 @@ extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns
 
 extern struct pwart_symbol_resolver *pwart_namespace_resolver(pwart_namespace ns);
 
-extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,void **symbols,int length);
+/* Create a host modules with a list of exported functions, These functions will be converted to pwart_wasm_function internally. */
+extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pwart_host_function_c **funcs,int length);
 
 extern void pwart_namespace_delete_host_module(struct pwart_host_module *hostmod);
+
 
 #endif
