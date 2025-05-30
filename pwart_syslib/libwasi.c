@@ -15,7 +15,7 @@ static int uvwcinited=0;
 
 static struct dynarr *wasisyms = NULL; // type pwart_named_symbol
 
-static void *wasm__args_get(void *fp) { 
+static void wasm__args_get(void *fp) { 
    void *sp = fp;
   _wargi32(argv) _wargi32(argv_buf) 
   memcpy(uwmem->bytes + argv_buf,uvwc.argv_buf,uvwc.argv_buf_size);
@@ -27,7 +27,7 @@ static void *wasm__args_get(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, 0);
 }
-static void *wasm__args_sizes_get(void *fp) { 
+static void wasm__args_sizes_get(void *fp) { 
   void *sp = fp;
   _wargi32(argc) _wargi32(argv_buf_size) uvwasi_errno_t err =
       uvwasi_args_sizes_get(&uvwc, (uvwasi_size_t *)(uwmem->bytes + argc),
@@ -35,21 +35,21 @@ static void *wasm__args_sizes_get(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__clock_res_get(void *fp) { 
+static void wasm__clock_res_get(void *fp) { 
   void *sp = fp;
   _wargi32(clock_id) _wargi32(resolution) uvwasi_errno_t err =
       uvwasi_clock_res_get(&uvwc, clock_id, (uvwasi_timestamp_t *)(uwmem->bytes + resolution));
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__clock_time_get(void *fp) { 
+static void wasm__clock_time_get(void *fp) { 
    void *sp = fp;
   _wargi32(clock_id) _wargi64(precision) _wargi32(time) uvwasi_errno_t err =
       uvwasi_clock_time_get(&uvwc, clock_id, precision, (uvwasi_timestamp_t *)(uwmem->bytes + time));
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__environ_get(void *fp) { 
+static void wasm__environ_get(void *fp) { 
    void *sp = fp;
   _wargi32(environment) _wargi32(environ_buf) 
   uv_env_item_t *penv=NULL;
@@ -72,7 +72,7 @@ static void *wasm__environ_get(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, 0);
 }
-static void *wasm__environ_sizes_get(void *fp) { 
+static void wasm__environ_sizes_get(void *fp) { 
    void *sp = fp;
   _wargi32(environ_count) _wargi32(environ_buf_size)
   uv_env_item_t *penv=NULL;
@@ -87,47 +87,47 @@ static void *wasm__environ_sizes_get(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, 0);
 }
-static void *wasm__fd_advise(void *fp) { 
+static void wasm__fd_advise(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi64(offset) _wargi64(len) _wargi32(advice)
       uvwasi_errno_t err = uvwasi_fd_advise(&uvwc, fd, offset, len, advice);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_allocate(void *fp) { 
+static void wasm__fd_allocate(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi64(offset) _wargi64(len) uvwasi_errno_t err =
       uvwasi_fd_allocate(&uvwc, fd, offset, len);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_close(void *fp) { 
+static void wasm__fd_close(void *fp) { 
    void *sp = fp;
   _wargi32(fd) uvwasi_errno_t err = uvwasi_fd_close(&uvwc, fd);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_datasync(void *fp) { 
+static void wasm__fd_datasync(void *fp) { 
    void *sp = fp;
   _wargi32(fd) uvwasi_errno_t err = uvwasi_fd_datasync(&uvwc, fd);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_fdstat_get(void *fp) { 
+static void wasm__fd_fdstat_get(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(buf) uvwasi_errno_t err =
       uvwasi_fd_fdstat_get(&uvwc, fd, (uvwasi_fdstat_t *)(uwmem->bytes + buf));
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_fdstat_set_flags(void *fp) { 
+static void wasm__fd_fdstat_set_flags(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(flags) uvwasi_errno_t err =
       uvwasi_fd_fdstat_set_flags(&uvwc, fd, flags);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_fdstat_set_rights(void *fp) { 
+static void wasm__fd_fdstat_set_rights(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi64(fs_rights_base) _wargi64(fs_rights_inheriting)
       uvwasi_errno_t err = uvwasi_fd_fdstat_set_rights(
@@ -135,21 +135,21 @@ static void *wasm__fd_fdstat_set_rights(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_filestat_get(void *fp) { 
+static void wasm__fd_filestat_get(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(buf) uvwasi_errno_t err =
       uvwasi_fd_filestat_get(&uvwc, fd, (uvwasi_filestat_t *)(uwmem->bytes + buf));
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_filestat_set_size(void *fp) { 
+static void wasm__fd_filestat_set_size(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi64(st_size) uvwasi_errno_t err =
       uvwasi_fd_filestat_set_size(&uvwc, fd, st_size);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_filestat_set_times(void *fp) { 
+static void wasm__fd_filestat_set_times(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi64(st_atim) _wargi64(st_mtim) _wargi32(fst_flags)
       uvwasi_errno_t err =
@@ -157,7 +157,7 @@ static void *wasm__fd_filestat_set_times(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_pread(void *fp) { 
+static void wasm__fd_pread(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(iovs) _wargi32(iovs_len) _wargi64(offset)
   _wargi32(nread)
@@ -173,21 +173,21 @@ static void *wasm__fd_pread(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_prestat_get(void *fp) { 
+static void wasm__fd_prestat_get(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(buf) uvwasi_errno_t err =
       uvwasi_fd_prestat_get(&uvwc, fd, uwmem->bytes + buf);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_prestat_dir_name(void *fp) { 
+static void wasm__fd_prestat_dir_name(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(path) _wargi32(path_len) uvwasi_errno_t err =
       uvwasi_fd_prestat_dir_name(&uvwc, fd, uwmem->bytes + path, path_len);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_pwrite(void *fp) { 
+static void wasm__fd_pwrite(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(iovs) _wargi32(iovs_len) _wargi64(offset)
   _wargi32(nwritten)
@@ -203,7 +203,7 @@ static void *wasm__fd_pwrite(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_read(void *fp) { 
+static void wasm__fd_read(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(iovs) _wargi32(iovs_len) _wargi32(nread)
   uvwasi_iovec_t *iovs2=sp;
@@ -217,7 +217,7 @@ static void *wasm__fd_read(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_readdir(void *fp) { 
+static void wasm__fd_readdir(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(buf) _wargi32(buf_len) _wargi64(cookie)
       _wargi32(bufused) uvwasi_errno_t err =
@@ -226,14 +226,14 @@ static void *wasm__fd_readdir(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_renumber(void *fp) { 
+static void wasm__fd_renumber(void *fp) { 
    void *sp = fp;
   _wargi32(from) _wargi32(to) uvwasi_errno_t err =
       uvwasi_fd_renumber(&uvwc, from, to);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_seek(void *fp) { 
+static void wasm__fd_seek(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi64(offset) _wargi32(whence) _wargi32(newoffset)
       uvwasi_errno_t err =
@@ -241,20 +241,20 @@ static void *wasm__fd_seek(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_sync(void *fp) { 
+static void wasm__fd_sync(void *fp) { 
    void *sp = fp;
   _wargi32(fd) uvwasi_errno_t err = uvwasi_fd_sync(&uvwc, fd);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_tell(void *fp) { 
+static void wasm__fd_tell(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(offset) uvwasi_errno_t err =
       uvwasi_fd_tell(&uvwc, fd, uwmem->bytes + offset);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__fd_write(void *fp) { 
+static void wasm__fd_write(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(iovs) _wargi32(iovs_len) _wargi32(nwritten)
   uvwasi_ciovec_t *iovs2=sp;
@@ -268,14 +268,14 @@ static void *wasm__fd_write(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_create_directory(void *fp) { 
+static void wasm__path_create_directory(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(path) _wargi32(path_len) uvwasi_errno_t err =
       uvwasi_path_create_directory(&uvwc, fd, uwmem->bytes + path, path_len);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_filestat_get(void *fp) { 
+static void wasm__path_filestat_get(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(flags) _wargi32(path) _wargi32(path_len) _wargi32(buf)
       uvwasi_errno_t err = uvwasi_path_filestat_get(
@@ -283,7 +283,7 @@ static void *wasm__path_filestat_get(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_filestat_set_times(void *fp) { 
+static void wasm__path_filestat_set_times(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(flags) _wargi32(path) _wargi32(path_len) _wargi64(
       st_atim) _wargi64(st_mtim) _wargi32(fst_flags) uvwasi_errno_t err =
@@ -292,7 +292,7 @@ static void *wasm__path_filestat_set_times(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_link(void *fp) { 
+static void wasm__path_link(void *fp) { 
    void *sp = fp;
   _wargi32(old_fd) _wargi32(old_flags) _wargi32(old_path) _wargi32(old_path_len)
       _wargi32(new_fd) _wargi32(new_path) _wargi32(new_path_len)
@@ -303,7 +303,7 @@ static void *wasm__path_link(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_open(void *fp) { 
+static void wasm__path_open(void *fp) { 
    void *sp = fp;
   _wargi32(dirfd) _wargi32(dirflags) _wargi32(path) _wargi32(path_len)
       _wargi32(o_flags) _wargi64(fs_rights_base) _wargi64(fs_rights_inheriting)
@@ -315,7 +315,7 @@ static void *wasm__path_open(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_readlink(void *fp) { 
+static void wasm__path_readlink(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(path) _wargi32(path_len) _wargi32(buf) _wargi32(buf_len)
       _wargi32(bufused) uvwasi_errno_t err =
@@ -325,14 +325,14 @@ static void *wasm__path_readlink(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_remove_directory(void *fp) { 
+static void wasm__path_remove_directory(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(path) _wargi32(path_len) uvwasi_errno_t err =
       uvwasi_path_remove_directory(&uvwc, fd, uwmem->bytes + path, path_len);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_rename(void *fp) { 
+static void wasm__path_rename(void *fp) { 
    void *sp = fp;
   _wargi32(old_fd) _wargi32(old_path) _wargi32(old_path_len) _wargi32(new_fd)
       _wargi32(new_path) _wargi32(new_path_len) uvwasi_errno_t err =
@@ -342,7 +342,7 @@ static void *wasm__path_rename(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_symlink(void *fp) { 
+static void wasm__path_symlink(void *fp) { 
    void *sp = fp;
   _wargi32(old_path) _wargi32(old_path_len) _wargi32(fd) _wargi32(new_path)
       _wargi32(new_path_len) uvwasi_errno_t err =
@@ -351,14 +351,14 @@ static void *wasm__path_symlink(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__path_unlink_file(void *fp) { 
+static void wasm__path_unlink_file(void *fp) { 
    void *sp = fp;
   _wargi32(fd) _wargi32(path) _wargi32(path_len) uvwasi_errno_t err =
       uvwasi_path_unlink_file(&uvwc, fd, uwmem->bytes + path, path_len);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__poll_oneoff(void *fp) { 
+static void wasm__poll_oneoff(void *fp) { 
    void *sp = fp;
   _wargi32(in) _wargi32(out) _wargi32(nsubscriptions) _wargi32(nevents)
       uvwasi_errno_t err =
@@ -367,39 +367,39 @@ static void *wasm__poll_oneoff(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__proc_exit(void *fp) { 
+static void wasm__proc_exit(void *fp) { 
    void *sp = fp;
   _wargi32(rval) uvwasi_errno_t err = uvwasi_proc_exit(&uvwc, rval);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__proc_raise(void *fp) { 
+static void wasm__proc_raise(void *fp) { 
    void *sp = fp;
   _wargi32(sig) uvwasi_errno_t err = uvwasi_proc_raise(&uvwc, sig);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__random_get(void *fp) { 
+static void wasm__random_get(void *fp) { 
    void *sp = fp;
   _wargi32(buf) _wargi32(buf_len) uvwasi_errno_t err =
       uvwasi_random_get(&uvwc, uwmem->bytes + buf, buf_len);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__sched_yield(void *fp) { 
+static void wasm__sched_yield(void *fp) { 
    void *sp = fp;
   uvwasi_errno_t err = uvwasi_sched_yield(&uvwc);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__sock_accept(void *fp) { 
+static void wasm__sock_accept(void *fp) { 
    void *sp = fp;
   _wargi32(sock) _wargi32(flags) _wargi32(fd) uvwasi_errno_t err =
       uvwasi_sock_accept(&uvwc, sock, flags, uwmem->bytes + fd);
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__sock_recv(void *fp) { 
+static void wasm__sock_recv(void *fp) { 
    void *sp = fp;
   _wargi32(sock) _wargi32(ri_data) _wargi32(ri_data_len) _wargi32(ri_flags)
       _wargi32(ro_datalen) _wargi32(ro_flags) uvwasi_errno_t err =
@@ -409,7 +409,7 @@ static void *wasm__sock_recv(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__sock_send(void *fp) { 
+static void wasm__sock_send(void *fp) { 
    void *sp = fp;
   _wargi32(sock) _wargi32(si_data) _wargi32(si_data_len) _wargi32(si_flags)
       _wargi32(so_datalen) uvwasi_errno_t err =
@@ -418,7 +418,7 @@ static void *wasm__sock_send(void *fp) {
   sp = fp;
   pwart_rstack_put_i32(&sp, err);
 }
-static void *wasm__sock_shutdown(void *fp) { 
+static void wasm__sock_shutdown(void *fp) { 
    void *sp = fp;
   _wargi32(sock) _wargi32(how) uvwasi_errno_t err =
       uvwasi_sock_shutdown(&uvwc, sock, how);
@@ -485,7 +485,7 @@ static char *wasi_funcname_list[]={
   "sock_shutdown"
 };
 
-static void *wasi_funcsymbols_list[]={
+static pwart_host_function_c wasi_funcsymbols_list[]={
   &wasm__args_get,&wasm__args_sizes_get,&wasm__clock_res_get,&wasm__clock_time_get,&wasm__environ_get,
   &wasm__environ_sizes_get,&wasm__fd_advise,&wasm__fd_allocate,&wasm__fd_close,&wasm__fd_datasync,
   &wasm__fd_fdstat_get,&wasm__fd_fdstat_set_flags,&wasm__fd_fdstat_set_rights,&wasm__fd_filestat_get,&wasm__fd_filestat_set_size,

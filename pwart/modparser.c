@@ -56,7 +56,7 @@ static void parse_memory_type(ModuleCompiler *m, uint32_t *pos,Memory *mem) {
   }
 }
 
-static Export *get_export(RuntimeContext *rc, char *name, uint32_t *kind) {
+static Export *get_export(RuntimeContext *rc, const char *name, uint32_t *kind) {
     // Find export index by name and return the value
     for (uint32_t e=0; e<rc->exports->len; e++) {
         Export *exp=dynarr_get(rc->exports,Export,e);

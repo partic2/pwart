@@ -228,7 +228,7 @@ static void wasm__ffi_built_in_types(void *fp){
     pwart_rstack_put_ref(&sp,&ffi_type_pointer);
 }
 
-static void *libffi_funcsyms_list[]={wasm__ffi_is_enabled,
+static pwart_host_function_c libffi_funcsyms_list[]={wasm__ffi_is_enabled,
     &wasm__ffi_prep_cif,&wasm__ffi_prep_cif_var,&wasm__ffi_call,&wasm__ffi_default_abi,&wasm__ffi_built_in_types,
     &wasm__ffix_new_cif,&wasm__ffix_del_cif,&wasm__ffix_call,&wasm__ffi_closure_alloc,&wasm__ffi_closure_free,
     &wasm__ffi_prep_closure_loc,&wasm__ffix_new_c_callback,&wasm__ffix_del_c_callback};
@@ -243,7 +243,7 @@ static void wasm__ffi_is_enabled(void *fp){
 static void wasm__ffi_noop_stub(void *fp){
 }
 
-static void *libffi_funcsyms_list[]={wasm__ffi_is_enabled,
+static pwart_host_function_c libffi_funcsyms_list[]={wasm__ffi_is_enabled,
     &wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,
     &wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub,
     &wasm__ffi_noop_stub,&wasm__ffi_noop_stub,&wasm__ffi_noop_stub};

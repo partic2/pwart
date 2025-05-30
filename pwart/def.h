@@ -516,7 +516,7 @@ static struct{
 
 static struct pwart_global_compile_config pwart_gcfg={
     .stack_flags=0,
-    .misc_flags=PWART_MISC_FLAGS_LOCALS_ZERO_INIT
+    .misc_flags=PWART_MISC_FLAGS_LOCALS_ZERO_INIT|PWART_STACK_FLAGS_AUTO_ALIGN
 };
 
 static sljit_s32 pwart_GetFreeReg(ModuleCompiler *m, sljit_s32 regtype,int upstack);

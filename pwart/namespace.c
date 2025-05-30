@@ -74,7 +74,7 @@ extern char *pwart_namespace_delete(pwart_namespace ns){
     return NULL;
 }
 
-extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns,char *name){
+extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns,const char *name){
     Namespace *n=(Namespace *)ns;
     int i=0;
     for(i=0;i<n->mods->len;i++){
@@ -86,7 +86,7 @@ extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns
     return NULL;
 }
 
-extern char *pwart_namespace_remove_module(pwart_namespace ns,char *name){
+extern char *pwart_namespace_remove_module(pwart_namespace ns,const char *name){
     struct pwart_named_module *m=pwart_namespace_find_module(ns,name);
     if(m!=NULL){
         switch(m->type){
@@ -130,7 +130,7 @@ extern char *pwart_namespace_define_module(pwart_namespace ns,struct pwart_named
     return NULL;
 }
 
-extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns,char *name,char *wasm_bytes,int length,char **err_msg){
+extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns,const char *name,const char *wasm_bytes,int length,char **err_msg){
     Namespace *n=(Namespace *)ns;
     struct pwart_named_module mod;
     char *err=NULL;
@@ -152,7 +152,6 @@ extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns
     return state;
 }
 
-
 struct InternalHostModule{
     struct pwart_host_module base;
     char **names;
@@ -172,11 +171,21 @@ static void namespace_InternalHostModuleSymbolResolver(struct pwart_host_module 
     }
 }
 
-extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pwart_host_function_c **funcs,int length){
+extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pwart_host_function_c *funcs,int length){
     struct InternalHostModule *hostmod=wa_calloc(sizeof(struct InternalHostModule));
     hostmod->length=length;
     hostmod->names=names;
+    /*XXX: Once pwart_wasm_function changed, Fix here by using pwart_wrap_host_function_c. */
     hostmod->symbols=(void *)funcs;
+    hostmod->base.resolve=&namespace_InternalHostModuleSymbolResolver;
+    return (struct pwart_host_module *)hostmod;
+}
+
+extern struct pwart_host_module *pwart_namespace_new_host_module2(char **names,void **symbols,int length){
+    struct InternalHostModule *hostmod=wa_calloc(sizeof(struct InternalHostModule));
+    hostmod->length=length;
+    hostmod->names=names;
+    hostmod->symbols=symbols;
     hostmod->base.resolve=&namespace_InternalHostModuleSymbolResolver;
     return (struct pwart_host_module *)hostmod;
 }

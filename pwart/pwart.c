@@ -32,12 +32,11 @@ extern char *pwart_free_module_state(pwart_module_state rc2){
     return NULL;
 }
 
-
-extern char *pwart_compile(pwart_module_compiler m,char *data,int len){
+extern char *pwart_compile(pwart_module_compiler m,const char *data,int len){
     return load_module(m,(uint8_t *)data,len);
 }
 
-extern pwart_wasm_function pwart_get_export_function(pwart_module_state rc,char *name){
+extern pwart_wasm_function pwart_get_export_function(pwart_module_state rc,const char *name){
     RuntimeContext *m=rc;
     uint32_t kind=PWART_KIND_FUNCTION;
     Export *exp=get_export(rc,name,&kind);
@@ -48,7 +47,7 @@ extern pwart_wasm_function pwart_get_export_function(pwart_module_state rc,char 
     }
 }
 
-extern struct pwart_wasm_memory *pwart_get_export_memory(pwart_module_state rc,char *name){
+extern struct pwart_wasm_memory *pwart_get_export_memory(pwart_module_state rc,const char *name){
     RuntimeContext *m=rc;
     uint32_t kind=PWART_KIND_MEMORY;
     Export *exp=get_export(rc,name,&kind);
@@ -59,7 +58,7 @@ extern struct pwart_wasm_memory *pwart_get_export_memory(pwart_module_state rc,c
     }
 }
 
-extern void *pwart_get_export_global(pwart_module_state rc,char *name){
+extern void *pwart_get_export_global(pwart_module_state rc,const char *name){
     RuntimeContext *m=rc;
     uint32_t kind=PWART_KIND_GLOBAL;
     Export *exp=get_export(rc,name,&kind);
@@ -70,7 +69,7 @@ extern void *pwart_get_export_global(pwart_module_state rc,char *name){
     }
 }
 
-extern struct pwart_wasm_table *pwart_get_export_table(pwart_module_state rc,char *name){
+extern struct pwart_wasm_table *pwart_get_export_table(pwart_module_state rc,const char *name){
     RuntimeContext *m=rc;
     uint32_t kind=PWART_KIND_TABLE;
     Export *exp=get_export(rc,name,&kind);
@@ -254,7 +253,7 @@ extern void pwart_call_wasm_function(pwart_wasm_function fn,void *stack_pointer)
     (*fn2)(stack_pointer);
 }
 
-extern pwart_module_state *pwart_load_module(char *data,int len,char **err_msg){
+extern pwart_module_state *pwart_load_module(const char *data,int len,char **err_msg){
     char *err=NULL;
     pwart_module_state state=NULL;
     pwart_module_compiler m=pwart_new_module_compiler();

@@ -11,8 +11,8 @@
 
 
 struct pwart_symbol_resolve_request{
-    char *import_module;
-    char *import_field;
+    const char *import_module;
+    const char *import_field;
     uint32_t kind;
     /* 
     Valid result types, depend on kind:
@@ -60,7 +60,7 @@ struct pwart_global_compile_config{
 };
 
 /* If set, elements on stack will align to its size, and function frame base will align to 8. 
-Some archs require this flag to avoid BUS error. */
+Some archs require this flag to avoid BUS error. So this flag is set by default. And may be forced to enabled in future.*/
 #define PWART_STACK_FLAGS_AUTO_ALIGN 1
 
 /* If set, 32bit index will be always extended to 64bit on 64bit host on loading/storing.  
@@ -107,7 +107,7 @@ struct pwart_wasm_memory {
 
 /*  pwart_load_module load a module from data, if succeeded, return compiled module, if failed, return NULL and set err_msg, if err_msg is not NULL.
     It invoke "pwart_new_module_compiler","pwart_compile","pwart_get_module_state","pwart_free_module_compiler" internally. */
-extern pwart_module_state *pwart_load_module(char *data,int len,char **err_msg);
+extern pwart_module_state *pwart_load_module(const char *data,int len,char **err_msg);
 
 extern pwart_module_compiler pwart_new_module_compiler();
 
@@ -120,7 +120,7 @@ extern char *pwart_set_symbol_resolver(pwart_module_compiler m,struct pwart_symb
 
 /*  compile module and generate code. if cfg is NULL, use default compile config. 
     return error message if failed, or NULL if succeeded. */
-extern char *pwart_compile(pwart_module_compiler m,char *data,int len);
+extern char *pwart_compile(pwart_module_compiler m,const char *data,int len);
 
 /*  return wasm start function, or NULL if no start function specified. 
     you should call the start function to init module, according to WebAssembly spec. 
@@ -143,16 +143,16 @@ extern char *pwart_free_module_state(pwart_module_state rc);
 extern char *pwart_set_state_symbol_resolver(pwart_module_state rc,struct pwart_symbol_resolver *resolver);
 
 /* get wasm function exported by wasm module runtime. */
-extern pwart_wasm_function pwart_get_export_function(pwart_module_state rc,char *name);
+extern pwart_wasm_function pwart_get_export_function(pwart_module_state rc,const char *name);
 
 /* get wasm memory exported by wasm module runtime. */
-extern struct pwart_wasm_memory *pwart_get_export_memory(pwart_module_state rc,char *name);
+extern struct pwart_wasm_memory *pwart_get_export_memory(pwart_module_state rc,const char *name);
 
 /* get wasm table exported by wasm module runtime. */
-extern struct pwart_wasm_table *pwart_get_export_table(pwart_module_state rc,char *name);
+extern struct pwart_wasm_table *pwart_get_export_table(pwart_module_state rc,const char *name);
 
 /* get wasm globals exported by wasm module runtime. */
-extern void *pwart_get_export_global(pwart_module_state rc,char *name);
+extern void *pwart_get_export_global(pwart_module_state rc,const char *name);
 
 /* pwart_module_state inspect result */
 struct pwart_inspect_result1{
@@ -191,7 +191,6 @@ extern void pwart_call_wasm_function(pwart_wasm_function fn,void *stack_pointer)
 
 
 /* For version 1.0, arguments and results are all stored on stack. */
-/* stack_flags has effect on these function. */
 
 /* put value to *sp, move *sp to next entries. */
 extern void pwart_rstack_put_i32(void **sp,int val);
@@ -344,7 +343,7 @@ struct pwart_host_module{
 
 
 struct pwart_named_module{
-    char *name;
+    const char *name;
     int type;   /* PWART_MODULE_TYPE_xxxx */
     union{
         struct pwart_host_module *host;
@@ -356,19 +355,22 @@ extern pwart_namespace pwart_namespace_new();
 
 extern char *pwart_namespace_delete(pwart_namespace ns);
 
-extern char *pwart_namespace_remove_module(pwart_namespace ns,char *name);
+extern char *pwart_namespace_remove_module(pwart_namespace ns,const char *name);
 
 /* module structure will be copied into internal buffer, No need for caller to hold the memory */
 extern char *pwart_namespace_define_module(pwart_namespace ns,struct pwart_named_module *mod);
 
-extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns,char *name,char *wasm_bytes,int length,char **err_msg);
+extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns,const char *name,const char *wasm_bytes,int length,char **err_msg);
 
-extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns,char *name);
+extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns,const char *name);
 
 extern struct pwart_symbol_resolver *pwart_namespace_resolver(pwart_namespace ns);
 
 /* Create a host modules with a list of exported functions, These functions will be converted to pwart_wasm_function internally. */
-extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pwart_host_function_c **funcs,int length);
+extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pwart_host_function_c *funcs,int length);
+
+/* Create a host modules with a list of symbols, Only accept struct pwart_wasm_table *, struct pwart_wasm_memory *,pwart_wasm_function. */
+extern struct pwart_host_module *pwart_namespace_new_host_module2(char **names,void **symbols,int length);
 
 extern void pwart_namespace_delete_host_module(struct pwart_host_module *hostmod);
 

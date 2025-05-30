@@ -148,7 +148,7 @@ static char *libuv_funcname_list[]={
     "uv_mutex_init","uv_mutex_destroy","uv_mutex_lock","uv_mutex_unlock","uv_mutex_trylock",
     "uv_cond_init","uv_cond_destroy","uv_cond_signal","uv_cond_wait"
 };
-static void *libuv_funcsymbols_list[]={
+static pwart_host_function_c libuv_funcsymbols_list[]={
     &wasm__uv_version,&wasm__uv_dlopen,&wasm__uv_dlsym,&wasm__uv_dlclose,&wasm__uv_thread_create,
     &wasm__uv_mutex_init,&wasm__uv_mutex_destroy,&wasm__uv_mutex_lock,&wasm__uv_mutex_unlock,&wasm__uv_mutex_trylock,
     &wasm__uv_cond_init,&wasm__uv_cond_destroy,&wasm__uv_cond_signal,&wasm__uv_cond_wait
