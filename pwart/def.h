@@ -228,6 +228,8 @@ typedef struct ModuleCompiler {
 typedef struct {
     struct pwart_symbol_resolver resolver;
     struct dynarr *mods;   //modules in this namespace, type pwart_named_module.
+    struct pwart_host_module *nsmeta; //meta info module of current namespace.
+    void *nsmetasyms[1];
 } Namespace;
 
 

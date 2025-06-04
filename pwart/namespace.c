@@ -47,10 +47,15 @@ static void namespace_SymbolResolve(struct pwart_symbol_resolver *_this,struct p
     return;
 }
 
+static const char **nsmetaSymbolNames={"this"};
+
 extern pwart_namespace pwart_namespace_new(){
     Namespace *ns=(Namespace *)wa_calloc(sizeof(Namespace));
     dynarr_init(&ns->mods,sizeof(struct pwart_named_module));
     ns->resolver.resolve=&namespace_SymbolResolve;
+    ns->nsmetasyms[0]=ns;
+    ns->nsmeta=pwart_namespace_new_host_module2(nsmetaSymbolNames, &ns->nsmetasyms[0], 1);
+    pwart_namespace_define_host_module(ns,"pwart_namespace_meta", ns->nsmeta);
     return ns;
 }
 
@@ -69,6 +74,9 @@ extern char *pwart_namespace_delete(pwart_namespace ns){
                 ReturnIfErr(pwart_free_module_state(m->val.wasm));
                 break;
         }
+    }
+    if(n->nsmeta!=NULL){
+        wa_free(n->nsmeta);
     }
     wa_free(n);
     return NULL;
@@ -152,9 +160,17 @@ extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns
     return state;
 }
 
+extern pwart_module_state *pwart_namespace_define_host_module(pwart_namespace ns,const char *name,struct pwart_host_module *host_mod){
+    struct pwart_named_module mod;
+    mod.name=name;
+    mod.type=PWART_MODULE_TYPE_HOST_MODULE;
+    mod.val.host=host_mod;
+    pwart_namespace_define_module(ns, &mod);
+}
+
 struct InternalHostModule{
     struct pwart_host_module base;
-    char **names;
+    const char **names;
     void **symbols;
     int length;
 };
@@ -171,7 +187,7 @@ static void namespace_InternalHostModuleSymbolResolver(struct pwart_host_module 
     }
 }
 
-extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pwart_host_function_c *funcs,int length){
+extern struct pwart_host_module *pwart_namespace_new_host_module(const char **names,pwart_host_function_c *funcs,int length){
     struct InternalHostModule *hostmod=wa_calloc(sizeof(struct InternalHostModule));
     hostmod->length=length;
     hostmod->names=names;
@@ -181,7 +197,7 @@ extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pw
     return (struct pwart_host_module *)hostmod;
 }
 
-extern struct pwart_host_module *pwart_namespace_new_host_module2(char **names,void **symbols,int length){
+extern struct pwart_host_module *pwart_namespace_new_host_module2(const char **names,void **symbols,int length){
     struct InternalHostModule *hostmod=wa_calloc(sizeof(struct InternalHostModule));
     hostmod->length=length;
     hostmod->names=names;

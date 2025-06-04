@@ -14,12 +14,6 @@ struct pwart_symbol_resolve_request{
     const char *import_module;
     const char *import_field;
     uint32_t kind;
-    /* 
-    Valid result types, depend on kind:
-        struct pwart_wasm_table *
-        struct pwart_wasm_memory *
-        pwart_wasm_function
-    */
     void *result;
 };
 struct pwart_symbol_resolver{
@@ -219,7 +213,8 @@ struct pwart_named_symbol{
 extern struct pwart_named_symbol *pwart_get_builtin_symbols(int *arr_size);
 
 /* 
-pwart builtin symbols list
+pwart builtin symbols list.
+Can be used by import pwart_builtin.xxx in each module.
 
 ======== Format ============
 name
@@ -305,7 +300,8 @@ func []->[ref stdin,ref stdout,ref stderr]
 
 native_memory
 memory
-special pwart_wasm_memory that map to the native host memory directly, memory->bytes is 0;  
+special pwart_wasm_memory that map to the native host memory directly, memory->bytes is 0; 
+
 */
 
 
@@ -362,17 +358,39 @@ extern char *pwart_namespace_define_module(pwart_namespace ns,struct pwart_named
 
 extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns,const char *name,const char *wasm_bytes,int length,char **err_msg);
 
+extern pwart_module_state *pwart_namespace_define_host_module(pwart_namespace ns,const char *name,struct pwart_host_module *host_mod);
+
 extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns,const char *name);
 
 extern struct pwart_symbol_resolver *pwart_namespace_resolver(pwart_namespace ns);
 
-/* Create a host modules with a list of exported functions, These functions will be converted to pwart_wasm_function internally. */
-extern struct pwart_host_module *pwart_namespace_new_host_module(char **names,pwart_host_function_c *funcs,int length);
+/* Create a host modules from a list of exported functions, These functions will be converted to pwart_wasm_function internally. */
+extern struct pwart_host_module *pwart_namespace_new_host_module(const char **names,pwart_host_function_c *funcs,int length);
 
-/* Create a host modules with a list of symbols, Only accept struct pwart_wasm_table *, struct pwart_wasm_memory *,pwart_wasm_function. */
-extern struct pwart_host_module *pwart_namespace_new_host_module2(char **names,void **symbols,int length);
+/* Create a host modules from a list of symbols. */
+extern struct pwart_host_module *pwart_namespace_new_host_module2(const char **names,void **symbols,int length);
 
+/* Delete a host module created by pwart_namespace_new_host_module. DON'T use this function to delete the module create from customized pwart_host_module.*/
 extern void pwart_namespace_delete_host_module(struct pwart_host_module *hostmod);
+
+
+
+/* 
+
+namespace builtin meta
+Can be used by import module_name.symbol_name in each module defined in namespace.
+
+======== Format ============
+module_name.symbol_name
+type
+optional description
+============================
+
+pwart_namespace_meta.this
+ref
+get the current namespace.
+
+*/
 
 
 #endif
