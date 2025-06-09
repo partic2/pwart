@@ -9,7 +9,7 @@
 // return the real length of the string(include tailing 0), no matter with 'maxlen'.
 static uint32_t read_string(uint8_t *bytes, uint32_t *pos, uint32_t maxlen,char *buf) {
     uint32_t savedpos=*pos;
-    uint32_t str_len = read_LEB(bytes, pos, 32);
+    int32_t str_len = read_LEB(bytes, pos, 32);
     uint32_t copy_len=str_len;
     if(str_len+1>maxlen){
         *pos=savedpos;
@@ -147,7 +147,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                 type->form = read_LEB(bytes, &pos, 7);
                 count2 = read_LEB(bytes, &pos, 32);
                 if(count2>255)return "type group too long.(should less than 256)";
-                type->params=pool_alloc(&m->types_pool,count2+1);
+                type->params=(uint8_t *)pool_alloc(&m->types_pool,count2+1);
                 for (uint32_t p=0; p<count2; p++) {
                     type->params[p]=read_LEB(bytes, &pos, 32);
                 }
@@ -155,7 +155,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
 
                 count2 = read_LEB(bytes, &pos, 32);
                 if(count2>255)return "type group too long.(should less than 256)";
-                type->results=pool_alloc(&m->types_pool,count2+1);
+                type->results=(uint8_t *)pool_alloc(&m->types_pool,count2+1);
                 for (uint32_t r=0; r<count2; r++) {
                     type->results[r] = read_LEB(bytes, &pos, 32);
                 }
@@ -526,7 +526,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                     tidx =  read_LEB(bytes, &pos, 7);
                     (void)tidx; // TODO: use tidx?
                 }
-                function->locals_type = pool_alloc(&m->types_pool,local_count+1);
+                function->locals_type = (uint8_t *)pool_alloc(&m->types_pool,local_count+1);
                 //Read the locals
                 pos = save_pos; 
                 lidx = 0;

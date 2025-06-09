@@ -47,7 +47,7 @@ static void namespace_SymbolResolve(struct pwart_symbol_resolver *_this,struct p
     return;
 }
 
-static const char **nsmetaSymbolNames={"this"};
+static const char *nsmetaSymbolNames[]={"this"};
 
 extern pwart_namespace pwart_namespace_new(){
     Namespace *ns=(Namespace *)wa_calloc(sizeof(Namespace));
@@ -160,7 +160,7 @@ extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns
     return state;
 }
 
-extern pwart_module_state *pwart_namespace_define_host_module(pwart_namespace ns,const char *name,struct pwart_host_module *host_mod){
+extern void pwart_namespace_define_host_module(pwart_namespace ns,const char *name,struct pwart_host_module *host_mod){
     struct pwart_named_module mod;
     mod.name=name;
     mod.type=PWART_MODULE_TYPE_HOST_MODULE;

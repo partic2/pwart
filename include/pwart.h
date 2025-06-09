@@ -358,7 +358,7 @@ extern char *pwart_namespace_define_module(pwart_namespace ns,struct pwart_named
 
 extern pwart_module_state *pwart_namespace_define_wasm_module(pwart_namespace ns,const char *name,const char *wasm_bytes,int length,char **err_msg);
 
-extern pwart_module_state *pwart_namespace_define_host_module(pwart_namespace ns,const char *name,struct pwart_host_module *host_mod);
+extern void pwart_namespace_define_host_module(pwart_namespace ns,const char *name,struct pwart_host_module *host_mod);
 
 extern struct pwart_named_module *pwart_namespace_find_module(pwart_namespace ns,const char *name);
 

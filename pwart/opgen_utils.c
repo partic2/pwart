@@ -295,6 +295,7 @@ static char* pwart_EmitLoadReg(ModuleCompiler *m, StackValue *sv, int reg) {
     // 32bit arch only
     SLJIT_UNREACHABLE();
   }
+  return NULL;
 }
 
 static inline size_t get_funcarr_offset(ModuleCompiler *m) {

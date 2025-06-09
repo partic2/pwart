@@ -346,7 +346,7 @@ static char *opgen_GenCtlOp(ModuleCompiler *m, int opcode) {
     // reset br_table
     m->br_table->len = 0;
     for (uint32_t i = 0; i <= count; i++) {
-      i32p = dynarr_push_type(&m->br_table, uint32_t);
+      i32p = (int32_t *)dynarr_push_type(&m->br_table, uint32_t);
       *i32p = read_LEB(bytes, &m->pc, 32);
     }
     opgen_GenBrTable(m);
