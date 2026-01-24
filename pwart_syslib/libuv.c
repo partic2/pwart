@@ -49,11 +49,11 @@ struct libuv_wasmthread{
     void *stack;
 };
 static void wasm__uv_wasmthreadentry(void *awt){
-    struct libuv_wasmthread *wt=awt;
+    struct libuv_wasmthread *wt=(struct libuv_wasmthread *)awt;
     wt->stack=pwart_allocate_stack(64*1024);
     void *sp=wt->stack;
     pwart_rstack_put_i64(&sp,wt->arg);
-    pwart_call_wasm_function(wt->wasmentry,wt);
+    pwart_call_wasm_function(wt->wasmentry,wt->stack);
     pwart_free_stack(wt->stack);
     wa_free(wt);
 }
@@ -61,7 +61,7 @@ static void wasm__uv_thread_create(void *fp){
     void *sp=fp;
     _wargref(entry)
     _wargi64(arg)
-    struct libuv_wasmthread *info=wa_malloc(sizeof(struct libuv_wasmthread));
+    struct libuv_wasmthread *info=(struct libuv_wasmthread *)wa_malloc(sizeof(struct libuv_wasmthread));
     info->wasmentry=entry;
     info->arg=arg;
     uv_thread_create(&info->uvt,wasm__uv_wasmthreadentry,info);
@@ -93,6 +93,7 @@ static void wasm__uv_mutex_lock(void *fp){
 static void wasm__uv_mutex_trylock(void *fp){
     void *sp=fp;
     _wargref(mut)
+    sp=fp;
     int err=uv_mutex_trylock(mut);
     pwart_rstack_put_i32(&sp,err);
 }
@@ -131,32 +132,73 @@ static void wasm__uv_cond_wait(void *fp){
     uv_cond_wait(cond,mut);
 }
 
-
 static void wasm__uv_cond_timedwait(void *fp){
     void *sp=fp;
     _wargref(cond)
     _wargref(mut)
     _wargi64(timeout)
+    sp=fp;
     int r=uv_cond_timedwait(cond,mut,timeout);
     pwart_rstack_put_i32(&sp,r);
 }
 
+
+static void wasm__uv_sem_init(void *fp){
+    void *sp=fp;
+    _wargi32(value)
+    sp=fp;
+    void *sem=wa_malloc(sizeof(uv_sem_t));
+    uv_sem_init(sem,value);
+    pwart_rstack_put_ref(&sp,sem);
+}
+
+static void wasm__uv_sem_destroy(void *fp){
+    void *sp=fp;
+    _wargref(sem)
+    uv_sem_destroy(sem);
+    wa_free(sem);
+}
+
+static void wasm__uv_sem_post(void *fp){
+    void *sp=fp;
+    _wargref(sem)
+    uv_sem_post(sem);
+}
+
+static void wasm__uv_sem_wait(void *fp){
+    void *sp=fp;
+    _wargref(sem)
+    uv_sem_wait(sem);
+}
+
+static void wasm__uv_sem_trywait(void *fp){
+    void *sp=fp;
+    _wargref(sem)
+    sp=fp;
+    int r=uv_sem_trywait(sem);
+    pwart_rstack_put_i32(&sp,r);
+}
+
+
 static struct dynarr *uvsyms=NULL;  //type pwart_named_symbol
 
-static char *libuv_funcname_list[]={
+static const char *libuv_funcname_list[]={
     "uv_version","uv_dlopen","uv_dlsym","uv_dlclose","uv_thread_create",
     "uv_mutex_init","uv_mutex_destroy","uv_mutex_lock","uv_mutex_unlock","uv_mutex_trylock",
-    "uv_cond_init","uv_cond_destroy","uv_cond_signal","uv_cond_wait"
+    "uv_cond_init","uv_cond_destroy","uv_cond_signal","uv_cond_wait",
+    "uv_sem_init","uv_sem_destroy","uv_sem_post","uv_sem_wait","uv_sem_trywait"
 };
 static pwart_host_function_c libuv_funcsymbols_list[]={
     &wasm__uv_version,&wasm__uv_dlopen,&wasm__uv_dlsym,&wasm__uv_dlclose,&wasm__uv_thread_create,
     &wasm__uv_mutex_init,&wasm__uv_mutex_destroy,&wasm__uv_mutex_lock,&wasm__uv_mutex_unlock,&wasm__uv_mutex_trylock,
-    &wasm__uv_cond_init,&wasm__uv_cond_destroy,&wasm__uv_cond_signal,&wasm__uv_cond_wait
+    &wasm__uv_cond_init,&wasm__uv_cond_destroy,&wasm__uv_cond_signal,&wasm__uv_cond_wait,
+    &wasm__uv_sem_init,&wasm__uv_sem_destroy,&wasm__uv_sem_post,&wasm__uv_sem_wait,&wasm__uv_sem_trywait
+    
 };
 
 
 extern struct pwart_host_module *pwart_libuv_module_new(){
-    return pwart_namespace_new_host_module(libuv_funcname_list,libuv_funcsymbols_list,14);
+    return pwart_namespace_new_host_module(libuv_funcname_list,libuv_funcsymbols_list,19);
 }
 
 extern char *pwart_libuv_module_delete(struct pwart_host_module *mod){

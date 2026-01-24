@@ -10,7 +10,7 @@ set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 project(pwart)
 
 
-option(PWART_SYSLIB_ENABLED "compile pwart_syslib, require uv_a and libffi_a defined" OFF)
+option(PWART_SYSLIB_ENABLED "compile pwart_syslib, require some dependencies. See deps/pull_deps.py" OFF)
 
 if("${DEPS_SOURCE_DIRS}" STREQUAL "")
   if(NOT ("$ENV{DEPS_SOURCE_DIRS}" STREQUAL ""))
@@ -46,6 +46,9 @@ endif()
 if(NOT TARGET uv_a)
 add_subdirectory("${DEPS_SOURCE_DIRS}/libuv" ./build-libuv EXCLUDE_FROM_ALL)
 endif()
+if(NOT TARGET simpleffi)
+add_subdirectory("${DEPS_SOURCE_DIRS}/simpleffi" ./build-simpleffi EXCLUDE_FROM_ALL)
+endif()
 if(NOT TARGET uvwasi_a)
 add_subdirectory("${DEPS_SOURCE_DIRS}/uvwasi" ./build-uvwasi EXCLUDE_FROM_ALL)
 endif()
@@ -57,10 +60,10 @@ target_include_directories(pwart_wasiexec PUBLIC "${DEPS_SOURCE_DIRS}/uvwasi/inc
 if (TARGET ffi_static)
 message("libffi found, libffi binding is enabled.")
 target_compile_definitions(pwart_syslib PRIVATE -DPWART_SYSLIB_LIBFFI_ENABLED)
-target_link_libraries(pwart_syslib PUBLIC pwart uvwasi_a uv_a ffi_static)
+target_link_libraries(pwart_syslib PUBLIC pwart uvwasi_a uv_a simpleffi ffi_static)
 else()
 message("libffi not found, libffi binding is disabled.")
-target_link_libraries(pwart_syslib PUBLIC pwart uvwasi_a uv_a)
+target_link_libraries(pwart_syslib PUBLIC pwart uvwasi_a uv_a simpleffi)
 endif()
 
 

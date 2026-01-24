@@ -472,7 +472,7 @@ extern char *pwart_wasi_module_init(){
   return NULL;
 }
 
-static char *wasi_funcname_list[]={
+static const char *wasi_funcname_list[]={
   "args_get","args_sizes_get","clock_res_get","clock_time_get","environ_get",
   "environ_sizes_get","fd_advise","fd_allocate","fd_close","fd_datasync",
   "fd_fdstat_get","fd_fdstat_set_flags","fd_fdstat_set_rights","fd_filestat_get","fd_filestat_set_size",

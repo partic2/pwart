@@ -4,15 +4,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-
-#include "./libffi.c"
 #include "./libuv.c"
+#include "./libsimpleffi.c"
+#include "./libffi.c"
 #include "./libwasi.c"
 
 
 static char *enabled_module[]={
     "libuv",
+    "simpleffi",
+#ifdef PWART_SYSLIB_LIBFFI_ENABLED
     "libffi",
+#endif
     NULL
 };
 
@@ -27,10 +30,17 @@ extern char *pwart_syslib_load(pwart_namespace ns){
     mod.val.host=pwart_libuv_module_new();
     char *err=pwart_namespace_define_module(ns,&mod);
     if(err!=NULL)return err;
+
+    mod.name="simpleffi";
+    mod.val.host=pwart_simpleffi_module_new();
+    err=pwart_namespace_define_module(ns,&mod);
+    if(err!=NULL)return err;
+
     mod.name="libffi";
     mod.val.host=pwart_libffi_module_new();
     err=pwart_namespace_define_module(ns,&mod);
     if(err!=NULL)return err;
+
     if(uvwcinited){
         mod.name="wasi_snapshot_preview1";
         mod.val.host=pwart_wasi_module_new();
@@ -42,6 +52,7 @@ extern char *pwart_syslib_load(pwart_namespace ns){
 
 extern char *pwart_syslib_unload(pwart_namespace ns){
     pwart_libuv_module_delete(pwart_namespace_find_module(ns,"libuv")->val.host);
+    pwart_simpleffi_module_delete(pwart_namespace_find_module(ns,"simpleffi")->val.host);
     pwart_libffi_module_delete(pwart_namespace_find_module(ns,"libffi")->val.host);
     pwart_wasi_module_delete(pwart_namespace_find_module(ns,"wasi_snapshot_preview1")->val.host);
     return NULL;

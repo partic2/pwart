@@ -172,7 +172,7 @@ extern char *pwart_free_module_compiler(pwart_module_compiler mod);
 
 /* pwart invoke and runtime stack helper */
 
-/* allocate a stack buffer, with align 16. can only be free by pwart_free_stack. */
+/* allocate a stack buffer, with align 16. can ONLY be free by pwart_free_stack. */
 extern void *pwart_allocate_stack(int size);
 extern void pwart_free_stack(void *stack);
 
@@ -256,8 +256,8 @@ PWART will compile these 'call' instruction into native code, instead of a funct
 
 ref_from_index
 func [const i32 memindex,i32|i64 index]->[ref] 
-STUB function, get "pointer" reference that represent the address specified by the index of memory memindex.
-the memindex must be produced by i32.const xxx.
+STUB function, get the "pointer" that represent the address specified by the index of memory memindex.
+the memindex must be produced by i32/i64.const xxx.
 
 ref_copy_bytes
 func [ref dst,ref src,i32 n]->[] 
@@ -314,7 +314,7 @@ special pwart_wasm_memory that map to the native host memory directly, memory->b
     1. create namespace by pwart_namespace_new.
     2. define host module by pwart_namespace_new_host_module, to provide host function.
     3. pwart_namespace_define_wasm_module to load wasm file into namespace.
-    4. pwart_get_export_function with pwart_module_state return in last step.
+    4. pwart_get_export_function with pwart_module_state return in previous step.
     5. prepare stack by pwart_allocate_stack. pwart_rstack_put_xxx
     6. pwart_call_wasm_function.
 

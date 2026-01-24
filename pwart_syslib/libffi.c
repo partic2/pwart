@@ -254,7 +254,7 @@ static pwart_host_function_c libffi_funcsyms_list[]={wasm__ffi_is_enabled,
 
 static struct dynarr *ffisyms=NULL;  //type pwart_named_symbol
 
-static char *libffi_funcname_list[]={"ffi_is_enabled",
+static const char *libffi_funcname_list[]={"ffi_is_enabled",
     "ffi_prep_cif","ffi_prep_cif_var","ffi_call","ffi_default_abi","ffi_built_in_types",
     "ffix_new_cif","ffix_del_cif","ffix_call","ffi_closure_alloc","ffi_closure_free",
     "ffi_prep_closure_loc","ffix_new_c_callback","ffix_del_c_callback"};
