@@ -65,7 +65,7 @@ def pull(dep_name, repo_url, branch="main"):
 def main():
     pull('simpleffi','https://gitee.com/partic/simpleffi','main')
     pull('libuv','https://gitee.com/partic/libuv-patched','v1.x')
-    pull('libffi','https://gitee.com/partic/libffi','main')
+    # libffi
     pull('uvwasi','https://gitee.com/partic/uvwasi','main')
 
 if __name__=='__main__':

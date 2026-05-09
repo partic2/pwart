@@ -40,9 +40,7 @@ if (NOT DEPS_SOURCE_DIRS)
 get_filename_component(DEPS_SOURCE_DIRS .. ABSOLUTE)
 endif()
 
-if (NOT TARGET ffi_static AND EXISTS ${DEPS_SOURCE_DIRS}/libffi)
-add_subdirectory("${DEPS_SOURCE_DIRS}/libffi" ./build-libffi EXCLUDE_FROM_ALL)
-endif()
+
 if(NOT TARGET uv_a)
 add_subdirectory("${DEPS_SOURCE_DIRS}/libuv" ./build-libuv EXCLUDE_FROM_ALL)
 endif()
@@ -57,15 +55,7 @@ target_include_directories(pwart_syslib PUBLIC "${DEPS_SOURCE_DIRS}/uvwasi/inclu
 target_include_directories(pwart_wasiexec PUBLIC "${DEPS_SOURCE_DIRS}/uvwasi/include")
 
 
-if (TARGET ffi_static)
-message("libffi found, libffi binding is enabled.")
-target_compile_definitions(pwart_syslib PRIVATE -DPWART_SYSLIB_LIBFFI_ENABLED)
-target_link_libraries(pwart_syslib PUBLIC pwart uvwasi_a uv_a simpleffi ffi_static)
-else()
-message("libffi not found, libffi binding is disabled.")
 target_link_libraries(pwart_syslib PUBLIC pwart uvwasi_a uv_a simpleffi)
-endif()
-
 
 target_link_libraries(pwart_wasiexec pwart_syslib)
 endif(PWART_SYSLIB_ENABLED)

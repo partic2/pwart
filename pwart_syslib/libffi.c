@@ -1,14 +1,14 @@
 #ifndef _PWART_SYSLIB_LIBFFI_C
 #define _PWART_SYSLIB_LIBFFI_C
 
-#include <ffi.h>
+
 #include <pwart.h>
 
 #include "./util.c"
 
 
 #ifdef PWART_SYSLIB_LIBFFI_ENABLED
-
+#include <ffi.h>
 /* Check if available before call any other ffi function. */
 static void wasm__ffi_is_enabled(void *fp){
     void *sp=fp;
