@@ -53,10 +53,6 @@ struct pwart_global_compile_config{
     char misc_flags;
 };
 
-/* If set, elements on stack will align to its size, and function frame base will align to 8. 
-Some archs require this flag to avoid BUS error. So this flag is set by default. And may be forced to enabled in future.*/
-#define PWART_STACK_FLAGS_AUTO_ALIGN 1
-
 /* If set, 32bit index will be always extended to 64bit on 64bit host on loading/storing.  
 Some processor, like risc-v64, extend sign bit , require this flag to use index larger than 2GB.
 In most case, this flag is not necessary and may slow the generated code. 

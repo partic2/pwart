@@ -156,12 +156,10 @@ extern void pwart_rstack_put_i32(void **sp,int val){
     *sp+=4;
 }
 extern void pwart_rstack_put_i64(void **sp,long long val){
-    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-        size_t spv=(size_t)*sp;
-        int t=(size_t)spv&7;
-        if(t>0){
-            *sp=(void *)(spv+8-t);
-        }
+    size_t spv=(size_t)*sp;
+    int t=(size_t)spv&7;
+    if(t>0){
+        *sp=(void *)(spv+8-t);
     }
     *(int64_t *)(*sp)=val;
     *sp+=8;
@@ -171,23 +169,19 @@ extern void pwart_rstack_put_f32(void **sp,float val){
     *sp+=4;
 }
 extern void pwart_rstack_put_f64(void **sp,double val){
-    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-        size_t spv=(size_t)*sp;
-        int t=(size_t)spv&7;
-        if(t>0){
-            *sp=(void *)(spv+8-t);
-        }
+    size_t spv=(size_t)*sp;
+    int t=(size_t)spv&7;
+    if(t>0){
+        *sp=(void *)(spv+8-t);
     }
     *(double *)(*sp)=val;
     *sp+=8;
 }
 extern void pwart_rstack_put_ref(void **sp,void *val){
-    if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN)&&(sizeof(void *)==8)){
-        size_t spv=(size_t)*sp;
-        int t=(size_t)spv&7;
-        if(t>0){
-            *sp=(void *)(spv+8-t);
-        }
+    size_t spv=(size_t)*sp;
+    int t=(size_t)spv&7;
+    if(t>0){
+        *sp=(void *)(spv+8-t);
     }
     *(void **)(*sp)=val;
     *sp+=sizeof(void *);
@@ -199,12 +193,10 @@ extern int pwart_rstack_get_i32(void **sp){
     return *sp2;
 }
 extern long long pwart_rstack_get_i64(void **sp){
-    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-        size_t spv=(size_t)*sp;
-        int t=(size_t)spv&7;
-        if(t>0){
-            *sp=(void *)(spv+8-t);
-        }
+    size_t spv=(size_t)*sp;
+    int t=(size_t)spv&7;
+    if(t>0){
+        *sp=(void *)(spv+8-t);
     }
     int64_t *sp2=*sp;
     *sp+=8;
@@ -216,19 +208,17 @@ extern float pwart_rstack_get_f32(void **sp){
     return *sp2;
 }
 extern double pwart_rstack_get_f64(void **sp){
-    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-        size_t spv=(size_t)*sp;
-        int t=(size_t)spv&7;
-        if(t>0){
-            *sp=(void *)(spv+8-t);
-        }
+    size_t spv=(size_t)*sp;
+    int t=(size_t)spv&7;
+    if(t>0){
+        *sp=(void *)(spv+8-t);
     }
     double *sp2=*sp;
     *sp+=8;
     return *sp2;
 }
 extern void *pwart_rstack_get_ref(void **sp){
-    if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN)&&(sizeof(void *)==8)){
+    if(sizeof(void *)==8){
         size_t spv=(size_t)*sp;
         int t=(size_t)spv&7;
         if(t>0){

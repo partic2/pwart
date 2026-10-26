@@ -1294,7 +1294,7 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
                      sv->val.tworeg.opr2, 0, SLJIT_IMM, 31);
     } else {
       a = pwart_GetFreeReg(m, RT_INTEGER, 1);
-      sljit_emit_op1(m->jitc, SLJIT_MOV_S8, a, 0, sv->val.op, sv->val.opw);
+      sljit_emit_op1(m->jitc, SLJIT_MOV_S16, a, 0, sv->val.op, sv->val.opw);
       sv->val.op = a;
       sv->val.opw = 0;
     }
@@ -1307,7 +1307,7 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
                      sv->val.tworeg.opr1, 0, SLJIT_IMM, 31);
     } else {
       a = pwart_GetFreeReg(m, RT_INTEGER, 1);
-      sljit_emit_op1(m->jitc, SLJIT_MOV_S8, a, 0, sv->val.op, sv->val.opw);
+      sljit_emit_op1(m->jitc, SLJIT_MOV_S32, a, 0, sv->val.op, sv->val.opw);
       sv->val.op = a;
       sv->val.opw = 0;
     }

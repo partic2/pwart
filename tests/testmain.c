@@ -66,7 +66,7 @@ int test1() {
   fclose(f);
 
   pwart_get_global_compile_config(&gcfg);
-  for (int i1 = 0; i1 < 2; i1++) {
+  for (int i1 = 0; i1 < 1; i1++) {
     pwart_module_compiler m = pwart_new_module_compiler();
     pwart_set_symbol_resolver(m, &symbol_resolver);
     // different config
@@ -75,8 +75,7 @@ int test1() {
       printf("test config:default\n");
       break;
     case 1:
-      printf("test config:stack_flags=PWART_STACK_FLAGS_AUTO_ALIGN\n");
-      gcfg.stack_flags|=PWART_STACK_FLAGS_AUTO_ALIGN;
+    // Other config...
       pwart_set_global_compile_config(&gcfg);
       break;
     }

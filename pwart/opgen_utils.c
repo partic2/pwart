@@ -316,9 +316,7 @@ static StackValue *stackvalue_Push(ModuleCompiler *m, int32_t wasm_type) {
   } else {
     sv = sv2 - 1;
     sv2->frame_offset = sv->frame_offset + stackvalue_GetSizeAndAlign(sv, NULL);
-    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-      sv2->frame_offset=stackvalue_GetAlignedOffset(sv2,sv2->frame_offset,NULL);
-    }
+    sv2->frame_offset=stackvalue_GetAlignedOffset(sv2,sv2->frame_offset,NULL);
   }
   wa_assert(m->sp<OPERAND_STACK_COUNT-1,"operand stack overflow");
   return sv2;
@@ -381,7 +379,7 @@ static char *pwart_EmitCallFunc2(ModuleCompiler *m, Type *type, sljit_s32 memreg
   }
   sv = m->stack+m->sp + 1; // first argument
 
-  if((pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN) && ((sv->frame_offset&7)>0)){
+  if((sv->frame_offset&7)>0){
     //XXX: move stack value to align frame to 8 ,we should avoid this happen.
     sv->frame_offset+=4;
     if(len>0){
@@ -483,13 +481,8 @@ static char *pwart_EmitFuncReturn(ModuleCompiler *m) {
   }
   for (idx = 0; idx < len; idx++) {
     sv = &m->stack[m->sp - len + idx + 1];
-    if(pwart_gcfg.stack_flags & PWART_STACK_FLAGS_AUTO_ALIGN){
-      pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0),
-        stackvalue_GetAlignedOffset(sv,off,&off));
-    }else{
-      pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0), off);
-      off += stackvalue_GetSizeAndAlign(sv, NULL);
-    }
+    pwart_EmitStoreStackValue(m, sv, SLJIT_MEM1(SLJIT_S0),
+      stackvalue_GetAlignedOffset(sv,off,&off));
   }
   #if PWART_DEBUG_RUNTIME_PROBE
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc);
@@ -656,12 +649,7 @@ static char* pwart_EmitFuncEnter(ModuleCompiler *m) {
     sv->wasm_type = m->function_type->params[i];
     sv->jit_type = SVT_GENERAL;
     sv->val.op = SLJIT_MEM1(SLJIT_S0);
-    if(pwart_gcfg.stack_flags&PWART_STACK_FLAGS_AUTO_ALIGN){
-      sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
-    }else{
-      sv->val.opw=nextLoc;
-      nextLoc+=stackvalue_GetSizeAndAlign(sv,NULL);
-    }
+    sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
   }
   m->first_stackvalue_offset = nextLoc;
 
@@ -698,7 +686,6 @@ static char* pwart_EmitFuncEnter(ModuleCompiler *m) {
         }
       }
       sv->val.op = SLJIT_MEM1(SLJIT_SP);
-      //XXX: we force local variable aligned, no mater PWART_STACK_FLAGS_AUTO_ALIGN flags is set.
       sv->val.opw = stackvalue_GetAlignedOffset(sv,nextLoc,&nextLoc);
     } else {
       if (stackvalue_IsFloat(sv)) {
@@ -805,7 +792,6 @@ static void opgen_GenF32Const(ModuleCompiler *m, uint8_t *c) {
   sv->val.op = SLJIT_IMM;
   //use memmove to avoid align error.
   memmove(&sv->val.opw,c,4);
-  sv->val.opw = *(sljit_s32 *)c;
   // sljit only allow load float from memory
   pwart_EmitSaveStack(m, sv);
 }

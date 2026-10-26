@@ -284,7 +284,7 @@ static void insn_f64converti64s(double *fp){
 static void insn_f64converti64u(double *fp){
   *fp = (double)(*(uint64_t *)fp);
 }
-// keep argument aligned, to avoid effect from PWART_STACK_FLAGS_AUTO_ALIGN.
+
 // (i32 delta, i32 memory_index,ref runtime_context)
 static void insn_memorygrow(void *fp){
   void *sp=fp;
@@ -684,7 +684,7 @@ static void insn_host_definition(void *fp){
 #include <errno.h>
 #define _wargref(vname) void *vname=pwart_rstack_get_ref(&sp);
 #define _wargi32(vname) uint32_t vname=pwart_rstack_get_i32(&sp);
-#define _wargi64(vname) uint64_t vname=pwart_rstack_get_i32(&sp);
+#define _wargi64(vname) uint64_t vname=pwart_rstack_get_i64(&sp);
 static void insn_fopen(void *fp){
   void *sp=fp;
   _wargref(filename)
