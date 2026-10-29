@@ -449,7 +449,7 @@ static uint8_t types_ref_i32_i32_ref_i32[]={WVT_REF,WVT_I32,WVT_I32,WVT_REF,WVT_
 static Type func_type_ret_void = {.params = types_void, .results = types_void};
 static Type func_type_ret_i32 = {.params = types_void, .results = types_i32};
 static Type func_type_ret_i64 = {.params = types_void, .results = types_i64};
-static Type func_type_ret_f32 = {.params = types_void, .results = types_i32};
+static Type func_type_ret_f32 = {.params = types_void, .results = types_f32};
 static Type func_type_ret_f64 = {.params = types_void, .results = types_f64};
 static Type func_type_i64_ret_i32 = {.params = types_i64, .results = types_i32};
 static Type func_type_i64_ret_i64 = {.params = types_i64, .results = types_i64};

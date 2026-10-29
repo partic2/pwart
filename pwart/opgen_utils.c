@@ -361,7 +361,7 @@ static char *pwart_EmitCallFunc2(ModuleCompiler *m, Type *type, sljit_s32 memreg
   StackValue *sv;
   int a, b, len,func_frame_offset;
   int i;
-  //Caution: Do not use scratch register before sljit_emit_icall to avoid overwrite [memreg,offset]
+  //Caution: Do not use scratch register before call emission to avoid overwrite [memreg,offset]
   //XXX: Maybe we need use RS_RESERVED to avoid unexpected overwrite.
   len = strlen((const char *)type->params);
   pwart_EmitSaveScratchRegisterAll(m,0);
@@ -431,8 +431,13 @@ static char *pwart_EmitCallFunc2(ModuleCompiler *m, Type *type, sljit_s32 memreg
 
   a=SLJIT_CALL;
   if(callReturn)a|=SLJIT_CALL_RETURN;
-  sljit_emit_icall(m->jitc, a, SLJIT_ARGS1V(W), memreg,
-                   offset);
+  if(memreg == SLJIT_IMM) {
+    struct sljit_jump *jump = sljit_emit_call(m->jitc, a, SLJIT_ARGS1V(W));
+    sljit_set_target(jump, (sljit_uw)offset);
+  } else {
+    sljit_emit_icall(m->jitc, a, SLJIT_ARGS1V(W), memreg,
+                     offset);
+  }
 
   if(callReturn){
     m->block_returned=1;
@@ -486,7 +491,8 @@ static char *pwart_EmitFuncReturn(ModuleCompiler *m) {
   }
   #if PWART_DEBUG_RUNTIME_PROBE
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintFuncReturn);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintFuncReturn); }
   #endif
   sljit_emit_return_void(m->jitc);
   return NULL;
@@ -745,7 +751,7 @@ static char* pwart_EmitFuncEnter(ModuleCompiler *m) {
         opgen_GenF32Const(m,(uint8_t *)&f32zero);
         break;
         case WVT_F64:
-        opgen_GenF32Const(m,(uint8_t *)&f64zero);
+        opgen_GenF64Const(m,(uint8_t *)&f64zero);
         break;
         case WVT_I32:
         opgen_GenI32Const(m,0);
@@ -763,7 +769,8 @@ static char* pwart_EmitFuncEnter(ModuleCompiler *m) {
   }
   #if PWART_DEBUG_RUNTIME_PROBE
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc+1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintFuncEnter);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintFuncEnter); }
   #endif
   return NULL;
 }

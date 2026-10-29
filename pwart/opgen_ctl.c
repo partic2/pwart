@@ -21,7 +21,8 @@ static void opgen_GenBlock(ModuleCompiler *m,int stackOffset) {
   block->saved_sp=m->sp;
   #if PWART_DEBUG_RUNTIME_PROBE
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintBlockInstr); }
   #endif
 }
 /* blktype 0x40 indicating the empty type. */
@@ -35,7 +36,8 @@ static void opgen_GenLoop(ModuleCompiler *m,int stackOffset) {
   block->saved_sp=m->sp;
   #if PWART_DEBUG_RUNTIME_PROBE
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintBlockInstr); }
   #endif
 }
 /* blktype 0x40 indicating the empty type. */
@@ -51,7 +53,8 @@ static void opgen_GenIf(ModuleCompiler *m,int stackOffset) {
   #if PWART_DEBUG_RUNTIME_PROBE
   pwart_EmitSaveStackAll(m);
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintBlockInstr); }
   #endif
   block = dynarr_push_type(&m->blocks, Block);
   block->block_type = 0x4;
@@ -84,7 +87,8 @@ static void opgen_GenElse(ModuleCompiler *m) {
   m->sp=block->saved_sp;
   #if PWART_DEBUG_RUNTIME_PROBE
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintBlockInstr); }
   #endif
 }
 
@@ -118,7 +122,8 @@ static void opgen_GenEnd(ModuleCompiler *m) {
   m->block_returned=0;
   #if PWART_DEBUG_RUNTIME_PROBE
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintBlockInstr); }
   #endif
 }
 
@@ -127,7 +132,8 @@ static void opgen_GenBr(ModuleCompiler *m, int32_t depth) {
   pwart_EmitSaveStackAll(m);
   #if PWART_DEBUG_RUNTIME_PROBE
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintBlockInstr); }
   #endif
   block = dynarr_get(m->blocks, Block, m->blocks->len - 1 - depth);
   if (block->br_label != NULL) {
@@ -153,7 +159,8 @@ static void opgen_GenBrIf(ModuleCompiler *m, int32_t depth) {
   #if PWART_DEBUG_RUNTIME_PROBE
   pwart_EmitSaveStackAll(m);
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintBlockInstr); }
   #endif
   block = dynarr_get(m->blocks, Block, m->blocks->len - 1 - depth);
   if (sv->jit_type == SVT_CMP) {
@@ -194,7 +201,8 @@ static void opgen_GenBrTable(ModuleCompiler *m) {
   #if PWART_DEBUG_RUNTIME_PROBE
   pwart_EmitSaveStackAll(m);
   sljit_emit_op1(m->jitc,SLJIT_MOV,SLJIT_R0,0,SLJIT_IMM,m->pc-1);
-  sljit_emit_icall(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W),SLJIT_IMM,(sljit_sw)&debug_PrintBlockInstr);
+  { struct sljit_jump *jump = sljit_emit_call(m->jitc,SLJIT_CALL,SLJIT_ARGS1(VOID,W));
+    sljit_set_target(jump,(sljit_sw)&debug_PrintBlockInstr); }
   #endif
   pwart_EmitStackValueLoadReg(m, sv);
   for (a = 0; a < count; a++) {
@@ -244,10 +252,14 @@ static void opgen_GenCall(ModuleCompiler *m, int32_t fidx, int callReturn) {
   Type *type;
   fn = dynarr_get(m->functions, WasmFunction, fidx);
   if(!pwart_CheckAndGenStubFunction(m,fn->func_ptr)){
-    a = pwart_GetFreeReg(m, RT_BASE, 0);
-    sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM,(sljit_uw)(m->context->funcentries+fidx));
     type = dynarr_get(m->types, Type, fn->tidx);
-    pwart_EmitCallFunc2(m, type, SLJIT_MEM1(a), 0,callReturn);
+    if(fn->func_ptr) {
+      pwart_EmitCallFunc2(m, type, SLJIT_IMM, (sljit_sw)fn->func_ptr, callReturn);
+    } else {
+      a = pwart_GetFreeReg(m, RT_BASE, 0);
+      sljit_emit_op1(m->jitc, SLJIT_MOV, a, 0, SLJIT_IMM,(sljit_uw)(m->context->funcentries+fidx));
+      pwart_EmitCallFunc2(m, type, SLJIT_MEM1(a), 0,callReturn);
+    }
   }
 }
 

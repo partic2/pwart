@@ -1186,12 +1186,12 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
     break;
   case 0xb8: // f64.convert_i32_u
     pwart_EmitCallFunc(m, &func_type_i32_ret_f64, SLJIT_IMM,
-                       (sljit_sw)insn_f64converti32u);
+                       (sljit_sw)&insn_f64converti32u);
     break;
   case 0xb9: // f64.convert_i64_s
     if (m->target_ptr_size == 32) {
       pwart_EmitCallFunc(m, &func_type_i64_ret_f64, SLJIT_IMM,
-                         (sljit_sw)insn_f64converti64s);
+                         (sljit_sw)&insn_f64converti64s);
     } else {
       sv = &stack[m->sp];
       a = pwart_GetFreeReg(m, RT_FLOAT, 1);
@@ -1206,7 +1206,7 @@ static void opgen_GenConvertOp(ModuleCompiler *m,int opcode){
     break;
   case 0xba: // f64.convert_i64_u
     pwart_EmitCallFunc(m, &func_type_i64_ret_f64, SLJIT_IMM,
-                       (sljit_sw)insn_f64converti64u);
+                       (sljit_sw)&insn_f64converti64u);
     break;
   case 0xbb: // f64.promote_f32
     sv = &stack[m->sp];
