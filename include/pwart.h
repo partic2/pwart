@@ -13,6 +13,7 @@
 struct pwart_symbol_resolve_request{
     const char *import_module;
     const char *import_field;
+    const char *importer_name;
     uint32_t kind;
     void *result;
 };
@@ -341,6 +342,8 @@ struct pwart_named_module{
         struct pwart_host_module *host;
         pwart_module_state wasm;
     } val;
+    struct pwart_symbol_resolver resolver;
+    pwart_namespace *namespace2;
 };
 
 extern pwart_namespace pwart_namespace_new();

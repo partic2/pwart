@@ -16,7 +16,7 @@ if("${DEPS_SOURCE_DIRS}" STREQUAL "")
   if(NOT ("$ENV{DEPS_SOURCE_DIRS}" STREQUAL ""))
     set(DEPS_SOURCE_DIRS $ENV{DEPS_SOURCE_DIRS})
   else()
-    get_filename_component(DEPS_SOURCE_DIRS ../deps ABSOLUTE)
+    get_filename_component(DEPS_SOURCE_DIRS deps ABSOLUTE)
   endif()
 endif()
 

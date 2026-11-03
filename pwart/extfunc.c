@@ -391,7 +391,7 @@ static void insn_load_module(void *fp){
   char *wasm_bytes=pwart_rstack_get_ref(&sp);
   uint32_t length=pwart_rstack_get_i32(&sp);
   sp=fp;
-  Namespace *ns=namespace_GetNamespaceFormResolver(m->resolver);
+  Namespace *ns=(Namespace *)namespace_GetNamedModuleFromResolver(m->resolver)->namespace2;
   char *err_msg=NULL;
   pwart_module_state stat=pwart_namespace_define_wasm_module((pwart_namespace)ns,name,wasm_bytes,length,&err_msg);
   pwart_wasm_function stfn=pwart_get_start_function(stat);
@@ -405,7 +405,7 @@ static void insn_unload_module(void *fp){
   void *sp=fp;
   RuntimeContext *m=(RuntimeContext *)pwart_rstack_get_ref(&sp);
   char *name=pwart_rstack_get_ref(&sp);
-  Namespace *ns=namespace_GetNamespaceFormResolver(m->resolver);
+  Namespace *ns=(Namespace *)namespace_GetNamedModuleFromResolver(m->resolver)->namespace2;
   char *err_msg=NULL;
   err_msg=pwart_namespace_remove_module((pwart_namespace)ns,name);
   sp=fp;
@@ -420,7 +420,7 @@ static void insn_import(void *fp){
   req.import_field=pwart_rstack_get_ref(&sp);
   req.kind=pwart_rstack_get_i32(&sp);
   req.result=NULL;
-  Namespace *ns=namespace_GetNamespaceFormResolver(m->resolver);
+  Namespace *ns=(Namespace *)namespace_GetNamedModuleFromResolver(m->resolver)->namespace2;
   ns->resolver.resolve(&ns->resolver,&req);
   sp=fp;
   pwart_rstack_put_ref(&sp,req.result);

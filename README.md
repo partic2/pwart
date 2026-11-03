@@ -59,7 +59,7 @@ and [tests/Makefile](tests/Makefile) for detail usage.
 
 ## SYSLIB and WASI Support
 
-There are experimental Runtime Core Library(SYSLIB) and WASI Support, can be enabled by `-DPWART_SYSLIB_ENABLED=ON` in CMake. And you need to pull the dependencies ([libuv](https://github.com/libuv/libuv), [libffi with cmake(optional)](https://github.com/partic2/libffi), [uvwasi](https://github.com/nodejs/uvwasi)) by using `python deps/pull_deps`.py*
+There are experimental Runtime Core Library(SYSLIB) and WASI Support, can be enabled by `-DPWART_SYSLIB_ENABLED=ON` in CMake. And you need to pull the dependencies ([libuv](https://github.com/libuv/libuv), [uvwasi](https://github.com/nodejs/uvwasi)) by using `python deps/pull_deps`.py*
 
 The `pwart_wasiexec` can be used to execute a WASI module, and you can also use `libpwart_syslib.a` to embed the library. See also [include/pwart_syslib.h](include/pwart_syslib.h) 
 

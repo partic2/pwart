@@ -61,7 +61,7 @@ int test1() {
   FILE *f = fopen("test1.wasm", "rb");
   if(f==NULL){printf("open wasm file failed.\n");return 0;}
   // 8MB buffer;
-  uint8_t *data = malloc(1024 * 1024 * 8);
+  char *data = malloc(1024 * 1024 * 8);
   int len = fread(data, 1, 1024 * 1024 * 8, f);
   fclose(f);
 
@@ -1426,7 +1426,7 @@ int convert_test() {
   fn = pwart_get_export_function(ctx, "i64_extend_i16_s");
   sp = stackbase;
   pwart_call_wasm_function(fn, sp);
-  printf("i64_extend_i8_s check...");
+  printf("i64_extend_i16_s check...");
   if (*(int64_t *)sp != -16) {
     printf("failed, expect %d, got %"PRId64"\n", -16, *(int64_t *)sp);
     return 0;

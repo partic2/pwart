@@ -87,10 +87,10 @@ int namespace_test(){
     return 0;
   }
   struct pwart_symbol_resolve_request req;
+  memset(&req,0,sizeof(req));
   req.import_field="test1";
   req.import_module="extension1";
   req.kind=PWART_KIND_FUNCTION;
-  req.result=NULL;
   pwart_namespace_resolver(ns)->resolve(pwart_namespace_resolver(ns),&req);
   if(req.result==NULL){
     printf("error occur:%s\n","import extension1.test1 failed");
@@ -106,7 +106,7 @@ int namespace_test(){
     return 0;
   }
   printf("pass\n");
-
+  
   req.import_field="mbase";
   req.kind=PWART_KIND_GLOBAL;
   req.result=NULL;

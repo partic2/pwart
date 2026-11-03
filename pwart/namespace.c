@@ -3,23 +3,31 @@
 #define _PWART_NAMESPACE_C
 
 #include <pwart.h>
-
+#include <stddef.h>
 #include "def.h"
 
 #include "util.c"
 
-static Namespace *namespace_GetNamespaceFormResolver(struct pwart_symbol_resolver *_this){
-    return (Namespace *)_this;
+static struct pwart_named_module *namespace_GetNamedModuleFromResolver(struct pwart_symbol_resolver *_this){
+    return (struct pwart_named_module *)(((char *)_this)-offsetof(struct pwart_named_module,resolver));
 }
 
 extern struct pwart_symbol_resolver *pwart_namespace_resolver(pwart_namespace ns){
     return &((Namespace *)ns)->resolver;
 }
 
-static void namespace_SymbolResolve(struct pwart_symbol_resolver *_this,struct pwart_symbol_resolve_request *req){
-    Namespace *n=namespace_GetNamespaceFormResolver(_this);
-    struct pwart_named_module *m=pwart_namespace_find_module(n,req->import_module);
+static void namespace_SymbolResolveForModule(struct pwart_symbol_resolver *_this,struct pwart_symbol_resolve_request *req){
+    struct pwart_named_module *importer=namespace_GetNamedModuleFromResolver(_this);
+    Namespace *n=(Namespace *)importer->namespace2;
     req->result=NULL;
+    req->importer_name=importer->name;
+    n->resolver.resolve(&n->resolver,req);
+    return;
+}
+static void namespace_SymbolResolveForNamespace(struct pwart_symbol_resolver *_this,struct pwart_symbol_resolve_request *req){
+    Namespace *n=(Namespace *)((char *)_this-offsetof(Namespace,resolver));
+    req->result=NULL;
+    struct pwart_named_module *m=pwart_namespace_find_module(n,req->import_module);
     if(m==NULL){
         return;
     }
@@ -44,7 +52,6 @@ static void namespace_SymbolResolve(struct pwart_symbol_resolver *_this,struct p
             }
             break;
     }
-    return;
 }
 
 static const char *nsmetaSymbolNames[]={"this"};
@@ -52,7 +59,7 @@ static const char *nsmetaSymbolNames[]={"this"};
 extern pwart_namespace pwart_namespace_new(){
     Namespace *ns=(Namespace *)wa_calloc(sizeof(Namespace));
     dynarr_init(&ns->mods,sizeof(struct pwart_named_module));
-    ns->resolver.resolve=&namespace_SymbolResolve;
+    ns->resolver.resolve=&namespace_SymbolResolveForNamespace;
     ns->nsmetasyms[0]=ns;
     ns->nsmeta=pwart_namespace_new_host_module2(nsmetaSymbolNames, &ns->nsmetasyms[0], 1);
     pwart_namespace_define_host_module(ns,"pwart_namespace_meta", ns->nsmeta);
@@ -122,6 +129,8 @@ extern char *pwart_namespace_define_module(pwart_namespace ns,struct pwart_named
     }else{
         m=dynarr_push_type(&n->mods,struct pwart_named_module);
     }
+    mod->namespace2=ns;
+    mod->resolver.resolve=&namespace_SymbolResolveForModule;
     memmove(m,mod,sizeof(struct pwart_named_module));
     switch(m->type){
         case PWART_MODULE_TYPE_HOST_MODULE:
@@ -131,7 +140,7 @@ extern char *pwart_namespace_define_module(pwart_namespace ns,struct pwart_named
         }
         break;
         case PWART_MODULE_TYPE_WASM_MODULE:
-        pwart_set_state_symbol_resolver(m->val.wasm,&n->resolver);
+        pwart_set_state_symbol_resolver(m->val.wasm,&mod->resolver);
         ((RuntimeContext *)m->val.wasm)->is_in_namespace=1;
         break;
     }
@@ -185,6 +194,7 @@ static void namespace_InternalHostModuleSymbolResolver(struct pwart_host_module 
             break;
         }
     }
+    return;
 }
 
 extern struct pwart_host_module *pwart_namespace_new_host_module(const char **names,pwart_host_function_c *funcs,int length){
