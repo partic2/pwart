@@ -35,22 +35,32 @@ static void namespace_SymbolResolveForNamespace(struct pwart_symbol_resolver *_t
         case PWART_MODULE_TYPE_HOST_MODULE:
             m->val.host->resolve(m->val.host,req);
             break;
-        case PWART_MODULE_TYPE_WASM_MODULE:
-            switch(req->kind){
-                case PWART_KIND_FUNCTION:
-                req->result=pwart_get_export_function(m->val.wasm,req->import_field);
-                break;
-                case PWART_KIND_GLOBAL:
-                req->result=pwart_get_export_global(m->val.wasm,req->import_field);
-                break;
-                case PWART_KIND_TABLE:
-                req->result=pwart_get_export_table(m->val.wasm,req->import_field);
-                break;
-                case PWART_KIND_MEMORY:
-                req->result=pwart_get_export_memory(m->val.wasm,req->import_field);
-                break;
+        case PWART_MODULE_TYPE_WASM_MODULE:{
+            pwart_wasm_function resolver=pwart_get_export_function(m->val.wasm,"__pwart_resolve_symbol");
+            if(resolver!=NULL){
+                void *stack=pwart_allocate_stack(4096);
+                void *sp=stack;
+                pwart_rstack_put_ref(&sp, req);
+                pwart_rstack_put_i32(&sp,sizeof(struct pwart_symbol_resolve_request));
+                pwart_call_wasm_function(resolver, stack);
+                pwart_free_stack(stack);
+            }else{
+                switch(req->kind){
+                    case PWART_KIND_FUNCTION:
+                    req->result=pwart_get_export_function(m->val.wasm,req->import_field);
+                    break;
+                    case PWART_KIND_GLOBAL:
+                    req->result=pwart_get_export_global(m->val.wasm,req->import_field);
+                    break;
+                    case PWART_KIND_TABLE:
+                    req->result=pwart_get_export_table(m->val.wasm,req->import_field);
+                    break;
+                    case PWART_KIND_MEMORY:
+                    req->result=pwart_get_export_memory(m->val.wasm,req->import_field);
+                    break;
+                }
             }
-            break;
+        }break;
     }
 }
 

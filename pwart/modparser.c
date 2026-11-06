@@ -3,6 +3,7 @@
 
 #include "def.h"
 #include "wagen.c"
+#include <math.h>
 
 // Reads a string from the bytes array at pos that starts with a LEB length
 // the length of string(include tailing 0) must less than maxlen, or the function read nothing.
@@ -188,7 +189,7 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                       import_field);
 
                 uint32_t type_index = 0, fidx;
-                uint8_t content_type = 0, mutability;
+                uint8_t content_type = 0, mutability=0;
 
                 switch (external_kind) {
                 case PWART_KIND_FUNCTION:
@@ -201,7 +202,6 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                     content_type = read_LEB(bytes, &pos, 7);
                     // TODO: use mutability
                     mutability = read_LEB(bytes, &pos, 1);
-                    (void)mutability; break;
                 }
 
                 
@@ -276,8 +276,32 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
                     StackValue *sv;
                     sv=dynarr_push_type(&m->globals,StackValue);
                     sv->wasm_type=content_type;
-                    sv->val.op=SLJIT_IMM|SLJIT_MEM;
-                    sv->val.opw=(sljit_sw)val;
+                    if(mutability){
+                        sv->val.op=SLJIT_IMM|SLJIT_MEM;
+                        sv->val.opw=(sljit_sw)val;
+                    }else{
+                        sv->val.op=SLJIT_IMM;
+                        sv->jit_type=SVT_GENERAL;
+                        switch(content_type){
+                            case WVT_I64:
+                            case WVT_F64:
+                                if(m->target_ptr_size==32){
+                                    sv->jit_type=SVT_I64CONST;
+                                    sv->val.const64=*((uint64_t *)val);
+                                }else{
+                                    sv->val.opw=*((sljit_sw *)val);
+                                }
+                                break;
+                            case WVT_I32:
+                            case WVT_F32:
+                                sv->val.opw=(sljit_sw)(*(uint32_t *)val);
+                                break;
+                            default:
+                                sv->val.op=SLJIT_IMM|SLJIT_MEM;
+                                sv->val.opw=(sljit_sw)val;
+                                break;
+                        }
+                    }
                 }break;
                 default:
                     wa_debug("Import of kind %d not supported\n", external_kind);
@@ -327,11 +351,11 @@ static char *load_module(ModuleCompiler *m,uint8_t *bytes, uint32_t byte_count) 
             for(int i=0;i<memory_count;i++){
                 Memory *memory=m->context->own_memories+i;
                 parse_memory_type(m, &pos,memory);
-                //XXX: custom memory creator?
+                //XXX: custom memory alloctor?
                 if(memory->fixed){
-                    memory->bytes = wa_calloc(memory->initial*PAGE_SIZE);
-                }else{
                     memory->bytes = wa_calloc(memory->maximum*PAGE_SIZE);
+                }else{
+                    memory->bytes = wa_calloc(memory->initial*PAGE_SIZE);
                 }
                 *dynarr_push_type(&m->context->memories,Memory *)=memory;
             }

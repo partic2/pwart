@@ -13,11 +13,9 @@
 (import "libuv" "uv_dlopen" (func $uv_dlopen (param funcref)(result funcref i32)))
 (import "libuv" "uv_dlsym" (func $uv_dlsym (param funcref funcref)(result funcref)))
 (import "libuv" "uv_dlclose" (func $uv_dlcose (param funcref)))
-(import "libffi" "ffi_is_enabled" (func $ffi_is_enabled (result i32)))
-(import "libffi" "ffix_new_cif" (func $ffix_new_cif (param funcref)(result funcref i32)))
-(import "libffi" "ffi_call" (func $ffi_call (param funcref funcref funcref funcref)(result i32)))
-(import "libffi" "ffix_call" (func $ffix_call (param funcref funcref funcref funcref)(result i32)))
-(import "libffi" "ffix_new_c_callback" (func $ffix_new_c_callback (param funcref funcref funcref)(result funcref funcref)))
+(import "simpleffi" "simpleffi_call" (func $simpleffi_call (param funcref i32 funcref)(result i64)))
+(import "simpleffi" "simpleffi_get_callback" (func $simpleffi_get_callback (param i32)(result funcref)))
+(import "simpleffi" "simpleffi_set_callback_handler" (func $simpleffi_set_callback_handler (param i32 funcref)))
 (import "pwart_builtin" "native_memory" (memory i64 10000))
 
 (import "testaid" "printi64" (func $printi64 (param i64) (result i64) ))
@@ -30,9 +28,8 @@
 (data (memory $mem0) (i32.const 0) "!\n\00\n\\0")
 (data (memory $mem0) (i32.const 64) "ffitest.dll\00")
   (data (memory $mem0) (i32.const 288) "add\00")
-  (data (memory $mem0) (i32.const 296) "iip>i\00")
   (data (memory $mem0) (i32.const 312) "\03\00\00\00\00\00\00\00\04\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00")
-  (data (memory $mem0) (i32.const 428) "\00\00\00\00")
+  (data (memory $mem0) (i32.const 428) "\00\00\00\00\00\00\00\00")
 
   (func $cbadd (param $cif funcref)(param $ret funcref)(param $args funcref)(param $userdata funcref)
   (local $argsbase i64) (local $result i32)
@@ -57,12 +54,6 @@
     (local $dll funcref) (local $fn funcref) (local $cif funcref) (local $ccb funcref)
     (local $bp$ i32) (local $fp$ i32) (local $i1$ i32) 
 
-    call $ffi_is_enabled
-    i32.eqz 
-    if 
-    i32.const 0
-    return
-    end
     
     global.get $crt:sp$
     local.set $bp$
@@ -87,34 +78,21 @@
     (drop (call $printi64 (i64.const 200)))
     call $uv_dlsym
     local.set $fn
-    i32.const 1
-    i32.const 296
-    call $ref_from_index
+
     (drop (call $printi64 (i64.const 300)))
-    call $ffix_new_cif
-    drop
-    local.set $cif
-
-
-    local.get $cif
+    
+    i32.const 428
     local.get $fn
-    (call $ref_from_index (i32.const 1)(i32.const 428))
+    i32.const 2
     (call $ref_from_index (i32.const 1)(i32.const 312))
     (drop (call $printi64 (i64.const 500)))
-    call $ffix_call
-    drop
+    call $simpleffi_call
+    i32.wrap_i64
+    i32.store $mem0
 
-    (call $ffix_new_c_callback (local.get $cif)(ref.func $cbadd) (ref.null func))
-    local.set $ccb
-    drop
-    (i64.store $mem0 (i32.const 328)(call $i64_from_ref (local.get $ccb)))
-    local.get $cif
-    local.get $fn
-    (call $ref_from_index (i32.const 1)(i32.const 432))
-    (call $ref_from_index (i32.const 1)(i32.const 312))
-    (drop (call $printi64 (i64.const 600)))
-    call $ffix_call
-    drop
+    i32.const 432
+    i32.const 7
+    i32.store $mem0
 
     i32.const 0
     return

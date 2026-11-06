@@ -51,7 +51,7 @@ struct pwart_host_module testaid={.resolve=&do_resolve,.on_attached=NULL,.on_det
 
 
 int syslib_test(char *ffitestdll){
-
+  
   struct pwart_global_compile_config gcfg;
   void *stackbase = pwart_allocate_stack(64 * 1024);
   char *err=NULL;
@@ -72,6 +72,10 @@ int syslib_test(char *ffitestdll){
   pwart_namespace_define_module(ns,&nmod);
 
   f = fopen("syslibtest1.wasm", "rb");
+  if(f==NULL){
+    printf("failed to open syslibtest1.wasm errno %d\n",errno);
+    return 0;
+  }
   len = fread(data, 1, 1024 * 1024 * 8, f);
   fclose(f);
   pwart_namespace_define_wasm_module(ns,"syslibtest1",data,len,&err);
@@ -82,6 +86,7 @@ int syslib_test(char *ffitestdll){
   struct pwart_symbol_resolve_request req;
   req.import_module="syslibtest1";
 
+  
   req.import_field="mem0";
   req.kind=PWART_KIND_MEMORY;
   req.result=NULL;
@@ -92,6 +97,7 @@ int syslib_test(char *ffitestdll){
   }
   struct pwart_wasm_memory *mem0=req.result;
 
+  
   strcpy(mem0->bytes+64,ffitestdll);
   *(int *)(mem0->bytes+428)=0;
   *(int *)(mem0->bytes+432)=0;
@@ -105,23 +111,18 @@ int syslib_test(char *ffitestdll){
     return 0;
   }
   pwart_wasm_function test1=(pwart_wasm_function)req.result;
+  
   pwart_call_wasm_function(test1,stackbase);
+  
   sp=stackbase;
-  if(pwart_libffi_module_ffi_is_enabled()){
-    printf("ffi test result:%d,%d, expect %d,%d...",*(int *)(mem0->bytes+428),*(int *)(mem0->bytes+432),7,7);
-    if(*(int *)(mem0->bytes+428)==7 && *(int *)(mem0->bytes+432)==7){
-      printf("pass\n");
-    }else{
-      return 0;
-    }
+
+  printf("ffi test result:%d,%d, expect %d,%d...",*(int *)(mem0->bytes+428),*(int *)(mem0->bytes+432),7,7);
+  if(*(int *)(mem0->bytes+428)==7 && *(int *)(mem0->bytes+432)==7){
+    printf("pass\n");
   }else{
-    printf("ffi test result(ffi is disabled):%d,%d, expect %d,%d...",*(int *)(mem0->bytes+428),*(int *)(mem0->bytes+432),0,0);
-    if(*(int *)(mem0->bytes+428)==0 && *(int *)(mem0->bytes+432)==0){
-      printf("pass\n");
-    }else{
-      return 0;
-    }
+    return 0;
   }
+  
   return 1;
 }
 
